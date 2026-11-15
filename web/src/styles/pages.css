@@ -145,12 +145,13 @@ body[data-page="arrive"] .controls__gap { display: none; }   /* Pause sits top r
 body[data-page="inside"]:has(.stage[data-view="first"]) .capline { bottom: 6.75rem; }
 .page--text .quiz { width: min(44rem, 100%); } .page--text .quiz__opt { justify-content: flex-start; text-align: left; } .page-title { max-width: 24ch; } .page-lede { margin-inline: auto; }
 
-/* Key card: a compact strip near the top on first entry inside; any key closes it. */
-.keycard { position: fixed; top: var(--sp-5); left: 50%; transform: translateX(-50%); z-index: calc(var(--z-caption) + 1); max-width: calc(100vw - 2 * var(--gutter)); background: var(--c-surface); border: 1px solid var(--c-line, currentColor); border-radius: var(--r-md, 0.75rem); padding: var(--sp-3) var(--sp-4); text-align: center; }
+/* Key card: first entry inside, any key closes it. One quiet column, the key then what it does, no coloured chips. */
+.keycard { position: fixed; top: var(--sp-5); left: 50%; transform: translateX(-50%); z-index: calc(var(--z-caption) + 1); max-width: calc(100vw - 2 * var(--gutter)); background: var(--c-surface); color: var(--c-ink); border-radius: var(--r-primary); padding: var(--sp-3) var(--sp-5); box-shadow: 0 6px 24px rgb(0 0 0 / .18); }
 .keycard[hidden] { display: none; }
-.keycard__row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
-.keycard__key { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 2.5rem; padding: 0 var(--sp-3); font: inherit; font-size: var(--fs-small); background: var(--c-surface-2); border: 1px solid var(--c-line, currentColor); border-radius: 999px; color: inherit; cursor: pointer; }
-.keycard__key kbd { font-weight: var(--fw-medium, 600); }
+.keycard__row { display: flex; flex-direction: column; gap: 0; }
+.keycard__key { display: flex; align-items: center; gap: var(--sp-3); min-height: 2.25rem; padding: 0 var(--sp-2); font: inherit; font-size: var(--fs-small); text-align: left; background: transparent; border: 0; border-radius: var(--r-control); color: inherit; cursor: pointer; }
+.keycard__key:hover, .keycard__key:focus-visible { background: var(--c-surface-2); }
+.keycard__key kbd { font: inherit; font-weight: var(--fw-medium, 600); min-width: 3.5rem; }
 .keycard__hint { margin: var(--sp-2) 0 0; font-size: var(--fs-small); }
 
 /* Calm note when the photo view cannot load (always visible on #/inside, never a blank swap). */
@@ -161,3 +162,12 @@ body[data-page="inside"]:has(.stage[data-view="first"]) .capline { bottom: 6.75r
 .target-line { position: fixed; top: var(--sp-4); left: 50%; transform: translateX(-50%); z-index: var(--z-caption); margin: 0;
   font-size: var(--fs-small); color: var(--c-ink); background: var(--c-surface-2); padding: var(--sp-1) var(--sp-4); border-radius: 999px; white-space: nowrap; }
 .target-line:empty { display: none; }
+
+/* The one key hint: a single low key row at the bottom, --c-ink-2 on --c-surface-2 (4.66:1 light, 5.42:1 dark). Fades
+   after 5 s without a key; any key brings it back at once (no transition on the way in). */
+.controls__gap { display: flex; justify-content: center; align-items: flex-end; min-width: 0; }
+.keypill { margin: 0; font-size: 0.8125rem; line-height: 1; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  color: var(--c-ink-2); background: var(--c-surface-2); padding: 0.5rem 0.875rem; border-radius: 999px; pointer-events: none; transition: none; }
+.keypill.is-idle { opacity: 0; transition: opacity 0.6s ease; }
+body:not([data-page="inside"]) .keypill { display: none; }
+.capline { bottom: 3.75rem; }

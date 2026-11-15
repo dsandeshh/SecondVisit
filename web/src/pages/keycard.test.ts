@@ -19,7 +19,7 @@ it("key card: shows once, any key dismisses it and is swallowed, ? brings it bac
     expect(cardWanted(new URLSearchParams())).toBe(true);
     c.show(true);
     expect(said).toEqual([KEYCARD_LINE]);
-    expect(document.querySelectorAll("#keycard button").length).toBe(7);
+    expect(document.querySelectorAll("#keycard button").length).toBe(9);
     stage.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true }));
     expect(keys).toEqual([]); expect(c.open).toBe(false); expect(cardSeen()).toBe(true);
     expect(cardWanted(new URLSearchParams())).toBe(false); expect(cardWanted(new URLSearchParams("card=1"))).toBe(true);

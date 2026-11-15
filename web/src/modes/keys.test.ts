@@ -33,7 +33,8 @@ function rig() {
 const KEYS: [string, KeyboardEventInit][] = [
   ["ArrowUp", {}], ["ArrowDown", {}], ["ArrowLeft", {}], ["ArrowRight", {}],
   [" ", {}], ["h", {}], ["w", {}], ["b", {}], ["m", {}], ["s", {}], ["S", { shiftKey: true }],
-  ["q", {}], ["Q", { shiftKey: true }], ["e", {}], ["Tab", {}], ["k", {}], ["Enter", {}], ["p", {}],
+  ["q", {}], ["Q", { shiftKey: true }], ["e", {}], ["Tab", {}], ["Tab", { shiftKey: true }], ["k", {}], ["Enter", {}], ["p", {}],
+  ["Escape", {}], ["B", {}],
 ];
 
 describe("keys answer synchronously", () => {
@@ -41,11 +42,35 @@ describe("keys answer synchronously", () => {
     it(`${JSON.stringify(key)} produces a sound, cue or caption`, () => {
       const { stage, out, s } = rig();
       if (key === "Enter") s.ex.fx.picked = null;
-      const n = out.length;
+      const n = out.length, t0 = performance.now();
       stage.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, ...init }));
-      expect(out.length).toBeGreaterThan(n);
+      expect(out.length).toBeGreaterThan(n);              // synchronously, inside the key's own event
+      expect(performance.now() - t0).toBeLessThan(100);
     });
   }
+  it("Enter with a place highlighted says 'Target set', Escape then says 'Target cleared', B says the beacon state", () => {
+    const { stage, out, s } = rig();
+    const key = (k: string, o: KeyboardEventInit = {}) => stage.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, ...o }));
+    key("Tab"); key("Enter");
+    expect(out.filter(x => x.startsWith("say:")).at(-1)).toMatch(/^say:Target set, /);
+    s.ex.fx.setTarget({ id: "elsewhere", kind: "sign", at: [2, 2], name: "Sign", possibly: false, fixed: true });
+    key("Escape"); expect(out.filter(x => x.startsWith("say:")).at(-1)).toMatch(/^say:Target cleared\./);
+    key("b"); expect(out.filter(x => x.startsWith("say:")).at(-1)).toBe("say:Beacon off.");
+    key("b"); expect(out.filter(x => x.startsWith("say:")).at(-1)).toBe("say:Beacon on.");
+  });
+  it("? answers at once: the key card opens and speaks", async () => {
+    const { stage } = rig();
+    const { mountKeyCard, KEYCARD_LINE } = await import("../pages/keycard");
+    document.body.dataset.page = "inside";
+    const said: string[] = [];
+    const c = mountKeyCard(document, stage, t => said.push(t));
+    const t0 = performance.now();
+    stage.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
+    expect(c.open).toBe(true); expect(said).toEqual([KEYCARD_LINE]);
+    expect(performance.now() - t0).toBeLessThan(100);
+    c.hide();
+    delete document.body.dataset.page;
+  });
   it("p twice: paused then resumed, both spoken", () => {
     const { stage, out } = rig();
     stage.dispatchEvent(new KeyboardEvent("keydown", { key: "p", bubbles: true }));

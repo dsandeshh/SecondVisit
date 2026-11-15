@@ -23,6 +23,7 @@ import { FALLBACK_LINE } from "./showcase/load";
 import { loadShowcase, type ShowcaseHandle } from "./pages/showcase_hook";
 import { renderScore, type RunResult } from "./pages/score";
 import { cardWanted, mountKeyCard } from "./pages/keycard";
+import { mountKeyPill } from "./pages/keypill";
 import { OFFLINE, resolveAddress, tierLines, type Resolved } from "./home/home";
 import { lineId } from "./lines";
 import { World } from "./world";
@@ -313,6 +314,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   $("go").addEventListener("click", () => session.enter());
   $("go").hidden = !session.hasRoute;
   const keycard = mountKeyCard(doc, stage, t => speech.say(t, 1), () => speech.stop());
+  mountKeyPill(doc);
   const beginInterior = () => {
     // Each step is guarded: whatever fails, the visitor lands on #/inside with the keys (never back on Home).
     if (full) safely("interior keys", () => { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; });
