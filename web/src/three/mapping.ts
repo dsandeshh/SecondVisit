@@ -67,3 +67,14 @@ export function clearBackdrop(data: Uint8ClampedArray, maxLum = 70): void {
     if (lum < maxLum) data[i + 3] = 0;
   }
 }
+
+/** Calm the photographic floor texture for the 3D view: mostly grey, lifted toward white, so walls and pins read above it. */
+export function calmFloor(data: Uint8ClampedArray, desat = 0.88, lift = 0.5): void {
+  for (let i = 0; i < data.length; i += 4) {
+    const lum = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    for (let k = 0; k < 3; k++) {
+      const c = data[i + k] * (1 - desat) + lum * desat;
+      data[i + k] = 255 - (255 - c) * (1 - lift);
+    }
+  }
+}

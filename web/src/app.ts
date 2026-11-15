@@ -1,6 +1,6 @@
 // Visitor app wiring: Start gate, output mode choice, Explore on laptop and phone (Task 8).
 import { AudioEngine, type StartReport } from "./audio/engine";
-import { Speech, type Output } from "./audio/speech";
+import { Speech } from "./audio/speech";
 import { attachFocusGuard, attachKeys } from "./input/keyboard";
 import { MotionInput } from "./input/orientation";
 import { obs } from "./observer/bus";
@@ -49,23 +49,16 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
     err.textContent = "Error: this building could not be loaded. Check the link, or try the fixture building with ?b=fixture.";
   }
 
+  // Always app voice (CLAUDE.md rule 7): Start is the gesture that creates the AudioContext and goes straight in.
   $("start").addEventListener("click", () => {
-    $("start-slot").hidden = true;
-    $("modes").hidden = false;
-    $("mode-app").focus();
-  });
-
-  const choose = (output: Output) => () => {
     if (audio.ctx || !app.pkg) return;
-    const started = audio.start(output); // synchronous part runs inside this click
-    void started.then(r => enter(app, doc, output, r, op));
-  };
-  $("mode-app").addEventListener("click", choose("app"));
-  $("mode-sr").addEventListener("click", choose("screenreader"));
+    const started = audio.start("app"); // synchronous part runs inside this click
+    void started.then(r => enter(app, doc, r, op));
+  });
   return app;
 }
 
-function enter(app: App, doc: Document, output: Output, r: StartReport, op: boolean): void {
+function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => doc.getElementById(id) as T;
   const { audio, speech } = app;
   const pkg = app.pkg!;
@@ -88,13 +81,12 @@ function enter(app: App, doc: Document, output: Output, r: StartReport, op: bool
   $("topline").hidden = false;
   $("place").textContent = pkg.name;
   $("place-short").textContent = pkg.name;
-  $("voice-label").textContent = output === "app" ? "Voice: app" : "Voice: screen reader";
   $("status").textContent = `Sound: ${r.audio}. Motion: ${r.motion}${audio.mode === "keys" ? ", using keys" : ""}.`;
   speech.onSpeakingChange = (on) => { $("speaking").hidden = !on; };
   if (op) {
     $("op-latency").textContent = `${r.latencyMs} ms${r.latencyMs > 50 ? " (over 50, check headphones are wired)" : ""}`;
     $("op-motion").textContent = `${r.motion}, mode ${audio.mode}`;
-    $("op-output").textContent = output;
+    $("op-output").textContent = "app voice";
     $("op-voice").textContent = speech.voice?.name ?? "default";
   }
 

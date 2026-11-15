@@ -60,3 +60,14 @@ describe("plan to three.js mapping (CLAUDE.md rule 3)", () => {
     expect([px[3], px[7]]).toEqual([0, 255]);
   });
 });
+
+import { calmFloor } from "./mapping";
+describe("calmFloor", () => {
+  it("desaturates and lightens, keeps alpha", () => {
+    const d = new Uint8ClampedArray([200, 100, 50, 255]);
+    calmFloor(d);
+    expect(Math.max(d[0], d[1], d[2]) - Math.min(d[0], d[1], d[2])).toBeLessThan(25);
+    expect(d[1]).toBeGreaterThan(100);
+    expect(d[3]).toBe(255);
+  });
+});

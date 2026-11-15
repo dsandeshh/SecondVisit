@@ -4,7 +4,7 @@ import { STEP_M } from "../config";
 import type { Explore, ExploreHooks } from "../modes/explore";
 import type { Session } from "../modes/session";
 import { Room3D, type ViewMode } from "../three/room3d";
-import { clearBackdrop, type FloorPlanMeta } from "../three/mapping";
+import { calmFloor, clearBackdrop, type FloorPlanMeta } from "../three/mapping";
 import type { BuildingPackage, Landmark, LandmarkKind, Prov, Vec2 } from "../types";
 import { dist } from "../world";
 import { chip, chipKind, describeProv, layerCounts, METER_ORDER, renderLayerMeter, withPossibly } from "./prov";
@@ -19,7 +19,14 @@ function cleaned(img: HTMLImageElement): { canvas: HTMLCanvasElement; url: strin
   const g = c.getContext("2d")!;
   g.drawImage(img, 0, 0, c.width, c.height);
   try { const d = g.getImageData(0, 0, c.width, c.height); clearBackdrop(d.data); g.putImageData(d, 0, 0); } catch { /* keep the raw image */ }
-  return { canvas: c, url: c.toDataURL("image/png") };
+  let url = c.toDataURL("image/png");
+  try { // the 3D floor is the calm version of the same plan (the mini plan keeps the original)
+    const c2 = document.createElement("canvas"); c2.width = c.width; c2.height = c.height;
+    const g2 = c2.getContext("2d")!; g2.drawImage(c, 0, 0);
+    const d = g2.getImageData(0, 0, c2.width, c2.height); calmFloor(d.data); g2.putImageData(d, 0, 0);
+    url = c2.toDataURL("image/png");
+  } catch { /* keep the plain plan */ }
+  return { canvas: c, url };
 }
 
 export async function loadFloorPlan(sid: string, f: typeof fetch = fetch): Promise<FloorPlan> {
@@ -101,7 +108,8 @@ export class Cockpit {
     const where = a ? `${a.lat.toFixed(4)}, ${a.lon.toFixed(4)}` : ga ? `${ga.lat.toFixed(4)}, ${ga.lon.toFixed(4)}` : "";
     const meta = this.$("place-meta");
     meta.replaceChildren();
-    [where && `Location ${where}`, p.map_date && `Map date ${p.map_date}`].filter(Boolean).forEach(t => {
+    const addr = /^.* of [^,]+, (.+?)\.?$/.exec(a?.driver_message ?? "")?.[1]?.replace(/, US$/, "").replace(/, (TX|[A-Z]{2}), (\d{5})/, ", $1 $2");
+    [addr, where && `${where}`, p.map_date && `Map ${p.map_date}`].filter(Boolean).forEach(t => {
       const sp = this.doc.createElement("span"); sp.textContent = t as string; meta.append(sp);
     });
     const host = this.$("tags");
@@ -164,6 +172,8 @@ export class Cockpit {
     const body = this.doc.querySelector("#objects tbody")!;
     body.replaceChildren();
     const destId = this.pkg.routes[0]?.to;
+    const count = this.doc.getElementById("obj-count");
+    if (count) count.textContent = `${this.landmarks.length}`;
     for (const l of this.landmarks) {
       const tr = this.doc.createElement("tr");
       if (l.id === this.sel) tr.className = "is-selected";
@@ -171,10 +181,10 @@ export class Cockpit {
       const name = this.doc.createElement("button");
       name.type = "button"; name.className = "linkbtn";
       name.textContent = withPossibly(l.label, { src: "ai", ref: "", at: "", confidence: l.confidence } as Prov) + (l.id === destId ? " (destination)" : "");
-      name.setAttribute("aria-pressed", String(l.id === this.sel));
+      name.title = l.label; name.setAttribute("aria-pressed", String(l.id === this.sel));
       name.addEventListener("click", () => { this.sel = this.sel === l.id ? null : l.id; this.room?.highlight(this.sel); this.objects(); });
       const sub = this.doc.createElement("span"); sub.className = "objects__sub";
-      sub.textContent = `${l.kind.replace("_", " ")}, ${l.fixed ? "fixed" : "movable"}, confidence ${l.confidence.toFixed(2)}`;
+      sub.textContent = `${l.kind.replace("_", " ")} \u00b7 ${l.fixed ? "fixed" : "movable"} \u00b7 ${l.confidence.toFixed(2)}`;
       th.append(name, sub);
       const src = this.doc.createElement("td");
       const p = this.pkg.prov?.[`landmark:${l.id}`];
@@ -193,6 +203,7 @@ export class Cockpit {
       act.append(ren, del);
       tr.append(th, src, act);
       body.append(tr);
+      if (l.id === this.sel) tr.scrollIntoView?.({ block: "nearest" });
     }
     if (!this.landmarks.length) { const tr = this.doc.createElement("tr"); const td = this.doc.createElement("td"); td.colSpan = 3; td.textContent = "No landmarks in this package."; tr.append(td); body.append(tr); }
   }
@@ -275,7 +286,7 @@ export class Cockpit {
     this.room?.setSegment(seg);
     if (route) {
       if (s.phase === "rehearse" && s.run) {
-        this.set("strip-text", route.segments[seg]?.instruction ?? "");
+        this.set("strip-text", "");
         this.set("strip-seg", `Stretch ${seg + 1} of ${n}`);
         this.set("strip-steps", `About ${stepsToGo(this.pkg, seg, t.pos)} steps to the destination`);
         const total = route.segments.reduce((a, x) => a + x.steps, 0) || 1;

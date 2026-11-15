@@ -602,7 +602,8 @@ user needs. It is hidden on phones (4.3 is unchanged).
 
 ### 4.2b The new experience (14 Nov 23:37 decisions; binding, supersedes 3.3 and the home wireframe in 4.1)
 
-One continuous flow, light Apple minimal, tokens only:
+Build order (human reorder, 14 Nov): first the interior 3D cockpit (items 5, 6, 8 below, plus the layout in 4.2a), reviewed
+by the human; then outdoor, fly in and home (1 to 4), then sound ring and intro (7, 9). One continuous flow, light Apple minimal, tokens only:
 
 1. **Home.** One address box ("Where is your appointment?"), nothing else competing. Submit resolves the
    place (engine resolver; a fixed offline list backs the demo so the clinic name or address always resolves)

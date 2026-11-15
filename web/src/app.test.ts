@@ -42,15 +42,13 @@ describe("index.html", () => {
     expect(document.getElementById("bname")!.textContent).toBe("Fixture lobby");
     vi.unstubAllGlobals();
   });
-  it("Start reveals the two mode choices without making sound", async () => {
+  it("Start goes straight in with app voice, no choice screen", async () => {
     load();
+    expect(document.getElementById("mode-sr")).toBeNull();
+    expect(document.getElementById("mode-app")).toBeNull();
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => fixturePkg() })));
     const app = await boot(document, new URLSearchParams("b=fixture"));
-    (document.getElementById("start") as HTMLButtonElement).click();
     expect(app.audio.ctx).toBeNull();
-    const ids = focusables(document).map(e => e.id);
-    expect(ids).toEqual(["mode-app", "mode-sr"]);
-    expect(document.activeElement?.id).toBe("mode-app");
     vi.unstubAllGlobals();
   });
 });

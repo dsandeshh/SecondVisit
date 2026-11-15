@@ -20,7 +20,7 @@
           <li><span>Summary</span></li>
         </ol>
       </nav>
-      <span id="voice-label" class="topline__voice"></span>
+      
     </header>
     <main id="main">
       <section id="home" class="screen" aria-labelledby="home-h">
@@ -31,16 +31,6 @@
           <button id="start" class="btn btn--primary" type="button">Start</button>
           <p class="note">Nothing plays until you press Start. Wired headphones work best.</p>
         </div>
-        <div id="modes" class="modes" hidden>
-          <button id="mode-app" class="btn btn--secondary mode" type="button">
-            <span class="mode__title">Start with app voice</span>
-            <span class="mode__line">SecondVisit speaks every line. Use headphones.</span>
-          </button>
-          <button id="mode-sr" class="btn btn--secondary mode" type="button">
-            <span class="mode__title">Start with my screen reader</span>
-            <span class="mode__line">Your screen reader reads every line. SecondVisit plays sounds only.</span>
-          </button>
-        </div>
         <p id="load-error" class="error" hidden></p>
       </section>
 
@@ -48,26 +38,20 @@
         <h1 id="place" class="sr-only"></h1>
         <div class="cockpit">
           <div class="cockpit__main">
-            <div class="room3d-bar viz" role="group" aria-label="3D view">
-              <button type="button" class="btn btn--secondary btn--small" data-view="behind" aria-pressed="true">Behind</button>
-              <button type="button" class="btn btn--secondary btn--small" data-view="top" aria-pressed="false">Top</button>
-              <button type="button" class="btn btn--secondary btn--small" data-view="orbit" aria-pressed="false">Orbit</button>
-              <span id="room3d-note" class="note" hidden></span>
-            </div>
             <div id="stage" class="stage" role="application" tabindex="0"
                  aria-label="Rehearsal. Up arrow to walk, left and right to turn, Space to repeat, W for where am I.">
               <div id="room3d" class="room3d viz" aria-hidden="true"></div>
-              <section class="transcript" aria-labelledby="tr-h">
-                <h2 id="tr-h" class="sr-only">What SecondVisit says</h2>
-                <p id="say-polite" class="transcript__now" aria-live="off"></p>
-                <p id="say-assertive" class="sr-only" aria-live="off"></p>
-                <p class="stage__status"><span id="room-label">Room: not named</span> <span id="speaking" hidden>Speaking</span></p>
-              </section>
+              <div class="room3d-bar viz" role="group" aria-label="3D view">
+                <button type="button" class="btn btn--secondary btn--small" data-view="behind" aria-pressed="true">Behind</button>
+                <button type="button" class="btn btn--secondary btn--small" data-view="top" aria-pressed="false">Top</button>
+                <button type="button" class="btn btn--secondary btn--small" data-view="orbit" aria-pressed="false">Orbit</button>
+                <span id="room3d-note" class="note" hidden></span>
+              </div>
             </div>
           </div>
           <aside class="cockpit__side viz" aria-label="Objects and floor plan">
             <section class="objects" aria-labelledby="obj-h">
-              <h2 id="obj-h">Objects</h2>
+              <h2 id="obj-h">Objects <small><span id="obj-count">0</span> in this building</small></h2>
               <div class="objects__scroll" role="region" aria-labelledby="obj-h" tabindex="0">
                 <table id="objects" class="objects__table"><caption class="sr-only">Every landmark in this building</caption>
                   <thead><tr><th scope="col">Object</th><th scope="col">Source</th><th scope="col">Edit</th></tr></thead>
@@ -90,12 +74,20 @@
           </aside>
         </div>
         <section id="strip" class="strip" aria-label="Current instruction">
-          <p id="lede" class="strip__lede">Explore by sound. Walk, turn and listen. Nothing is scored.</p>
-          <p id="strip-text" class="strip__text">Press Start rehearsal when you are ready.</p>
-          <div class="strip__meta">
-            <span id="strip-seg">Stretch: not started</span>
-            <span id="strip-steps"></span>
-            <span class="strip__bar" aria-hidden="true"><span id="strip-fill"></span></span>
+          <section class="transcript" aria-labelledby="tr-h">
+            <h2 id="tr-h" class="sr-only">What SecondVisit says</h2>
+            <p id="say-polite" class="transcript__now" aria-live="off"></p>
+            <p id="say-assertive" class="sr-only" aria-live="off"></p>
+            <p class="stage__status"><span id="room-label">Room: not named</span> <span id="speaking" hidden>Speaking</span></p>
+          </section>
+          <div class="strip__side">
+            <p id="lede" class="strip__lede">Explore by sound. Walk, turn and listen. Nothing is scored.</p>
+            <p id="strip-text" class="strip__text">Press Start rehearsal when you are ready.</p>
+            <div class="strip__meta">
+              <span id="strip-seg">Stretch: not started</span>
+              <span id="strip-steps"></span>
+              <span class="strip__bar" aria-hidden="true"><span id="strip-fill"></span></span>
+            </div>
           </div>
         </section>
         <div class="below">
@@ -115,7 +107,7 @@
                 <ol id="say-history" class="transcript__history" aria-label="Earlier lines"></ol></section>
             </div>
           </details>
-          <details class="panel" open>
+          <details class="panel">
             <summary>Keys</summary>
             <section class="keys" aria-labelledby="keys-h">
               <h2 id="keys-h" class="sr-only">Keys</h2>

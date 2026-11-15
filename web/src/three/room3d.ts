@@ -38,7 +38,8 @@ function hatchTexture(): THREE.CanvasTexture {
   return t;
 }
 
-function labelSprite(text: string, ink: string): THREE.Sprite {
+function labelSprite(text0: string, ink: string): THREE.Sprite {
+  const text = text0.length > 34 ? text0.slice(0, 33).trimEnd() + "\u2026" : text0;
   const c = document.createElement("canvas"); c.width = 512; c.height = 96;
   const g = c.getContext("2d")!;
   g.font = "600 40px system-ui, -apple-system, sans-serif";
@@ -48,7 +49,7 @@ function labelSprite(text: string, ink: string): THREE.Sprite {
   g.fillStyle = ink; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, 256, 46, 470);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
-  s.scale.set(3.2, 0.6, 1); s.renderOrder = 10;
+  s.scale.set(2.6, 0.49, 1); s.renderOrder = 10;
   return s;
 }
 
@@ -67,7 +68,9 @@ export class Room3D {
   private caneDeg = 0;
   private routeMeshes: THREE.Mesh[] = [];
   private seg = 0;
-  private pins = new Map<string, THREE.Group>();
+  private pins = new Map<string, { grp: THREE.Group; full: THREE.Group; dot: THREE.Mesh; pos: Vec2; dest: boolean }>();
+  private selId: string | null = null;
+  private bounds: { cx: number; cz: number; w: number; d: number };
   private hi: THREE.Mesh;
   private taps: { m: THREE.Mesh; t0: number }[] = [];
   private lookAt = new THREE.Vector3();
@@ -93,6 +96,7 @@ export class Room3D {
 
     const g = pkg.grid;
     this.center = new THREE.Vector3(...toThree([g.origin[0] + g.width * g.res / 2, g.origin[1] + g.height * g.res / 2]));
+    this.bounds = this.fit();
     this.lights();
     this.floor(opts.floorPlan ?? null);
     this.walls();
@@ -119,6 +123,18 @@ export class Room3D {
     this.raf = requestAnimationFrame(t => this.frame(t));
   }
 
+  /** Bounding box (three coordinates) of the rooms and the entrance: what the top view must frame. */
+  private fit(): { cx: number; cz: number; w: number; d: number } {
+    const pts: Vec2[] = this.pkg.rooms.flatMap(r => r.polygon);
+    const e = this.pkg.entrances[0]; if (e) pts.push(e.pos);
+    const g = this.pkg.grid;
+    if (!pts.length) pts.push(g.origin, [g.origin[0] + g.width * g.res, g.origin[1] + g.height * g.res]);
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const [cx, , cz] = toThree([(x0 + x1) / 2, (y0 + y1) / 2]);
+    return { cx, cz, w: x1 - x0 + 2, d: y1 - y0 + 2 };
+  }
+
   private lights(): void {
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xd2d2d7, 1.5));
     const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -143,7 +159,7 @@ export class Room3D {
     const p = floorPlanPlacement(fp.meta);
     const tex = new THREE.TextureLoader().load(fp.url);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false }));
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 1, depthWrite: false }));
     m.rotation.x = -Math.PI / 2;
     const [x, , z] = toThree([p.cx, p.cy]);
     m.position.set(x, -0.005, z);
@@ -167,9 +183,9 @@ export class Room3D {
       this.scene.add(m); this.disposables.push(geo, mat);
     };
     const R = (codes: number[]) => wallRects(cells, g.width, g.height, g.res, g.origin, codes);
-    add(boxes(R([1]), WALL_H), new THREE.MeshStandardMaterial({ color: 0xe5e5ea, roughness: 0.95 }));
-    add(boxes(R([2]), 1.0), new THREE.MeshStandardMaterial({ color: 0xaeaeb2, roughness: 0.9 }));
-    add(boxes(R([3]), 0.45), new THREE.MeshStandardMaterial({ color: 0xd2d2d7, roughness: 1 }));
+    add(boxes(R([1]), WALL_H), new THREE.MeshStandardMaterial({ color: 0xc9ccd3, roughness: 0.95 }));
+    add(boxes(R([2]), 1.0), new THREE.MeshStandardMaterial({ color: 0x9a9fa8, roughness: 0.9 }));
+    add(boxes(R([3]), 0.45), new THREE.MeshStandardMaterial({ color: 0xb9bdc5, roughness: 1 }));
     add(boxes(R([4]), WALL_H), new THREE.MeshStandardMaterial({ color: 0x9cc7f2, transparent: true, opacity: 0.28, roughness: 0.1 }), false);
     add(boxes(R([5]), 0.04), new THREE.MeshStandardMaterial({ color: 0x6e6e73 }), false);
     const hatch = hatchTexture();
@@ -193,14 +209,14 @@ export class Room3D {
   }
 
   private landmarks(): void {
-    this.pins.forEach(p => { this.scene.remove(p); });
+    this.pins.forEach(p => { this.scene.remove(p.grp); });
     this.pins.clear();
     const destId = this.pkg.routes[0]?.to;
     for (const l of this.pkg.landmarks) this.addPin(l, l.id === destId);
   }
 
   private addPin(l: Landmark, dest: boolean): void {
-    const grp = new THREE.Group();
+    const grp = new THREE.Group(), full = new THREE.Group();
     const col = dest ? this.ink : "#6E6E73";
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, dest ? 1.9 : 1.5, 8), new THREE.MeshBasicMaterial({ color: col }));
     stem.position.y = dest ? 0.95 : 0.75;
@@ -210,16 +226,33 @@ export class Room3D {
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
     const label = labelSprite((l.confidence < 0.6 ? "possibly " : "") + l.label + (dest ? " (destination)" : ""), this.ink);
     label.position.y = dest ? 2.45 : 2.0;
-    grp.add(stem, head, ring, label);
+    full.add(stem, head, ring, label);
+    // quiet state: one small dot at head height, no stem, no label
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8 }));
+    dot.position.y = 0.9;
+    grp.add(full, dot);
     const [x, , z] = toThree(l.pos);
     grp.position.set(x, 0, z);
     this.scene.add(grp);
-    this.pins.set(l.id, grp);
+    this.pins.set(l.id, { grp, full, dot, pos: l.pos, dest });
+    this.refreshPins();
+  }
+
+  /** Full pin with label only for the destination, the selected object and the nearest one to the walker (within 7 m). */
+  private refreshPins(): void {
+    const near = [...this.pins.entries()]
+      .map(([id, p]) => [id, Math.hypot(p.pos[0] - this.pos[0], p.pos[1] - this.pos[1])] as const)
+      .filter(([, d]) => d < 5).sort((a, b) => a[1] - b[1]).slice(0, 1).map(([id]) => id);
+    this.pins.forEach((p, id) => {
+      const on = p.dest || id === this.selId || near.includes(id);
+      p.full.visible = on; p.dot.visible = !on;
+      p.full.children[3]?.scale.set(this.view === "top" ? 4.4 : 2.1, this.view === "top" ? 0.83 : 0.4, 1);
+    });
   }
 
   /** After an edit in the objects list: redraw pins from the given landmarks. */
   setLandmarks(list: Landmark[]): void {
-    this.pins.forEach(p => this.scene.remove(p));
+    this.pins.forEach(p => this.scene.remove(p.grp));
     this.pins.clear();
     const destId = this.pkg.routes[0]?.to;
     list.forEach(l => this.addPin(l, l.id === destId));
@@ -252,7 +285,9 @@ export class Room3D {
   }
 
   setPose(pos: Vec2, headingDeg: number, caneDeg: number): void {
+    const moved = pos[0] !== this.pos[0] || pos[1] !== this.pos[1];
     this.pos = pos; this.heading = headingDeg; this.caneDeg = caneDeg;
+    if (moved) this.refreshPins();
     const [x, , z] = toThree(pos);
     this.walker.position.set(x, 0, z);
     this.walker.rotation.y = headingToYaw(headingDeg);
@@ -271,20 +306,26 @@ export class Room3D {
 
   highlight(id: string | null): void {
     const p = id ? this.pins.get(id) : null;
+    this.selId = p ? id : null;
     this.hi.visible = !!p;
-    if (p) this.hi.position.set(p.position.x, 0.03, p.position.z);
-    this.pins.forEach((g, k) => g.scale.setScalar(k === id ? 1.35 : 1));
+    if (p) this.hi.position.set(p.grp.position.x, 0.03, p.grp.position.z);
+    this.pins.forEach((q, k) => q.grp.scale.setScalar(k === id ? 1.35 : 1));
+    this.refreshPins();
   }
 
-  setView(v: ViewMode): void { this.view = v; if (this.reduced) this.snapCamera(); }
+  setView(v: ViewMode): void { this.view = v; this.refreshPins(); if (this.reduced) this.snapCamera(); }
 
   private target(): { cam: THREE.Vector3; look: THREE.Vector3 } {
     const [x, , z] = toThree(this.pos);
     const d = headingDir3(this.heading);
     const w = new THREE.Vector3(x, 0, z);
-    if (this.view === "top") return { cam: new THREE.Vector3(x, 22, z + 0.01), look: w };
+    if (this.view === "top") {
+      const b = this.bounds, t = Math.tan(this.camera.fov * Math.PI / 360);
+      const dist = Math.max(b.d / 2 / t, b.w / 2 / (t * Math.max(0.5, this.camera.aspect))) * 1.1;
+      return { cam: new THREE.Vector3(b.cx, dist, b.cz + 0.01), look: new THREE.Vector3(b.cx, 0, b.cz) };
+    }
     if (this.view === "orbit") return { cam: new THREE.Vector3(x + Math.sin(this.orbitA) * 8, 5.5, z + Math.cos(this.orbitA) * 8), look: w.clone().setY(0.8) };
-    return { cam: new THREE.Vector3(x - d[0] * 3.4, 6.2, z - d[2] * 3.4), look: new THREE.Vector3(x + d[0] * 2.2, 0.3, z + d[2] * 2.2) };
+    return { cam: new THREE.Vector3(x - d[0] * 4.2, 6.4, z - d[2] * 4.2), look: new THREE.Vector3(x + d[0] * 3, 0.3, z + d[2] * 3) };
   }
 
   private snapCamera(): void {
