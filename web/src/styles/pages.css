@@ -171,3 +171,31 @@ body[data-page="inside"]:has(.stage[data-view="first"]) .capline { bottom: 6.75r
 .keypill.is-idle { opacity: 0; transition: opacity 0.6s ease; }
 body:not([data-page="inside"]) .keypill { display: none; }
 .capline { bottom: 3.75rem; }
+
+/* ?home=story: the same home form, higher on the page, over a silent line drawing in the bottom 40 % (src/home/story.ts).
+   The drawing sits under the text and every text line keeps a solid paper background, so contrast holds on every frame. */
+.page--home[data-home="story"] { justify-content: flex-start; padding-top: clamp(3rem, 11vh, 7rem); gap: var(--sp-4); }
+.page--home[data-home="story"] > :not(.home-story) { position: relative; z-index: 1; }
+.page--home[data-home="story"] .home-title { font-size: clamp(3.5rem, 6.2vw, 5.75rem); background: var(--c-paper); padding: 0 var(--sp-3); }
+.page--home[data-home="story"] .home-tag,
+.page--home[data-home="story"] .home-tier,
+.page--home[data-home="story"] .error { background: var(--c-paper); padding: 0 var(--sp-3); }
+.page--home[data-home="story"] .home-tag { margin-bottom: var(--sp-4); }
+.home-story { position: absolute; left: 0; right: 0; bottom: 0; height: 40vh; z-index: 0; pointer-events: none; overflow: hidden; contain: strict; }
+.home-story__svg { display: block; width: 100%; height: 100%; }
+.home-story * { pointer-events: none; }
+.home-story svg { fill: none; stroke: var(--c-rule); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; }
+.home-story .st-hair { stroke: var(--c-rule-soft); }
+.home-story .st-faint { stroke: var(--c-rule-soft); stroke-width: 1; }
+.home-story .st-door { stroke: var(--c-ink-2); }
+.home-story .st-canopy { stroke: var(--c-ink-2); fill: var(--c-paper); }
+.home-story .st-wheel { fill: var(--c-paper); }
+.home-story .st-ring { stroke: var(--c-accent); stroke-width: 1.5; }
+.home-story .st-route { stroke: var(--d-route); stroke-width: 3; }
+.home-story .st-ticks { stroke: var(--d-route); stroke-width: 1.5; }
+.home-story .st-body { fill: var(--c-mark); stroke: var(--c-on-mark); stroke-width: 1.25; }
+.home-story .st-leg { stroke: var(--c-on-mark); stroke-width: 2.5; }
+.home-story .st-cane { stroke: var(--c-ink); stroke-width: 1.75; }
+.home-story .st-carbody { fill: var(--c-paper); }
+.home-story svg * { vector-effect: non-scaling-stroke; }   /* thin lines stay thin as the view carries through the door */
+.home-story .st-route { vector-effect: none; }   /* its draw-on dashes are in path units */
