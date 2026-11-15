@@ -61,3 +61,12 @@ def test_clinic_route_entrance_to_desk(tmp_path):
         assert not any(poly.contains(Point(p)) for poly in ns)
     assert (web / "x37LjPx62VA" / "floorplan.json").exists()
     assert (web / "x37LjPx62VA" / "floorplan.jpg").exists()
+
+
+def test_sim_fixture_cli_labels_simulated(tmp_path):
+    out = tmp_path / "p.json"
+    assert cli.main(["build", "--source", "fixture", "--out", str(out), "--sim", "20"]) == 0
+    import json
+    d = json.loads(out.read_text())
+    assert d["sim"][d["routes"][0]["id"]]["runs"] == 20
+    assert any("simulated" in n for n in d["notes"])

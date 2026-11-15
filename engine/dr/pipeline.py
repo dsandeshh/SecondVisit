@@ -128,6 +128,7 @@ def run_sim(pkg: BuildingPackage, n: int) -> None:
     except ImportError as e:
         raise SystemExit("--sim needs dr.simulate (Task 11), which is not on this branch yet") from e
     pkg.sim = simulate.simulate_package(pkg, n)  # Task 11 interface
+    pkg.notes.append(f"simulated traveller: {n} runs per route; arrival rates are simulated, not measured")
 
 
 def copy_floorplan(sid: str, web_root: Path | None = None, data_root: Path = DATA) -> list[str]:
