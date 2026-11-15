@@ -9,6 +9,7 @@ import { Session, type Phase } from "./modes/session";
 import type { QuizSession } from "./modes/quiz";
 import { floorPlanAvailable, renderSummary } from "./modes/summary";
 import type { BuildingPackage } from "./types";
+import { renderLayerMeter } from "./ui/prov";
 import { World } from "./world";
 
 export type App = { audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
@@ -86,6 +87,7 @@ function enter(app: App, doc: Document, output: Output, r: StartReport, op: bool
   $("topline").hidden = false;
   $("place").textContent = pkg.name;
   $("place-short").textContent = pkg.name;
+  renderLayerMeter($("layer-meter"), pkg);
   $("voice-label").textContent = output === "app" ? "Voice: app" : "Voice: screen reader";
   $("status").textContent = `Sound: ${r.audio}. Motion: ${r.motion}${audio.mode === "keys" ? ", using keys" : ""}.`;
   speech.onSpeakingChange = (on) => { $("speaking").hidden = !on; };

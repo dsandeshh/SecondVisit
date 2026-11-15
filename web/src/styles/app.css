@@ -97,3 +97,25 @@ body.is-phone .topline { position: fixed; top: 0; left: 0; right: 0; height: 48p
 .summary__driver { border: var(--bw-control) solid var(--c-ink); padding: var(--sp-4); margin: var(--sp-5) 0; }
 .summary__img { max-width: 100%; height: auto; }
 body.is-phone .actions, body.is-phone .quiz, body.is-phone .summary, body.is-phone .coach { position: relative; z-index: var(--z-caption); }
+
+/* Provenance chips and layer meter (UI_DESIGN 3.5): text carries the meaning, not colour. */
+.chip { display: inline-flex; align-items: center; min-height: 1.75rem; padding: 0 var(--sp-2); font: inherit;
+  font-size: var(--fs-small); font-weight: var(--fw-bold); background: none; color: var(--c-ink); cursor: pointer;
+  border: var(--bw-control) solid var(--c-ink); border-radius: var(--r-chip); }
+.chip--ai { border-style: dotted; }
+.chip--hand { background: var(--c-mark); color: var(--c-on-mark); }
+.chip--possibly { color: var(--c-caution); }
+.chip__details { font-size: var(--fs-small); color: var(--c-ink-2); margin: var(--sp-1) 0 var(--sp-2); }
+.chip__details dl { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-1) var(--sp-3); margin: 0; }
+.chip__details dd { margin: 0; overflow-wrap: anywhere; }
+.layer-meter { margin: 0; }
+.layer-meter figcaption { font-weight: var(--fw-bold); }
+.layer-meter dl { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin: var(--sp-2) 0; }
+.layer-meter dl > div { display: flex; gap: var(--sp-2); align-items: baseline; }
+.layer-meter dt { font-weight: var(--fw-bold); }
+.layer-meter dd { margin: 0; font-variant-numeric: tabular-nums; }
+.layer-meter dl > .is-hand { background: var(--c-mark); color: var(--c-on-mark); padding: 0 var(--sp-2); border: var(--bw-control) solid var(--c-ink); }
+.layer-meter__bar { display: flex; gap: 2px; height: 0.5rem; }
+.layer-meter__seg { background: var(--c-ink); min-width: 4px; }
+.layer-meter__seg.is-hand { background: var(--c-mark); outline: 1px solid var(--c-ink); }
+.layer-meter p { font-size: var(--fs-small); color: var(--c-ink-2); margin: var(--sp-2) 0 0; }

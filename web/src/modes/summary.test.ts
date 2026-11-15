@@ -31,4 +31,13 @@ describe("pocket summary", () => {
     expect(document.getElementById("c")!.textContent).toContain("does not replace your cane");
     expect(document.querySelector("#c button")?.textContent).toBe("Copy driver message");
   });
+  it("puts a source chip next to each instruction that has prov, and the layer meter", () => {
+    document.body.innerHTML = `<div id="c"></div>`;
+    const pkg = fixturePkg();
+    const seg = pkg.routes[0].segments[0];
+    pkg.prov = { [`segment:${seg.id}.steps`]: { src: "calc", ref: "plan", at: "2026-11-14T21:42:00+00:00", inputs: [] } };
+    renderSummary(document.getElementById("c")!, pkg, pkg.routes[0], { floorPlan: false });
+    expect(document.querySelector("#c ol > li .chip")!.textContent).toBe("CALC");
+    expect(document.querySelector("#c .layer-meter")).not.toBeNull();
+  });
 });

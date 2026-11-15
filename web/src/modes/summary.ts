@@ -1,6 +1,7 @@
 // Pocket summary: numbered instructions, read aloud one per Space, driver message with Copy (Task 9).
 import type { BuildingPackage, Route } from "../types";
 import type { Priority } from "../audio/speech";
+import { chip, renderLayerMeter, segmentProv } from "../ui/prov";
 
 export const summaryLines = (route: Route): string[] => route.segments.map(s => s.instruction);
 
@@ -41,8 +42,16 @@ export function renderSummary(host: HTMLElement, pkg: BuildingPackage, route: Ro
   host.replaceChildren();
   host.append(el(d, "h2", "Pocket summary"));
   const ol = el(d, "ol", "", "summary__list");
-  summaryLines(route).forEach(t => ol.append(el(d, "li", t)));
+  route.segments.forEach(seg => {
+    const li = el(d, "li", seg.instruction);
+    const sp = segmentProv(pkg, seg);
+    if (sp) { const c = chip(d, sp.key, sp.prov, pkg.prov); li.append(" ", c.button, c.details); }
+    ol.append(li);
+  });
   host.append(ol);
+  const meter = el(d, "div", "", "summary__meter");
+  renderLayerMeter(meter, pkg);
+  host.append(meter);
   const a = pkg.arrival;
   if (a?.driver_message) {
     const box = el(d, "section", "", "summary__driver");

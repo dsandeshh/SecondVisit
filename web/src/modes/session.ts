@@ -1,5 +1,6 @@
 // Session: Explore -> Rehearse -> point -> quiz -> pocket summary -> run 2 (Tasks 9 and 10 web).
 // One KeyActions for the stage; phases decide what each key means.
+import { sourceLine } from "../ui/prov";
 import type { Priority, Speech } from "../audio/speech";
 import { pulse, PULSE } from "../audio/haptics";
 import type { KeyActions } from "../input/keyboard";
@@ -258,7 +259,11 @@ export class Session implements KeyActions {
     if (this.phase === "explore" || this.phase === "rehearse") this.ex.hint();
   }
   mono(): void { this.ex.mono(); }
-  swap(): void { this.ex.swap(); }
+  /** S: source of the current instruction while rehearsing (Task 19), else swap left and right (ear check). */
+  swap(): void {
+    if (this.phase === "rehearse" && this.run) this.say(sourceLine(this.pkg, this.route!, this.run.current), 2);
+    else this.ex.swap();
+  }
   rate(d: number): void { this.ex.rate(d); }
   any(): void { this.ex.any(); }
 }
