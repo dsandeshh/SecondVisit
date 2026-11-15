@@ -1,23 +1,16 @@
 /*
  * SecondVisit design tokens (web_tokens.css)
- * Direction: wayfinding signage meets clinical record.
+ * Direction: Apple minimal, system font. White, one blue accent, big bold titles, space.
  * Spec and reasons: docs/UI_DESIGN.md. Copy this file to web/src/styles/tokens.css
  * and import it first from every entry (main.ts, observer.ts, venue.ts, pick.ts).
  *
- * Font loading (pick ONE, A is the default because the demo must not depend on venue wifi):
- *   A. Self hosted, offline safe (Fontsource packages the Google Fonts files, OFL 1.1):
- *        npm i @fontsource-variable/atkinson-hyperlegible-next @fontsource-variable/atkinson-hyperlegible-mono
- *        // first lines of every entry .ts file:
- *        import "@fontsource-variable/atkinson-hyperlegible-next/wght.css"; // upright only, 200..800
- *        import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css"; // trace panel and operator panel only
- *        import "./styles/tokens.css";
- *   B. Google Fonts CDN, in the <head> of each html file:
- *        <link rel="preconnect" href="https://fonts.googleapis.com">
- *        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- *        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400..600&family=Atkinson+Hyperlegible+Next:wght@200..800&display=swap">
+ * No web fonts: the system font stack is native, needs no download and works offline.
+ * (SF Pro's licence forbids embedding it on websites, so we never ship or self host it.)
  *
  * Contrast values in comments are WCAG 2 ratios computed for these exact hex values.
- * Every text pair is 7:1 or better (AAA) unless the comment says otherwise.
+ * Text pairs are 4.5:1 or better (AA). Non text pairs (borders, focus ring) are 3:1 or better.
+ * Palette: ink, one blue accent, and white or grey fills. Yellow (--c-mark) is only the traveller,
+ * "you are here" and the HAND chip fill.
  */
 
 @layer tokens, base;
@@ -27,16 +20,14 @@
     color-scheme: light;
 
     /* ---------- Type families ---------- */
-    --font-sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next",
-      "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    --font-mono: "Atkinson Hyperlegible Mono Variable", "Atkinson Hyperlegible Mono",
-      ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;   /* trace panel tool calls only */
 
-    /* ---------- Weights (variable axis 200..800) ---------- */
-    --fw-body: 430;       /* a touch heavier than 400 for low vision, still reads as regular */
-    --fw-medium: 560;
-    --fw-bold: 720;
-    --fw-heavy: 800;      /* sign panel line and the Step label only */
+    /* ---------- Weights (static system font weights) ---------- */
+    --fw-body: 400;
+    --fw-medium: 500;
+    --fw-bold: 600;
+    --fw-heavy: 700;      /* screen titles and the Step label */
 
     /* ---------- Type scale: app screens (phone to laptop) ----------
        Fluid only between 360 and 720 CSS px, fixed at the max above 720.
@@ -48,7 +39,7 @@
     --fs-h3: 1.5rem;                                                  /* 24px */
     --fs-h2: clamp(1.625rem, 1.125rem + 2.222vw, 2.125rem);           /* 26 to 34px */
     --fs-h1: clamp(2rem, 1rem + 4.444vw, 3rem);                       /* 32 to 48px */
-    --fs-display: clamp(2.25rem, 0.5rem + 7.778vw, 4rem);             /* 36 to 64px, sign panel line */
+    --fs-display: clamp(2.25rem, 0.5rem + 7.778vw, 4rem);             /* 36 to 64px, large display line */
     --fs-step: clamp(3rem, 1rem + 8.889vw, 5rem);                     /* 48 to 80px, phone Step label */
     --fs-caption: clamp(1.5rem, 0.75rem + 3.333vw, 2.25rem);          /* 24 to 36px, current spoken line */
 
@@ -66,7 +57,7 @@
     --lh-display: 1.05;
     --measure: 46ch;      /* APH large print guidance is 39 to 43 characters; 46ch at 22px is close */
     --measure-wide: 64ch;
-    --tracking-body: 0.005em;
+    --tracking-body: 0;
     --tracking-display: -0.01em;
 
     /* ---------- Space (4px base) ---------- */
@@ -88,7 +79,8 @@
     --target-gap: 0.5rem;      /* 8px minimum between targets (Android guidance 8dp) */
 
     /* ---------- Shape ---------- */
-    --r-none: 0;
+    --r-none: 0;             /* panels are square */
+    --r-primary: 14px;       /* primary buttons only */
     --r-chip: 2px;
     --r-control: 6px;
     --r-dot: 50%;
@@ -96,28 +88,26 @@
     --bw-control: 2px;
     --bw-strong: 3px;
 
-    /* ---------- Colour: light theme "paper" (default, laptop and projector) ---------- */
-    --c-paper: #F7F8F6;        /* page; cool off white, less glare than #FFF, not cream */
+    /* ---------- Colour: light theme (default, laptop and projector) ---------- */
+    --c-paper: #FFFFFF;        /* page */
     --c-surface: #FFFFFF;      /* inputs, tables, plan canvas */
-    --c-surface-2: #E9EDF0;    /* selected row, pressed secondary button */
-    --c-ink: #0F1C2A;          /* text 16.2:1 on paper, 17.2:1 on surface */
-    --c-ink-2: #434E5A;        /* secondary text 8.0:1 on paper, 7.2:1 on surface-2 */
-    --c-rule: #7C8792;         /* control borders, essential lines 3.4:1 on paper (non text, 1.4.11) */
-    --c-rule-soft: #C9D0D6;    /* decorative hairlines only, never the only boundary of a control */
-    --c-sign: #0B4F8A;         /* sign panel and primary action; white on it 8.4:1 */
-    --c-sign-strong: #083A66;  /* pressed primary; white on it 11.6:1 */
-    --c-on-sign: #FFFFFF;
-    --c-mark: #FFC629;         /* detectable warning yellow: "a person / you are here / focus". Never text on paper (1.5:1) */
-    --c-on-mark: #0F1C2A;      /* ink on mark 11.0:1 */
-    --c-good: #1B6B3A;         /* 6.1:1 on paper; always with a check shape and the word */
-    --c-bad: #B3261E;          /* 6.1:1 on paper; always with a cross shape and the word */
-    --c-caution: #8C5300;      /* 5.9:1 on paper; "possibly", low confidence notes, bold only */
-    --c-hatch: rgb(15 28 42 / 0.14);   /* simulated hatch lines */
-    --c-scrim: rgb(15 28 42 / 0.6);
+    --c-surface-2: #F5F5F7;    /* selected row, pressed secondary, quiet fill */
+    --c-ink: #1D1D1F;          /* text 16.83:1 on white, 15.46:1 on surface-2 */
+    --c-ink-2: #6E6E73;        /* secondary text 5.07:1 on white, 4.66:1 on surface-2 (AA) */
+    --c-accent: #0066CC;       /* actions, links, focus ring: 5.57:1 on white, 5.11:1 on surface-2 */
+    --c-accent-strong: #004C99;/* pressed and hover: white on it 8.42:1 */
+    --c-on-accent: #FFFFFF;    /* on accent 5.57:1 */
+    --c-rule: #86868B;         /* control borders 3.62:1 on white, 3.33:1 on surface-2 (non text, 1.4.11) */
+    --c-rule-soft: #D2D2D7;    /* decorative hairlines only (1.51:1), never the only boundary of a control */
+    --c-mark: #FFC629;         /* ONLY traveller, "you are here", HAND chip fill. Never text (1.5:1), never focus */
+    --c-on-mark: #0F1C2A;      /* on mark 10.95:1 */
+    --c-good: #1B6B3A;         /* 6.54:1 on white, 6.01:1 on surface-2; always with the word */
+    --c-bad: #B3261E;          /* 6.54:1 on white, 6.00:1 on surface-2; always with the word */
+    --c-caution: #8C5300;      /* 6.26:1 on white, 5.75:1 on surface-2; "possibly", low confidence notes */
+    --c-hatch: rgb(29 29 31 / 0.14);   /* simulated hatch lines */
+    --c-scrim: rgb(29 29 31 / 0.6);
 
-    /* Focus: two rings so it shows on paper AND on sign blue / navy. Inner yellow, outer ink. */
-    --focus-inner: #FFC629;
-    --focus-outer: #0F1C2A;
+    /* Focus: one ring, accent vs white 5.57:1 (needs 3:1). Colour is the ring; width and offset keep it visible. */
     --focus-width: 3px;
 
     /* ---------- Data colours (canvas and charts), validated with the dataviz validator ----------
@@ -142,32 +132,30 @@
     --heat-4: #642A06;
     --heat-alpha: 0.85;
 
-    /* ---------- Visitor screens: the Apple clean layer (docs/UI_DESIGN.md 1.4) ----------
-       No transparency or blur on visitor screens. The feel comes from bigger, heavier titles and space. */
+    /* ---------- Visitor screens: the Apple minimal layer (docs/UI_DESIGN.md 1.4) ----------
+       No transparency or blur on visitor screens. The feel comes from one big bold title, one line under it, and space. */
     --fs-title-visitor: clamp(2.5rem, 1.5rem + 4.444vw, 3.5rem);    /* 40 to 56px, screen titles */
-    --fw-title-visitor: 800;
+    --fw-title-visitor: 700;
     --lh-title-visitor: 1.05;
-    --tracking-title-visitor: -0.015em;
+    --tracking-title-visitor: -0.02em;
     --sp-section: clamp(3rem, 1rem + 8.889vw, 5rem);                 /* 48 to 80px between blocks */
 
     /* ---------- Glass: judge screens only (observer.html, venue.html), top bar and agent trace panel ----------
-       Default is SOLID. The @supports block below turns glass on; reduced transparency, more contrast and
-       forced colours turn it off again. Tint alpha 0.94 keeps every text pair at 7:1 or better over ANY
-       backdrop (worst case: white under the blue bar, black under the white panel):
-         light bar   white on rgb(11 79 138 / 0.94)    7.24:1 over white
-         light panel ink-2 on rgb(255 255 255 / 0.94)  7.42:1 over black
-         dark bar    on-sign on rgb(232 237 241 / 0.94) 12.43:1 over black
-         dark panel  ink-2 on rgb(16 42 68 / 0.94)      7.83:1 over white
-       Do not lower the alpha: 0.92 already drops the light bar to 6.9:1. */
-    --glass-alpha: 0.94;
+       LIGHT frosted white. Default is SOLID; the @supports block below turns glass on; reduced transparency,
+       more contrast and forced colours turn it off again. Text is ink and ink-2 (no blue bar).
+       Tint alpha must keep both text tokens at 4.5:1 or better over ANY backdrop (worst case: black under
+       the white tint, white under the dark tint). Smallest alpha that passes, plus 0.01 margin:
+         light  ink-2 #6E6E73 on white tint over black: 4.5:1 at alpha 0.947 -> 0.96 (4.64:1; ink 15.41:1)
+         dark   ink-2 #A1A1A6 on #1C1C1E tint over white: 4.5:1 at alpha 0.874 -> 0.89 (4.76:1; ink 11.25:1)
+       Do not lower these alphas. */
     --glass-blur: 16px;
-    --glass-bar-solid: var(--c-sign);
-    --glass-bar-tint: rgb(11 79 138 / 0.94);
-    --glass-bar-text: var(--c-on-sign);
+    --glass-bar-solid: var(--c-surface);
+    --glass-bar-tint: rgb(255 255 255 / 0.96);
+    --glass-bar-text: var(--c-ink);
     --glass-panel-solid: var(--c-surface);
-    --glass-panel-tint: rgb(255 255 255 / 0.94);
+    --glass-panel-tint: rgb(255 255 255 / 0.96);
     --glass-panel-text: var(--c-ink);
-    --glass-border: var(--c-rule-soft);   /* 1px hairline under the bar, above the panel edge */
+    --glass-border: var(--c-rule-soft);   /* 1px hairline under the bar, around the panel */
     --glass-filter: none;                 /* fallback: no blur */
     --glass-bar-bg: var(--glass-bar-solid);
     --glass-panel-bg: var(--glass-panel-solid);
@@ -192,30 +180,28 @@
     --z-skip: 100;
   }
 
-  /* ---------- Dark theme "panel": the sign reversed. For light sensitive users and the phone. ----------
+  /* ---------- Dark theme: black page, #1C1C1E surfaces. For light sensitive users and the phone. ----------
      Applied by system preference unless the page pins data-theme="light" (the observer does). */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --c-paper: #0A1F33;
-      --c-surface: #102A44;
-      --c-surface-2: #18385A;
-      --c-ink: #FFFFFF;          /* 16.7:1 on paper, 14.6:1 on surface, 12.0:1 on surface-2 */
-      --c-ink-2: #C5D0DA;        /* 10.7:1 on paper, 9.3:1 on surface */
-      --c-rule: #7D8B98;         /* 4.8:1 on paper */
-      --c-rule-soft: #2C4A68;
-      --c-sign: #E8EDF1;         /* primary action is a light plate on dark */
-      --c-sign-strong: #FFFFFF;
-      --c-on-sign: #0A1F33;      /* 14.2:1 */
-      --c-mark: #FFC629;         /* 10.6:1 on paper */
+      --c-paper: #000000;
+      --c-surface: #1C1C1E;
+      --c-surface-2: #2C2C2E;
+      --c-ink: #F5F5F7;          /* 19.29:1 on paper, 15.63:1 on surface, 12.80:1 on surface-2 */
+      --c-ink-2: #A1A1A6;        /* 8.16:1 on paper, 6.61:1 on surface, 5.42:1 on surface-2 */
+      --c-accent: #2997FF;       /* 6.96:1 on paper, 5.64:1 on surface, 4.62:1 on surface-2 */
+      --c-accent-strong: #5AB0FF;/* pressed and hover, lighter on dark; on-accent on it 9.09:1 */
+      --c-on-accent: #000000;    /* on accent 6.96:1 (white on #2997FF fails) */
+      --c-rule: #8E8E93;         /* 6.44:1 on paper, 5.22:1 on surface, 4.27:1 on surface-2 (non text 3:1) */
+      --c-rule-soft: #38383A;    /* decorative only (1.45:1 on surface) */
+      --c-mark: #FFC629;
       --c-on-mark: #0F1C2A;
-      --c-good: #6FCF97;         /* 8.8:1 */
-      --c-bad: #FF9E94;          /* 8.4:1 */
-      --c-caution: #F2B866;      /* 9.4:1 */
+      --c-good: #6FCF97;         /* 11.05:1 on paper, 8.95:1 on surface */
+      --c-bad: #FF9E94;          /* 10.57:1 on paper, 8.56:1 on surface */
+      --c-caution: #F2B866;      /* 11.82:1 on paper, 9.58:1 on surface */
       --c-hatch: rgb(255 255 255 / 0.16);
-      --focus-inner: #0A1F33;
-      --focus-outer: #FFC629;
-      /* dark categorical, surface #0A1F33, all pairs pass */
+      /* dark categorical values unchanged (validated on #0A1F33); on #1C1C1E they are 5.2:1 or better, all above 3:1 */
       --d-route: #5A8FE0;
       --d-glass: #12A08A;
       --d-obstacle: #D8701F;
@@ -225,30 +211,28 @@
       --d-traveller-ring: #0A1F33;
       --d-cane-free: rgb(255 255 255 / 0.75);
       --d-route-casing: #0A1F33;
-      --glass-bar-tint: rgb(232 237 241 / 0.94);   /* dark sign is a light plate */
-      --glass-panel-tint: rgb(16 42 68 / 0.94);
+      --glass-bar-tint: rgb(28 28 30 / 0.89);   /* #1C1C1E */
+      --glass-panel-tint: rgb(28 28 30 / 0.89);
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --c-paper: #0A1F33;
-    --c-surface: #102A44;
-    --c-surface-2: #18385A;
-    --c-ink: #FFFFFF;
-    --c-ink-2: #C5D0DA;
-    --c-rule: #7D8B98;
-    --c-rule-soft: #2C4A68;
-    --c-sign: #E8EDF1;
-    --c-sign-strong: #FFFFFF;
-    --c-on-sign: #0A1F33;
+    --c-paper: #000000;
+    --c-surface: #1C1C1E;
+    --c-surface-2: #2C2C2E;
+    --c-ink: #F5F5F7;          /* 19.29:1 on paper, 15.63:1 on surface, 12.80:1 on surface-2 */
+    --c-ink-2: #A1A1A6;        /* 8.16:1 on paper, 6.61:1 on surface, 5.42:1 on surface-2 */
+    --c-accent: #2997FF;       /* 6.96:1 on paper, 5.64:1 on surface, 4.62:1 on surface-2 */
+    --c-accent-strong: #5AB0FF;/* pressed and hover, lighter on dark; on-accent on it 9.09:1 */
+    --c-on-accent: #000000;    /* on accent 6.96:1 (white on #2997FF fails) */
+    --c-rule: #8E8E93;         /* 6.44:1 on paper, 5.22:1 on surface, 4.27:1 on surface-2 (non text 3:1) */
+    --c-rule-soft: #38383A;    /* decorative only (1.45:1 on surface) */
     --c-mark: #FFC629;
     --c-on-mark: #0F1C2A;
-    --c-good: #6FCF97;
-    --c-bad: #FF9E94;
-    --c-caution: #F2B866;
+    --c-good: #6FCF97;         /* 11.05:1 on paper, 8.95:1 on surface */
+    --c-bad: #FF9E94;          /* 10.57:1 on paper, 8.56:1 on surface */
+    --c-caution: #F2B866;      /* 11.82:1 on paper, 9.58:1 on surface */
     --c-hatch: rgb(255 255 255 / 0.16);
-    --focus-inner: #0A1F33;
-    --focus-outer: #FFC629;
     --d-route: #5A8FE0;
     --d-glass: #12A08A;
     --d-obstacle: #D8701F;
@@ -258,8 +242,8 @@
     --d-traveller-ring: #0A1F33;
     --d-cane-free: rgb(255 255 255 / 0.75);
     --d-route-casing: #0A1F33;
-    --glass-bar-tint: rgb(232 237 241 / 0.94);
-    --glass-panel-tint: rgb(16 42 68 / 0.94);
+    --glass-bar-tint: rgb(28 28 30 / 0.89);
+    --glass-panel-tint: rgb(28 28 30 / 0.89);
   }
 
   /* ---------- Glass on: only where the browser can blur ---------- */
@@ -287,7 +271,7 @@
       --c-rule: var(--c-ink);
       --c-rule-soft: var(--c-rule);
       --bw-control: 3px;
-      --fw-body: 480;
+      --fw-body: 500;
       --focus-width: 4px;
       --d-plan-image-opacity: 0.2;
       --glass-filter: none;              /* glass off: solid fills only */
@@ -316,7 +300,7 @@
     font-weight: var(--fw-body);
     line-height: var(--lh-body);
     letter-spacing: var(--tracking-body);
-    font-variant-numeric: tabular-nums;   /* Atkinson Hyperlegible Next has tnum: numbers line up everywhere */
+    font-variant-numeric: tabular-nums;   /* system fonts have tabular figures: numbers line up everywhere */
     color: var(--c-ink);
     background: var(--c-paper);
     -webkit-text-size-adjust: 100%;
@@ -324,7 +308,7 @@
   }
   body { margin: 0; font-size: var(--fs-body); }
 
-  h1, h2, h3 { line-height: var(--lh-tight); font-weight: var(--fw-bold); margin: 0 0 var(--sp-4); }
+  h1, h2, h3 { line-height: var(--lh-tight); font-weight: var(--fw-heavy); margin: 0 0 var(--sp-4); }
   h1 { font-size: var(--fs-h1); }
   h2 { font-size: var(--fs-h2); }
   h3 { font-size: var(--fs-h3); }
@@ -332,15 +316,14 @@
   em, i { font-style: normal; font-weight: var(--fw-bold); }   /* no italics (APH): emphasis is weight */
   a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
 
-  /* One focus style for everything. Two rings: visible on paper, on sign blue and on navy. */
+  /* One focus style for everything: a single accent ring. */
   :focus { outline: none; }
   :focus-visible {
-    outline: var(--focus-width) solid var(--focus-outer);
-    outline-offset: var(--focus-width);
-    box-shadow: 0 0 0 var(--focus-width) var(--focus-inner);
+    outline: var(--focus-width) solid var(--c-accent);
+    outline-offset: 2px;
   }
   /* The rehearsal stage keeps a focus ring too: a blind user's sighted helper needs to see it. */
-  [role="application"]:focus-visible { outline-offset: calc(-1 * var(--focus-width) * 2); }
+  [role="application"]:focus-visible { outline-offset: calc(-1 * var(--focus-width) - 2px); }
 
   /* Glass: judge screens only. Use exactly these two classes; never add backdrop-filter elsewhere. */
   .glass-bar, .glass-panel {

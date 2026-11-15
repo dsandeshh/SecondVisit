@@ -1,27 +1,25 @@
-# SecondVisit: UI design (v1, Saturday 21:30)
+# SecondVisit: UI design (v2, apple minimal, system font)
 
 Owner of the look: whoever builds `web/`. Tokens live in `web_tokens.css` at the kit root; copy it to
 `web/src/styles/tokens.css` and import it first in every entry file. Everything here is plain CSS,
-plain DOM and canvas 2D. The only new dependency is the font.
+plain DOM and canvas 2D. There are no dependencies for the look: no web fonts, no icon set.
 
 Read with: `CLAUDE.md` rules 6 to 8, `docs/DESIGN.md` section 5, `docs/plan.md` Tasks 8, 9, 10, 12, 17,
 19, 20, and section 4 of `review/agent3_experience.md`.
 
 ---
 
-## 1. Direction: wayfinding signage meets clinical record
+## 1. Direction: Apple minimal, system font
 
-SecondVisit should look like the two things it sits between: the directory sign in a hospital lobby
-and the printed sheet a clinic hands you. Signage gives us the voice: big, plain, sentence case type
-in a typeface made for low vision readers, navy sign panels with white letters, and one colour that
-means "a person": the yellow of a detectable warning strip on a kerb. The clinical record gives us the
-discipline: numbers that line up, every fact with its source written next to it, tables instead of
-dashboards, and nothing on the screen that a blind user cannot get some other way. The real Matterport
-floor plan is the only picture. There is no illustration, no hero image, no icon set.
+SecondVisit should feel like a well made system app: white, one blue, the device's own typeface, a big
+bold title and one line under it, and a lot of space. A blind or low vision visitor gets a screen that
+says one thing and offers one action. Nothing is decoration. We keep the clinical record's discipline:
+numbers that line up, every fact with its source written next to it, tables instead of dashboards, and
+nothing on screen that a blind user cannot get some other way. The real Matterport floor plan is the
+only picture. There are no cards, no shadows, no icons, no gradients, no emoji and no illustration.
 
-**The one bold thing:** the sign panel. Each screen opens with a square cornered navy band carrying the
-place name in heavy white type, like the directory sign you would read on arrival. Everything under it
-is quiet paper and ink.
+**The one bold thing:** the title. Every screen opens with one big, bold title (`--fs-title-visitor`,
+weight 700) and one line under it in `--c-ink-2`. Everything else is quiet white and ink.
 
 **The one system idea: line style says how sure we are.** Borrowed from architectural drawings, where
 existing work is solid and proposed work is dashed:
@@ -37,98 +35,92 @@ existing work is solid and proposed work is dashed:
 
 Judges who ask "is that real?" can answer it by looking.
 
-**Yellow means a person.** `--c-mark` (#FFC629) is the traveller dot, the keyboard focus ring, the
-`HAND` chip and the tactile strip fix. It is never text on paper (1.5:1) and never decoration.
+**One accent, and yellow means a person.** The only hue in the interface chrome is `--c-accent`
+(actions, links, the focus ring). `--c-mark` (#FFC629) is used for exactly three things: the traveller,
+"you are here", and the `HAND` chip fill. It is never text on white (1.5:1), never focus, never
+decoration.
 
-### 1.1 Palette (light "paper" theme; dark "panel" theme is the sign reversed)
+### 1.1 Palette (light default; dark follows the system setting)
 
-| Name | Hex | Job | Contrast |
-|---|---|---|---|
-| Paper | #F7F8F6 | page; cool off white (less glare than #FFF; not cream) | |
-| Ink | #0F1C2A | text, walls | 16.2:1 on paper |
-| Ink 2 | #434E5A | secondary text | 8.0:1 (AAA) |
-| Sign blue | #0B4F8A | sign panel, primary button | white on it 8.4:1 |
-| Detectable yellow | #FFC629 | a person: traveller, focus, HAND | ink on it 11.0:1 |
-| Rule | #7C8792 | control borders | 3.4:1 (WCAG 1.4.11) |
+All ratios are WCAG 2 relative luminance, computed for these exact hex values.
 
-Data colours (validated with the dataviz validator, all pairs, protan and deutan simulated):
-route #2160A8, glass #008A7E, obstacle #C45A00, before/run 1 graphite #434E5A. Lost heatmap: one hue,
-four bins #E9A04F, #CF7426, #A0500F, #642A06 (lightness monotone, single hue within 20 degrees).
+| Name | Token | Light | Job | Contrast (light) |
+|---|---|---|---|---|
+| Page, surface | `--c-paper`, `--c-surface` | #FFFFFF | page, inputs, tables, plan canvas | |
+| Quiet fill | `--c-surface-2` | #F5F5F7 | selected row, pressed secondary | |
+| Ink | `--c-ink` | #1D1D1F | text, walls | 16.83:1 on white, 15.46:1 on quiet fill |
+| Ink 2 | `--c-ink-2` | #6E6E73 | secondary text | 5.07:1 on white, 4.66:1 on quiet fill (AA) |
+| Accent | `--c-accent` | #0066CC | actions, links, focus | 5.57:1 on white, 5.11:1 on quiet fill; white on it 5.57:1 |
+| Accent strong | `--c-accent-strong` | #004C99 | hover, pressed | white on it 8.42:1 |
+| Rule | `--c-rule` | #86868B | control borders | 3.62:1 on white, 3.33:1 on quiet fill (non text 3:1) |
+| Rule soft | `--c-rule-soft` | #D2D2D7 | decorative hairline | 1.51:1; never the only boundary of a control |
+| Good, bad, caution | `--c-good`, `--c-bad`, `--c-caution` | #1B6B3A, #B3261E, #8C5300 | words "Correct", "Not this one", "possibly" | 6.54, 6.54, 6.26:1 on white |
+| Mark | `--c-mark`, `--c-on-mark` | #FFC629, #0F1C2A | traveller, you are here, HAND chip | ink on it 10.95:1 |
 
-Why this palette: navy and white is the oldest legible sign pairing and passes AAA; yellow on navy and
-ink on yellow are the classic low vision high visibility pairs; RNIB says never set yellow text on
-white or pale backgrounds, so yellow is only ever a fill or a ring with an ink edge. The heatmap is
-amber to brown, not red, so it never sits in a red/green pair with anything, and the route it is
-compared against is blue (the pair that survives every common colour vision deficiency).
-Cividis (Nuñez et al. 2018, built for red/green CVD) was considered for the heatmap, but on a white
-plan its high end is yellow, the least visible step, and its blue low end collides with the route. A
-single hue ramp that gets darker as more runs get lost reads correctly on white and keeps blue free.
+Dark: page #000000, surface #1C1C1E, quiet fill #2C2C2E, ink #F5F5F7 (15.63:1 on surface), ink 2 #A1A1A6
+(6.61:1 on surface, 5.42:1 on quiet fill), accent #2997FF (6.96:1 on page, 5.64:1 on surface, 4.62:1 on
+quiet fill), text on accent #000000 (6.96:1; white on #2997FF fails), rule #8E8E93 (5.22:1 on surface),
+rule soft #38383A. Apple's own #0071E3 was rejected: 4.31:1 on #F5F5F7 fails AA. The full table of
+computed ratios is next to each value in the tokens file and enforced by `web/src/ui/tokens.test.ts`.
+
+Data colours (validated with the dataviz validator, all pairs, protan and deutan simulated; unchanged by
+this direction): route #2160A8, glass #008A7E, obstacle #C45A00, before/run 1 graphite #434E5A. Lost
+heatmap: one hue, four bins #E9A04F, #CF7426, #A0500F, #642A06 (lightness monotone, single hue within 20
+degrees).
+
+Why this palette: one accent and neutral greys is the calm system look and keeps the data colours
+unambiguous on the plan. RNIB says never set yellow text on white or pale backgrounds, so yellow is only
+ever a fill or a ring with an ink edge. The heatmap is amber to brown, not red, so it never sits in a
+red/green pair, and the route it is compared against is blue (the pair that survives every common colour
+vision deficiency). Cividis (Nuñez et al. 2018) was considered for the heatmap, but on a white plan its
+high end is yellow, the least visible step, and its blue low end collides with the route.
 
 ### 1.2 Type
 
-* **Atkinson Hyperlegible Next** (variable, weights 200 to 800, OFL 1.1) for everything. Made by the
-  Braille Institute with Applied Design Works for low vision readers; letterforms are pulled apart so
-  I, l and 1, or O and 0, cannot be confused. The 2025 Next release added weights (seven, up from two)
-  and language support (over 150). Ships with tabular figures (`tnum`), which we turn on globally.
-* Why not Frutiger: it is the reference hospital signage face (designed for Charles de Gaulle airport,
-  adopted by the NHS), but it is commercial. Atkinson gives the same signage register, is free, and was
-  designed and tested for exactly our users.
-* **Atkinson Hyperlegible Mono** only for tool calls in the agent trace and the operator panel, where
-  the text really is code.
+* **The system font**, one stack for everything, titles at weight 700:
+  `-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif`.
+  Why: it is native (SF Pro on Apple devices, Segoe UI on Windows, Roboto on Android), so there is
+  nothing to download and the demo works offline; it follows the user's system settings, including
+  Dynamic Type friendly sizing in `rem` and bold text preferences; and it is the face the visitor's
+  screen reader and magnifier already render best.
+* **Never download or self host SF Pro.** Its licence forbids embedding it on websites. No web fonts at
+  all: no `@font-face`, no font packages, no CDN link. The stack only names fonts already on the device.
+* **Mono** (`ui-monospace, "SF Mono", Menlo, Consolas, monospace`) only for tool calls in the agent trace
+  and the operator panel, where the text really is code.
+* Weights: body 400, medium 500, bold 600, titles and the Step label 700 (`--fw-body`, `--fw-medium`,
+  `--fw-bold`, `--fw-heavy`).
+* `font-variant-numeric: tabular-nums` stays on `html`, so numbers line up everywhere.
 * No italics (APH large print guidance: italics are hard to read). Emphasis is weight.
-* No all caps labels anywhere. Signage best practice is mixed case; word shapes matter for low vision.
-
-Verified tonight: both families are in the Fontsource packages `@fontsource-variable/atkinson-hyperlegible-next`
-and `@fontsource-variable/atkinson-hyperlegible-mono` v5.3.0 (licence OFL-1.1, source google/fonts,
-weights 200 to 800, latin upright file 34 KB). The Google Fonts specimen page exists for Next. The CSS
-API itself was blocked by this sandbox's proxy, so option B below is untested from here.
-
-**Font loading, option A (default, offline safe; the demo must not depend on venue wifi):**
-
-```bash
-cd web && npm i @fontsource-variable/atkinson-hyperlegible-next @fontsource-variable/atkinson-hyperlegible-mono
-```
-
-```ts
-// first three lines of web/src/main.ts, observer/observer.ts, venue/venue.ts, pick/pick.ts
-import "@fontsource-variable/atkinson-hyperlegible-next/wght.css";
-import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css";
-import "./styles/tokens.css";
-```
-
-**Option B (CDN), in each html `<head>`:**
-
-```html
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400..600&family=Atkinson+Hyperlegible+Next:wght@200..800&display=swap">
-```
-
-The family stack in the tokens covers both names (`... Next Variable`, then `... Next`).
+* No all caps labels anywhere. Mixed case keeps word shapes, which matter for low vision.
 
 ### 1.3 Anti slop rules
 
 **Do**
 
-* Open every screen with the sign panel band and the real place name from CoStar or Matterport.
+* Open every screen with the big title and one line under it in `--c-ink-2`; the title is the real place
+  name from CoStar or Matterport where the screen is about a place.
+* One primary action per screen. Generous whitespace (`--sp-section` between blocks).
 * Show the real floor plan image under the data. It is the only image besides the Vexcel arrival photo.
 * Put a source chip or a "simulated" / "assumed" tag next to every number a judge might question.
-* Left align everything. Content column starts at the same x as the sign panel text.
-* Use words with every colour: "Correct" with a check shape, "Run 2" written at the end of the trail.
+* Left align everything. Content column starts at the same x as the title.
+* Carry every state change in words and line style, never in colour or an icon alone: "Correct", "Not
+  this one", "running", "done", "failed"; solid, dotted, dashed, hatch.
 * Use real sequences for numbering only: rehearsal steps, quiz options (keys 1 to 4), pocket summary
   instructions, advisor rounds, portfolio rank.
-* Square corners on panels, 6px on controls, 2px on chips. Hierarchy shows in the radius.
-* Draw the few icons we need (check, cross, status dot) as inline SVG with 2.5px strokes.
+* Radius shows hierarchy: `--r-primary` 14px on primary buttons only, `--r-control` 6px on inputs and
+  secondary buttons, `--r-chip` 2px on chips, panels square (`--r-none`).
 * One moment of motion: the tap ring on the observer. Everything else changes state without animating.
 
 **Don't**
 
-* Purple or blue gradients, gradient text, glows, neon, glassmorphism, `backdrop-filter: blur`. One
-  exception, and only through the `.glass-bar` and `.glass-panel` classes: the judge screens in 1.4.
-* Emoji, sparkle icons for AI, eye icons, white cane clip art, stock photos of blind people.
+* Gradients, gradient text, glows, neon, glassmorphism, `backdrop-filter: blur`. One exception, and only
+  through the `.glass-bar` and `.glass-panel` classes: the judge screens in 1.4.
+* Icons of any kind (no check, cross, dot, eye, sparkle or cane clip art), emoji, stock photos of blind
+  people. Plan canvas symbols (traveller disc, tap rings, landmark rings) are map marks, not icons, and
+  stay.
+* Cards and shadows: no boxed cards, no soft grey shadow. The only `box-shadow` is the pressed state of
+  a button (3.1).
 * A centred hero, a big number with a gradient accent, "AI powered" badges.
-* The SaaS card kit: identical rounded cards with the same soft grey shadow. We use no box shadows at
-  all (the focus ring is the only `box-shadow`).
 * Fake dashboards: no sparkline, KPI tile or chart whose numbers are not in `package.json`,
   `portfolio.json` or a RunLog.
 * All caps eyebrow labels, `A · B · C` meta strings, "Word — fragment" labels, `→` on buttons,
@@ -137,9 +129,7 @@ The family stack in the tokens covers both names (`... Next Variable`, then `...
 * Placeholder text as the only label. Disabled buttons with no reason given.
 * Copy that says "experience blindness", "revolutionary", "seamless", "empower", "Oops".
 
-### 1.4 Apple clean layer
-
-The Apple feel comes from restraint, not effects. Two audiences, two rules.
+### 1.4 Layout, and where glass is allowed
 
 **Visitor screens (`index.html`: Home, mode choice, build list, rehearsal, Check yourself, Pocket
 summary, and the phone layout): no transparency and no blur, ever.** No `backdrop-filter`, no
@@ -148,52 +138,66 @@ moving or blurred backdrop, and screen magnifiers make it worse. The clean feel 
 
 | Lever | Rule | Tokens |
 |---|---|---|
-| Larger, heavier titles | The sign panel line and each screen's first heading use the visitor title size and weight 800, tight leading, slight negative tracking. Section headings use `--fw-heavy`. | `--fs-title-visitor` (40 to 56px), `--fw-title-visitor`, `--lh-title-visitor`, `--tracking-title-visitor` |
-| Fewer elements | A screen shows only what its one job needs. Required parts stay (sign panel, transcript region, rehearsal steps nav, chips the facts need); anything else moves to a later screen or behind a disclosure. No decorative rules, boxes or icons. | |
-| One primary action per screen | Exactly one `.btn--primary` per screen: Home "Start", build list "Start rehearsal", Check yourself "Next question", Pocket summary "Start run 2" ("Copy driver message" is secondary there). The mode choice is two equal secondary buttons, so neither is primary. The rehearsal stage has no primary button; on the phone, Step is the action. | `.btn--primary` |
-| Generous whitespace | At least `--sp-section` between blocks, content column left aligned at the sign panel's text edge, line length capped at `--measure`. Space separates groups; lines and boxes do not. | `--sp-section` (48 to 80px), `--measure` |
+| One big bold title | Each screen opens with its title at the visitor size, weight 700, tight leading, slight negative tracking, and one line under it in `--c-ink-2`. Section headings use `--fw-heavy`. | `--fs-title-visitor` (40 to 56px), `--fw-title-visitor`, `--lh-title-visitor`, `--tracking-title-visitor` |
+| Fewer elements | A screen shows only what its one job needs. Required parts stay (transcript region, rehearsal steps nav, chips the facts need); anything else moves to a later screen or behind a disclosure. No decorative rules, boxes, shadows or icons. | |
+| One primary action per screen | Exactly one `.btn--primary` per screen: Home "Start", build list "Start rehearsal", Check yourself "Next question", Pocket summary "Start run 2" ("Copy driver message" is secondary there). The mode choice is two equal secondary buttons, so neither is primary. The rehearsal stage has no primary button; on the phone, Step is the action. | `.btn--primary`, `--r-primary` |
+| Generous whitespace | At least `--sp-section` between blocks, content column left aligned at the title's edge, line length capped at `--measure`. Space separates groups; lines and boxes do not. | `--sp-section` (48 to 80px), `--measure` |
 
-**Judge screens (`observer.html`, `venue.html`): frosted glass on two surfaces only**, the top bar and
-the agent trace panel, through the classes `.glass-bar` and `.glass-panel` in the tokens file. Never
-on the plan canvas, the caption strip, tables, dials, chips or any other panel.
+**Judge screens (`observer.html`, `venue.html`): a light frosted top bar and trace panel**, through the
+classes `.glass-bar` and `.glass-panel` in the tokens file. Never on the plan canvas, the caption strip,
+tables, dials, chips or any other panel.
 
-* The tint is opaque enough that every text pair stays at 7:1 or better over **any** backdrop,
-  computed for the worst case (white behind the blue bar, black behind the white panel). Alpha 0.94:
-  light bar 7.24:1, light panel 7.42:1 (ink 2), dark bar 12.43:1, dark panel 7.83:1 (ink 2). At 0.92
-  the light bar already drops to 6.9:1, so the alpha is a floor, not a style choice.
+* Light theme tint is white; dark tint is #1C1C1E (the dark surface). Bar text is ink: there is no blue
+  bar any more.
+* The tint is opaque enough that ink and ink 2 stay at 4.5:1 or better over **any** backdrop, computed
+  for the worst case (black under the white tint, white under the dark tint). Light: alpha **0.96**
+  (smallest passing alpha is 0.947; ink 2 is 4.64:1 over black, ink 15.41:1). Dark: alpha **0.89**
+  (smallest passing is 0.874; ink 2 is 4.76:1 over white, ink 11.25:1). The alpha is a floor, not a
+  style choice.
 * The default is solid. Glass only turns on inside `@supports (backdrop-filter)`; it turns off again
-  (solid `--c-sign` bar, solid `--c-surface` panel, no blur) under `prefers-reduced-transparency:
-  reduce`, `prefers-contrast: more` and `forced-colors: active`.
+  (solid `--c-surface` bar and panel, no blur) under `prefers-reduced-transparency: reduce`,
+  `prefers-contrast: more` and `forced-colors: active`.
 * Blur 16px, no saturation boost (saturation would change the backdrop's luminance and break the
   contrast arithmetic above). A 1px `--c-rule-soft` hairline marks the edge.
-* The observer pins the light theme, so judges see the blue bar and the white trace panel.
+* The observer pins the light theme.
+
+### 1.5 Accessibility floor (restated; these win over any taste)
+
+* Body 22px on laptop (`--fs-body` 20 to 22), nothing in the app under 18px.
+* Buttons 48px minimum, 64px for primary and rehearsal controls, 8px gaps.
+* Visible focus ring on everything focusable: `outline: 3px solid var(--c-accent); outline-offset: 2px`
+  (one ring; accent against white 5.57:1, against dark page 6.96:1, both above the 3:1 needed).
+* WCAG AA minimum: 4.5:1 for text, 3:1 for non text. Large or bold text may use 3:1 only where a comment
+  in the tokens file says so; today no text relies on it.
+* Nothing by colour alone: words and line style carry every state.
+* Rule 7 behaviour (Start gate, app voice versus screen reader, transcript live regions) is unchanged.
 
 ---
 
 ## 2. Tokens
 
-The file `web_tokens.css` is the source of truth (165 custom properties, parses clean with css-tree).
+The file `web_tokens.css` is the source of truth (153 custom properties).
 Summary of what is in it and why:
 
 | Group | Tokens | Notes |
 |---|---|---|
-| Families | `--font-sans`, `--font-mono` | Atkinson Next, Atkinson Mono, then system fallbacks |
-| Weights | `--fw-body` 430, `--fw-medium` 560, `--fw-bold` 720, `--fw-heavy` 800 | variable axis; body slightly heavier than 400 |
+| Families | `--font-sans`, `--font-mono` | system font stack (SF Pro on Apple, Segoe UI, Roboto); system mono for tool calls |
+| Weights | `--fw-body` 400, `--fw-medium` 500, `--fw-bold` 600, `--fw-heavy` 700 | static system weights; titles 700 |
 | App type | `--fs-small` 18, `--fs-body` 20 to 22, `--fs-lead` 22 to 26, `--fs-h3` 24, `--fs-h2` 26 to 34, `--fs-h1` 32 to 48, `--fs-display` 36 to 64, `--fs-step` 48 to 80, `--fs-caption` 24 to 36 (px) | fluid only between 360 and 720 CSS px, fixed above: a laptop at 200% zoom still gets exactly 2x (WCAG 1.4.4) |
 | Projector type | `--fs-proj-min` 3vh, `--fs-proj-body` 3.6vh, `--fs-proj-h` 4.4vh, `--fs-proj-caption` 5.2vh, `--fs-proj-number` 10vh | `max(rem, vh)` so zoom still raises the floor |
 | Rhythm | `--lh-body` 1.5, `--lh-tight` 1.15, `--measure` 46ch | APH: 39 to 43 characters per line for large print |
 | Space | `--sp-1` 4 to `--sp-9` 96 px, `--gutter` 16 to 32 | 4px base |
 | Targets | `--target-min` 48, `--target-comfort` 56, `--target-primary` 64, `--target-gap` 8 (px) | Android 48dp with 8dp gaps; Apple 44pt; WCAG 2.5.8 needs 24, 2.5.5 needs 44 |
-| Shape | `--r-chip` 2, `--r-control` 6, `--r-none`, `--r-dot`; `--bw-control` 2, `--bw-strong` 3 | |
-| Colour | `--c-*` | light and dark; `prefers-contrast: more` collapses Ink 2 into Ink and thickens borders |
-| Focus | `--focus-inner`, `--focus-outer`, `--focus-width` 3 | two rings: yellow inside, ink outside (dark theme swaps). Meets WCAG 2.4.13 (AAA) on paper and on navy |
+| Shape | `--r-primary` 14 (primary buttons only), `--r-control` 6, `--r-chip` 2, `--r-none`, `--r-dot`; `--bw-control` 2, `--bw-strong` 3 | |
+| Colour | `--c-paper`, `--c-surface`, `--c-surface-2`, `--c-ink`, `--c-ink-2`, `--c-accent`, `--c-accent-strong`, `--c-on-accent`, `--c-rule`, `--c-rule-soft`, `--c-mark`, `--c-on-mark`, `--c-good`, `--c-bad`, `--c-caution` | light and dark; `prefers-contrast: more` collapses Ink 2 into Ink and thickens borders |
+| Focus | `--focus-width` 3 | one ring: `3px solid var(--c-accent)`, offset 2px; accent vs page 5.57:1 light, 6.96:1 dark |
 | Data | `--d-*`, `--heat-1..4`, `--heat-alpha` | read by canvas code through `getComputedStyle` |
 | Motion | `--dur-*`, `--ease-out`, `--motion-scale` | reduced motion sets durations to 0 and `--motion-scale` to 0 |
-| Visitor titles and space | `--fs-title-visitor` 40 to 56, `--fw-title-visitor` 800, `--lh-title-visitor` 1.05, `--tracking-title-visitor`, `--sp-section` 48 to 80 (px) | Apple clean layer, 1.4; fluid only between 360 and 720 like the rest |
-| Glass | `--glass-alpha` 0.94, `--glass-blur` 16px, `--glass-bar-*`, `--glass-panel-*`, `--glass-filter`, `--glass-border` | judge screens only, 1.4; solid by default and under reduced transparency, more contrast and forced colours |
+| Visitor titles and space | `--fs-title-visitor` 40 to 56, `--fw-title-visitor` 700, `--lh-title-visitor` 1.05, `--tracking-title-visitor`, `--sp-section` 48 to 80 (px) | Apple minimal layer, 1.4; fluid only between 360 and 720 like the rest |
+| Glass | tint alpha 0.96 light, 0.89 dark (in `--glass-*-tint`), `--glass-blur` 16px, `--glass-bar-*`, `--glass-panel-*`, `--glass-filter`, `--glass-border` | judge screens only, 1.4; solid by default and under reduced transparency, more contrast and forced colours |
 | Layers | `--z-base` 0, `--z-canvas-overlay` 10, `--z-sticky` 20, `--z-caption` 30, `--z-popover` 40, `--z-toast` 50, `--z-dialog` 60, `--z-operator` 70, `--z-skip` 100 | |
 
-Themes: default is light; `prefers-color-scheme: dark` switches to "panel" unless the page pins
+Themes: default is light; `prefers-color-scheme: dark` switches to the dark theme unless the page pins
 `<html data-theme="light">`. The observer pins light (lit expo hall; the Matterport plan is dark lines on
 white). `data-theme="dark"` forces dark. Windows forced colours keep shapes and borders and let the
 system palette win; the plan canvas opts out (`forced-color-adjust: none`) but its legend is HTML text.
@@ -255,16 +259,16 @@ Class names below are suggestions; keep them, so the forced colours block in the
 
 | Variant | Look | Use |
 |---|---|---|
-| `.btn--primary` | `--c-sign` fill, `--c-on-sign` text, no border | one per screen (1.4): Start, Start rehearsal, Next question, Start run 2 |
+| `.btn--primary` | `--c-accent` fill, `--c-on-accent` text, no border, `--r-primary` (14px) radius | one per screen (1.4): Start, Start rehearsal, Next question, Start run 2 |
 | `.btn--secondary` | `--c-surface` fill, `--c-ink` text, 2px `--c-rule` border | everything else |
 | `.step-button` | phone only, see below | |
 
 * Size: `min-height: var(--target-min)` (48px), primary and rehearsal controls `var(--target-primary)`
-  (64px). Padding `0 var(--sp-5)`. Font `--fs-body`, weight `--fw-bold`. Radius `--r-control`.
+  (64px). Padding `0 var(--sp-5)`. Font `--fs-body`, weight `--fw-bold`. Radius `--r-control` (6px); primary buttons only use `--r-primary`.
   Gap between adjacent buttons at least `--target-gap`.
-* States: hover darkens (`--c-sign-strong` or `--c-surface-2`); pressed adds a 3px inset ink border
+* States: hover darkens (`--c-accent-strong` or `--c-surface-2`); pressed adds a 3px inset ink border
   (`box-shadow: inset 0 0 0 3px var(--c-ink)` is allowed here because it is a state, not decoration);
-  focus uses the global two ring style; busy keeps the same width and changes the label ("Building
+  focus uses the global single accent ring; busy keeps the same width and changes the label ("Building
   rehearsal" with `aria-busy="true"` on the region it controls).
 * Never `disabled` without a reason. Prefer `aria-disabled="true"` plus a visible line saying why.
 * Labels are verbs that say what happens: "Start", "Start run 2", "Copy driver message", "Open rehearsal".
@@ -274,17 +278,17 @@ Class names below are suggestions; keep them, so the forced colours block in the
 .btn { display:inline-flex; align-items:center; gap:var(--sp-2); min-height:var(--target-min);
   padding:0 var(--sp-5); font:inherit; font-weight:var(--fw-bold); border-radius:var(--r-control);
   border:var(--bw-control) solid var(--c-rule); background:var(--c-surface); color:var(--c-ink); cursor:pointer; }
-.btn--primary { background:var(--c-sign); color:var(--c-on-sign); border-color:var(--c-sign); min-height:var(--target-primary); }
-.btn--primary:hover { background:var(--c-sign-strong); }
+.btn--primary { background:var(--c-accent); color:var(--c-on-accent); border-color:var(--c-accent); min-height:var(--target-primary); border-radius:var(--r-primary); }
+.btn--primary:hover { background:var(--c-accent-strong); border-color:var(--c-accent-strong); }
 .btn:active { box-shadow: inset 0 0 0 var(--bw-strong) var(--c-ink); }
 ```
 
 **Phone Step button.** A real `<button class="step-button">Step</button>` that fills the screen above
-the bottom bar (`position: fixed; inset: 0 0 var(--bottom-bar-h) 0`). Fill `--c-sign`, label "Step" in
-`--fs-step` at `--fw-heavy`, with a one line hint under it in `--fs-lead`: "Tap to take one step". The
+the bottom bar (`position: fixed; inset: 0 0 var(--bottom-bar-h) 0`). Fill `--c-accent`, label "Step" in
+`--c-on-accent`, `--fs-step` at `--fw-heavy`, with a one line hint under it in `--fs-lead`: "Tap to take one step". The
 accessible name is just "Step" (short, so VoiceOver repeats it quickly; the hint is `aria-hidden`).
-On press: an 8px inset yellow edge for 120 ms (a colour change, kept under reduced motion) plus
-`pulse(25)`. The current spoken line is shown over the top of the button inside the transcript region
+On press: the fill changes to `--c-accent-strong` for 120 ms (a colour change, kept under reduced
+motion) plus `pulse(25)`. The current spoken line is shown over the top of the button inside the transcript region
 (section 3.4) with `pointer-events: none`, so taps always reach the button. Bottom bar: three equal
 `.btn--secondary` buttons, 72px tall: **Repeat**, **Where am I**, **Recentre**. No swipes anywhere.
 Focus goes to Step when Rehearse starts.
@@ -296,7 +300,7 @@ Focus goes to Step when Rehearse starts.
   width of the content column (max 36rem).
 * Hint under it, `--fs-small`, `--c-ink-2`, joined with `aria-describedby`: "For example: the clinic
   name and the city."
-* Error under it in `--c-bad` with a cross shape, `aria-invalid="true"`, and a fix: "We could not find
+* Error under it in `--c-bad` starting with the word "Error:", `aria-invalid="true"`, and a fix: "We could not find
   that place. Try the clinic name and the city, or the street address."
 * `enterkeyhint="go"`, `autocomplete="off"`. Enter submits the same as Start.
 
@@ -315,7 +319,7 @@ This is the gesture that creates the AudioContext (Task 8 `start()`), so nothing
 
 The rehearsal steps nav (Explore, Rehearse, Check yourself, Pocket summary) is a real sequence:
 `<nav aria-label="Rehearsal steps"><ol>` of buttons with `aria-current="step"` on the current one. The
-current item is bold with a 6px yellow bar under it and the visible word "now" after it; colour is
+current item is bold with a 4px ink bar under it and the visible word "now" after it; colour is
 never the only signal.
 
 ### 3.4 Live transcript region
@@ -332,7 +336,7 @@ One persistent element present from page load (CLAUDE.md rule 7, agent3 section 
 ```
 
 * Current line: `--fs-caption`, `--fw-medium`, `--c-ink` on `--c-surface`, 4px ink left rule, at most
-  3 lines then it scrolls the history. Safety lines get a 4px yellow left rule and keep their words
+  3 lines then it scrolls the history. Safety lines get a 4px accent left rule and keep their words
   ("Stairs ahead.").
 * Replace the text, never append. Same line twice: clear, then set on the next animation frame.
 * History: `--fs-small`, `--c-ink-2`, newest first.
@@ -404,8 +408,8 @@ Screen readers read the word naturally ("82 percent simulated"); no extra ARIA.
   the header ("Build (s)"), not repeated in cells.
 * Header bottom border 2px ink; row borders 1px `--c-rule-soft`. No zebra stripes, no hover lift.
   Selected row: `--c-surface-2` plus a 4px ink bar on the left.
-* Sortable headers: `<button>` inside `<th>`, `aria-sort` on the `<th>`, a drawn triangle that points
-  the sort direction. Default sort is by score, high to low.
+* Sortable headers: `<button>` inside `<th>`, `aria-sort` on the `<th>`, the sort direction written as
+  words ("high to low") next to the label, no arrow icon. Default sort is by score, high to low.
 * Score cells carry an inline bar: 8px tall, ink, width proportional, value text to its left. No colour
   scale on cells.
 
@@ -436,9 +440,9 @@ One axis, starting at 0.
 
 * Grid: `8ch` time, `11rem` actor, `1fr` text, `auto` status. Time and status in `--c-ink-2`.
 * Actor in `--fw-bold`. Tool calls in `--font-mono` at `--fs-small`; plain sentences in `--font-sans`.
-* Status as shape and word: hollow circle "running", filled ink circle "done", ink cross "failed",
-  dashed square "scripted" or "replay" (with the matching tag).
-* `ask_visitor` lines (the one clarifying question) get a 4px yellow left rule: a question to a person.
+* Status as a word, no icon: "running" (regular weight), "done", "failed" (bold), and "scripted" or
+  "replay" as the matching dashed tag.
+* `ask_visitor` lines (the one clarifying question) get a 4px accent left rule and the word "question": a question to a person.
 * `role="log"` with `aria-live="off"`. A separate `role="status"` line under the panel announces phase
   changes only ("Annotator finished: 14 landmarks"). Keep 200 lines, show the last 12; if the user has
   scrolled up, stop auto scrolling and show a "Show newest" button.
@@ -446,7 +450,7 @@ One axis, starting at 0.
 ### 3.10 Status and toast
 
 Only on venue, portfolio, observer and pick pages; in rehearsal every message goes through `say()`.
-Bottom left, `--z-toast`, `--c-surface` fill, 2px ink border, shape plus text, `role="status"`
+Bottom left, `--z-toast`, `--c-surface` fill, 2px ink border, words only (no icon), `role="status"`
 (errors `role="alert"`). Stays until replaced or closed with its Close button (no timed dismissal).
 Errors say what happened and what to do: "Matterport did not answer. Showing the cached scan from 21:10."
 
@@ -456,8 +460,8 @@ Errors say what happened and what to do: "Matterport did not answer. Showing the
   and laptop are the same (agent3 2.2: stacked buttons, not screen quadrants).
 * Left side: a 48px ink outlined square with the digit 1 to 4 (the key). The digit is `aria-hidden`;
   the button name is the option text.
-* After an answer: the chosen option shows a check or cross shape and the word "Correct" or "Not this
-  one"; the right option gets a check and "Correct answer". Options become `aria-disabled` and focus
+* After an answer: the chosen option shows the word "Correct" or "Not this
+  one" (with a solid or dashed border); the right option gets "Correct answer". Options become `aria-disabled` and focus
   moves to "Next question". Spoken feedback is the same words.
 * R repeats the options; 1 to 4 answer.
 
@@ -466,7 +470,7 @@ Errors say what happened and what to do: "Matterport did not answer. Showing the
 A clock face, because spoken directions use clock hours: an SVG circle (220px in the app, 30vh on the
 observer) with 12 at the top meaning "facing into the building", hour ticks, and 12, 3, 6, 9 labelled.
 
-* Before confirm (rehearsal screen): only the user's current heading as a blue line and the words
+* Before confirm (rehearsal screen): only the user's current heading as a route blue line and the words
   "You are facing 2 o'clock". **No target, no hint**; Task 10 test `no feedback before confirm` covers
   speech and the dial must follow the same rule.
 * After confirm: the target bearing as an ink line ending in a labelled ink dot ("Reception desk"), the
@@ -480,16 +484,16 @@ observer) with 12 at the top meaning "facing into the building", hour ticks, and
 
 Widths: laptop 1280 to 1440 CSS px, content column max 72rem, gutter `--gutter`. At 200% zoom every
 laptop layout collapses to the single column phone order shown in each wireframe's reading order.
-Every page: `<html lang="en">`, a skip link, one `<h1>`, landmarks (`header`, `nav`, `main`).
+Every page: `<html lang="en">`, a skip link, one `<h1>`, landmarks (`header`, `nav`, `main`). On
+visitor screens the `<h1>` is the big title (`--fs-title-visitor`, 700) with one line under it in
+`--c-ink-2`; there is no coloured band. Judge screens keep a top bar (frosted, ink text, 1.4).
 
 ### 4.1 Home / Start (`index.html`, before Start)
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│ SecondVisit                                                    sign panel  │  navy, square corners
-│                                                                            │
-│ Make your first visit your second.                          --fs-display   │  white, weight 800
-└────────────────────────────────────────────────────────────────────────────┘
+  Make your first visit your second.                          --fs-title-visitor, 700
+  Tell us where your appointment is.                          one line, --c-ink-2
+
   Where is your appointment?                                  --fs-lead bold
   ┌──────────────────────────────────────────────────┐
   │ Medical Office, Houston                          │        64px input
@@ -497,7 +501,7 @@ Every page: `<html lang="en">`, a skip link, one `<h1>`, landmarks (`header`, `n
   For example: the clinic name and the city.                   --fs-small
 
   ┌────────────┐
-  │   Start    │                                               64px primary
+  │   Start    │                                               64px primary, 14px radius
   └────────────┘
   Nothing plays until you press Start. Wired headphones work best.
 
@@ -510,10 +514,10 @@ Every page: `<html lang="en">`, a skip link, one `<h1>`, landmarks (`header`, `n
 
   ── then, while the agent builds (this is demo beat 1) ──
   Building your rehearsal                                       h2, aria-busy
-  ✓ Found the building: Medical Office, 1 floor        CS       ordered list, check/dot shapes
-  ✓ Read the scan: 9 rooms, 3 doors                    MP
-  ○ Looking at panoramas for landmarks                 AI
-  ○ Planning a cane friendly route                     CALC
+  1. Found the building: Medical Office, 1 floor    done   CS   ordered list, state in words
+  2. Read the scan: 9 rooms, 3 doors                done   MP
+  3. Looking at panoramas for landmarks             running  AI
+  4. Planning a cane friendly route                 waiting  CALC
   [ Start rehearsal ]  (appears when ready, takes focus)
 ```
 
@@ -523,11 +527,11 @@ plain text so Start is the only focusable element before Start (Task 8 test `sta
 ### 4.2 Rehearsal, laptop (`index.html`, after Start)
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│ Medical Office, Houston                                 Voice: app  Theme  │ sign panel, h1
-└────────────────────────────────────────────────────────────────────────────┘
+  Medical Office, Houston                                 Voice: app  Theme    h1, --fs-title-visitor
+  Rehearse the way in, one stretch at a time.                                  one line, --c-ink-2
+
   Rehearsal steps:  1 Explore   2 Rehearse (now)   3 Check yourself   4 Pocket summary
-                                ▔▔▔▔▔▔▔▔ yellow bar
+                                ▔▔▔▔▔▔▔▔ ink bar under the current step
 ┌───────────────────────────────────────────────────┐  ┌─────────────────────┐
 │ STAGE  role="application" tabindex="0"             │  │ Keys                │
 │ ┌───────────────────────────────────────────────┐ │  │ Up       walk       │
@@ -551,7 +555,7 @@ plain text so Start is the only focusable element before Start (Task 8 test `sta
   stacked option buttons, progress "Question 2 of 3").
 * **Pocket summary:** an ordered list of instructions (one `<li>` per spoken line, Space reads them one
   per utterance), then the driver message in a bordered box with "Copy driver message", then the
-  Vexcel arrival image with a yellow drop off pin (HAND) and an ink entrance pin, and real alt text
+  Vexcel arrival image with a yellow drop off pin (HAND chip fill) and an ink entrance pin, and real alt text
   built from data: "Aerial photo, north at the top. Drop off point on the north side by the main
   entrance." Chips next to each fact. Under the run, "Start run 2" (primary) with the coach line above it.
 
@@ -559,13 +563,13 @@ plain text so Start is the only focusable element before Start (Task 8 test `sta
 
 ```
 ┌──────────────────────────┐
-│ Medical Office   Voice:app│  48px header, --fs-small
+│ Medical Office   Voice:app│  48px header, --fs-small, plain ink on white
 ├──────────────────────────┤
 │ ▌Wall on your left. Walk │  transcript region, pointer-events none
 │ ▌about 12 steps.         │
 │                          │
 │                          │
-│          Step            │  full screen <button>, sign navy, --fs-step 800
+│          Step            │  full screen <button>, accent blue, --fs-step 700
 │   Tap to take one step   │
 │                          │
 │                          │
@@ -577,7 +581,7 @@ plain text so Start is the only focusable element before Start (Task 8 test `sta
 
 Turning is the body (relative yaw); the cane sweeps with gamma. Pointing task on phone: the Step button
 becomes "Confirm" with the same size and position. Quiz: the four stacked option buttons fill the same
-area. Follows the system theme; dark "panel" is comfortable for light sensitive users.
+area. Follows the system theme; the dark theme is comfortable for light sensitive users.
 
 ### 4.4 Observer view (`observer.html`, projector, read from 5 m)
 
@@ -652,7 +656,7 @@ stretch 3 of 6, 4 m from the waiting room").
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ Venue view: Medical Office, Houston                         [ Layout ] [ Portfolio ]   │ sign panel
+│ Venue view: Medical Office, Houston                         [ Layout ] [ Portfolio ]   │ glass bar, ink text
 └────────────────────────────────────────────────────────────────────────────────────────┘
   "Where should reception go?"   [ Run layout advisor ]
 ┌──────────────────┬──────────────────────────────────────────┬──────────────────────────┐
@@ -672,7 +676,7 @@ stretch 3 of 6, 4 m from the waiting room").
 ```
 
 Grid `minmax(18rem, 22rem) 1fr minmax(22rem, 26rem)`; below 1200px the trace drops under the plan.
-The sign panel band is `.glass-bar` (sticky, so the page scrolls under it) and the agent trace column
+The top bar is `.glass-bar` (sticky, so the page scrolls under it) and the agent trace column
 is `.glass-panel` (1.4). The plan, the before and after card, fixes and rounds stay solid.
 Heatmap bins are fixed (not quantiles) so before and after maps are comparable; each bin swatch carries
 its range as text. The heatmap legend frame is hatched because the whole layer is simulated.
@@ -681,7 +685,7 @@ Critique text is AI written and carries the `AI` chip; every number next to it c
 ### 4.6 Portfolio (`venue.html`, Portfolio tab)
 
 ```
-┌ sign panel: Venue view: Medical and office suites, Houston ─────────────────────────────┐
+┌ top bar: Venue view: Medical and office suites, Houston ────────────────────────────────┐
   20 suites built in 6 min 40 s  CALC      Entrance for each is assumed  [assumed]
   ┌──────────────────────────────────────────────────────────────────────────────────────┐
   │ Ranked by how easy they are to learn (caption)                                        │
@@ -734,7 +738,7 @@ draw order, and "Save pin" buttons that write `HAND` entries. No extra design wo
 
 | Place | Text |
 |---|---|
-| Sign panel line | Make your first visit your second. |
+| Home title | Make your first visit your second. |
 | Input label | Where is your appointment? |
 | Start note | Nothing plays until you press Start. Wired headphones work best. |
 | Build list | Found the building / Read the scan / Looking at panoramas for landmarks / Planning a cane friendly route |
@@ -756,39 +760,27 @@ Run before every merge to main after 03:00, and once at freeze (05:00). Each lin
 
 | # | Check (minutes) | Pass when | Automated by |
 |---|---|---|---|
-| 1 | **Keyboard only** (2): unplug the mouse. Home: Tab to input, type, Enter, choose a mode, rehearse a stretch with arrows, Space, W, H; Tab out of the stage; do the pointing task and quiz with keys; reach Copy driver message | Everything reachable, focus ring always visible (two rings), focus never lost to `<body>`, arrows never scroll the page | `start gate`, `key repeat throttled`, `blur pauses` (Task 8); add `stage prevents scroll` (arrow keydown on stage has `defaultPrevented`) |
+| 1 | **Keyboard only** (2): unplug the mouse. Home: Tab to input, type, Enter, choose a mode, rehearse a stretch with arrows, Space, W, H; Tab out of the stage; do the pointing task and quiz with keys; reach Copy driver message | Everything reachable, focus ring always visible (accent ring), focus never lost to `<body>`, arrows never scroll the page | `start gate`, `key repeat throttled`, `blur pauses` (Task 8); add `stage prevents scroll` (arrow keydown on stage has `defaultPrevented`) |
 | 2 | **VoiceOver** (3): Cmd F5 in Chrome. Choose "my screen reader". Hear one instruction, an off route line, the arrive line; check our voice never speaks. On iPhone: VoiceOver on, double tap Step walks; Repeat, Where am I, Recentre are named | Every line heard once, no double speech, buttons have names, headings list makes sense (VO U) | `screen reader mode does not speak`, `speech priority` (Task 8); add `live regions exist at load` (both `#say-polite` and `#say-assertive` in `index.html` before any script runs) and `every button has a name` (jsdom: no `button` with empty `textContent` and no `aria-label`) |
-| 3 | **Contrast** (1): run the token test; spot check the plan legend and chips in DevTools picker | All text pairs at least 7:1 except status words (6.1:1, large or bold) and non text at least 3:1 | add `tokens contrast` (below) |
+| 3 | **Contrast** (1): run the token test; spot check the plan legend and chips in DevTools picker | All text pairs at least 4.5:1 (AA) and non text at least 3:1 | add `tokens contrast` (below) |
 | 4 | **Zoom 200%** (2): Cmd plus to 200% on Home, Rehearsal, Venue, Portfolio | No horizontal scroll of the page (tables scroll inside their region), nothing overlaps, text doubled | manual; computed check: `--fs-body` at 720px viewport equals its max |
 | 5 | **Reduced motion and contrast** (1): macOS Settings, Accessibility, Display: Reduce motion and Increase contrast on; reload observer and venue | Tap rings appear static, no transitions; borders thicker, secondary text turns full ink | add `reduced motion makes tap ring static` (mock `matchMedia`, renderer radius constant) |
-| 6 | **Glass** (1): on observer and venue, scroll content under the top bar; then turn on macOS Reduce transparency, then Increase contrast | Bar and trace text stay readable over the busiest backdrop; with either setting on, both surfaces turn solid; no blur anywhere on `index.html` | add `glass alpha keeps 7:1` (composite each `--glass-*-tint` over white and black, check every text token on it) and `no glass on visitor screens` (no `backdrop-filter` in `index.html` styles or `main.ts` output) |
-| 7 | **Colour not alone** (1): DevTools Rendering, Emulate vision deficiencies: deuteranopia, then achromatopsia; look at observer, venue heatmap, quiz result | Every state still readable from shape or words: legend words, check and cross shapes, dashed vs solid, run labels | add `heat legend has text` (each swatch has a range string) |
+| 6 | **Glass** (1): on observer and venue, scroll content under the top bar; then turn on macOS Reduce transparency, then Increase contrast | Bar and trace text stay readable over the busiest backdrop; with either setting on, both surfaces turn solid; no blur anywhere on `index.html` | add `glass alpha keeps 4.5:1` (composite each `--glass-*-tint` over white and black, check ink and ink 2 on it) and `no glass on visitor screens` (no `backdrop-filter` in `index.html` styles or `main.ts` output) |
+| 7 | **Colour not alone** (1): DevTools Rendering, Emulate vision deficiencies: deuteranopia, then achromatopsia; look at observer, venue heatmap, quiz result | Every state still readable from shape or words: legend words, "Correct" and "Not this one", dashed vs solid, run labels | add `heat legend has text` (each swatch has a range string) |
 
-```ts
-// web/src/ui/tokens.test.ts
-import { readFileSync } from "node:fs";
-import { describe, it, expect } from "vitest";
-const css = readFileSync(new URL("../styles/tokens.css", import.meta.url), "utf8");
-const root = css.slice(css.indexOf(":root {"), css.indexOf("@media (prefers-color-scheme"));
-const v = (n: string) => root.match(new RegExp(`${n}:\\s*(#[0-9A-Fa-f]{6})`))![1];
-const lum = (h: string) => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
-  .map(x => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
-const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-describe("tokens contrast (light)", () => {
-  it.each([
-    ["--c-ink", "--c-paper", 7], ["--c-ink-2", "--c-paper", 7], ["--c-on-sign", "--c-sign", 7],
-    ["--c-on-mark", "--c-mark", 7], ["--c-good", "--c-paper", 4.5], ["--c-bad", "--c-paper", 4.5],
-    ["--c-rule", "--c-paper", 3], ["--d-route", "--c-surface", 3], ["--d-glass", "--c-surface", 3],
-  ])("%s on %s >= %d", (a, b, min) => expect(ratio(v(a), v(b))).toBeGreaterThanOrEqual(min));
-});
-```
+The contrast helpers live in `web/src/ui/tokens.test.ts` (WCAG 2 relative luminance; glass tints are
+composited over white and black in sRGB). It checks, for the light block and again for the dark block:
+ink and ink 2 on page and quiet fill, on-accent on accent and accent strong, accent on page and quiet
+fill (4.5, and 3 as the focus ring), good, bad and caution on page (4.5), rule on page and quiet fill
+(3), route and glass data colours on surface (3). For glass: ink and ink 2 on each tint over white and
+black at 4.5 or better. It also fails if a removed token (`--c-sign*`, `--focus-inner/outer`) or an
+`@font-face` comes back, and if any visitor file mentions `backdrop-filter` or `glass-`.
 
 ---
 
 ## 7. Build order for the 10 hours (web side)
 
-1. Copy tokens, add the font imports, base layer: 15 min. Everything after inherits it.
+1. Copy tokens (no font imports), base layer: 10 min. Everything after inherits it.
 2. Transcript region, buttons, Start and mode switcher, phone Step layout: 45 min (with Task 8).
 3. Chips and tags as two functions `chip(kind, opts)` and `tag(word)` returning elements: 30 min
    (Task 19).
@@ -801,17 +793,9 @@ describe("tokens contrast (light)", () => {
 
 ## 8. Sources
 
-* Braille Institute, Atkinson Hyperlegible Next and Mono (weights, 150+ languages, free):
-  https://www.brailleinstitute.org/freefont/
-* Atkinson Hyperlegible history, designers, Next and Mono in 2025, OFL:
-  https://en.wikipedia.org/wiki/Atkinson_Hyperlegible
-* Original family repository, OFL 1.1: https://github.com/googlefonts/atkinson-hyperlegible
-* Google Fonts specimen, Next: https://fonts.google.com/specimen/Atkinson+Hyperlegible+Next
-* Fontsource, Mono (OFL 1.1, variable 200 to 800, files from Google Fonts):
-  https://fontsource.org/fonts/atkinson-hyperlegible-mono/about
-* Next release, seven weights, over 150 languages, free via Google Fonts (Feb 2025):
-  https://ophthalmologymanagement.com/news/2025/applied-design-and-braille-institute-partner-to-launch-typeface-for-making-reading-easier/
-* Next, six weights plus italics, OFL 1.1: https://www.linuxlinks.com/atkinson-hyperlegible-next-sans-serif-typeface/
+* Apple HIG, Typography (system font, Dynamic Type): https://developer.apple.com/design/human-interface-guidelines/typography
+* Apple, SF Pro font licence (the fonts may not be embedded on websites):
+  https://developer.apple.com/fonts/
 * APH, Research based large print guidelines (18 pt body, 1.25 spacing, 39 to 43 characters, avoid
   italics, avoid grey text): https://www.aph.org/app/uploads/2022/04/Research-Based-Large-Print-Guidelines.pdf
 * RNIB, print sizes (clear 14 pt, large 16 pt+, giant 18 pt+): https://help.rnib.org.uk/help/daily-living/large-print-size
@@ -827,8 +811,6 @@ describe("tokens contrast (light)", () => {
   https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html
 * WCAG 2.2 Understanding 2.4.13 Focus Appearance (2px perimeter, 3:1 change):
   https://www.w3.org/WAI/WCAG22/Understanding/focus-appearance.html
-* Frutiger, designed for Charles de Gaulle airport signage, NHS identity and signage:
-  https://madegooddesigns.com/frutiger-font/
 * Letter height versus viewing distance (25 mm per 10 m):
   https://www.studiomatrx.org/students/wayfinding-and-environmental-graphics/legibility-size-and-viewing-distance
 * Projected text, 8H rule and 1/50 of screen height minimum:

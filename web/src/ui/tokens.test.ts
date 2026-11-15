@@ -11,12 +11,37 @@ const lum = (h: string) => { const c = [1, 3, 5].map(i => parseInt(h.slice(i, i 
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
 const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 
+const darkStart0 = css.indexOf(':root[data-theme="dark"] {');
+const dark = css.slice(darkStart0, css.indexOf("\n  }", darkStart0));
+const dv = (n: string) => dark.match(new RegExp(`${n}:\\s*(#[0-9A-Fa-f]{6})`))![1];
+
+// [text, background, minimum]: 4.5 AA text, 3 non text
+const pairs: [string, string, number][] = [
+  ["--c-ink", "--c-paper", 4.5], ["--c-ink", "--c-surface-2", 4.5],
+  ["--c-ink-2", "--c-paper", 4.5], ["--c-ink-2", "--c-surface-2", 4.5],
+  ["--c-on-accent", "--c-accent", 4.5], ["--c-accent", "--c-paper", 4.5], ["--c-accent", "--c-paper", 3],
+  ["--c-accent", "--c-surface-2", 4.5], ["--c-on-accent", "--c-accent-strong", 4.5],
+  ["--c-on-mark", "--c-mark", 4.5],
+  ["--c-good", "--c-paper", 4.5], ["--c-bad", "--c-paper", 4.5], ["--c-caution", "--c-paper", 4.5],
+  ["--c-rule", "--c-paper", 3], ["--c-rule", "--c-surface-2", 3],
+  ["--d-route", "--c-surface", 3], ["--d-glass", "--c-surface", 3],
+];
 describe("tokens contrast (light)", () => {
-  it.each([
-    ["--c-ink", "--c-paper", 7], ["--c-ink-2", "--c-paper", 7], ["--c-on-sign", "--c-sign", 7],
-    ["--c-on-mark", "--c-mark", 7], ["--c-good", "--c-paper", 4.5], ["--c-bad", "--c-paper", 4.5],
-    ["--c-rule", "--c-paper", 3], ["--d-route", "--c-surface", 3], ["--d-glass", "--c-surface", 3],
-  ])("%s on %s >= %d", (a, b, min) => expect(ratio(v(a), v(b))).toBeGreaterThanOrEqual(min));
+  it.each(pairs)("%s on %s >= %d", (a, b, min) => expect(ratio(v(a), v(b))).toBeGreaterThanOrEqual(min));
+  it("keeps the brief's exact values", () => {
+    expect([v("--c-ink"), v("--c-ink-2"), v("--c-accent"), v("--c-rule"), v("--c-surface-2")])
+      .toEqual(["#1D1D1F", "#6E6E73", "#0066CC", "#86868B", "#F5F5F7"]);
+  });
+});
+describe("tokens contrast (dark)", () => {
+  it.each(pairs.filter(([a]) => a !== "--c-on-mark"))("%s on %s >= %d", (a, b, min) =>
+    expect(ratio(dv(a), dv(b))).toBeGreaterThanOrEqual(min));
+  it("on-mark on mark", () => expect(ratio(dv("--c-on-mark"), dv("--c-mark"))).toBeGreaterThanOrEqual(4.5));
+});
+describe("no removed tokens", () => {
+  it("no sign band, two ring focus or web fonts", () => {
+    expect(css).not.toMatch(/--c-(on-)?sign|--focus-(inner|outer)|Atkinson|@font-face/);
+  });
 });
 
 // ---- glass ----
@@ -46,20 +71,22 @@ const ratioRgb = (a: [number, number, number], b: [number, number, number]) => {
 const over = (t: { rgb: [number, number, number]; a: number }, bg: number): [number, number, number] =>
   t.rgb.map(c => c * t.a + bg * (1 - t.a)) as [number, number, number];
 
-describe("glass alpha keeps 7:1", () => {
-  const cases: [string, string, string, string[]][] = [
-    ["light bar", lightBlock, "--glass-bar-tint", ["--c-on-sign"]],
-    ["light panel", lightBlock, "--glass-panel-tint", ["--c-ink", "--c-ink-2"]],
-    ["dark bar", darkBlock, "--glass-bar-tint", ["--c-on-sign"]],
-    ["dark panel", darkBlock, "--glass-panel-tint", ["--c-ink", "--c-ink-2"]],
+describe("glass alpha keeps 4.5:1 over any backdrop", () => {
+  const cases: [string, string, string][] = [
+    ["light bar", lightBlock, "--glass-bar-tint"], ["light panel", lightBlock, "--glass-panel-tint"],
+    ["dark bar", darkBlock, "--glass-bar-tint"], ["dark panel", darkBlock, "--glass-panel-tint"],
   ];
-  for (const [label, block, tintName, texts] of cases)
-    for (const textName of texts)
+  for (const [label, block, tintName] of cases)
+    for (const textName of ["--c-ink", "--c-ink-2"])
       for (const [bgName, bg] of [["white", 255], ["black", 0]] as const)
-        it(`${label}: ${textName} over ${bgName} >= 7`, () => {
+        it(`${label}: ${textName} over ${bgName} >= 4.5`, () => {
           const fill = over(tint(block, tintName), bg);
-          expect(ratioRgb(rgbOf(hexIn(block, textName)), fill)).toBeGreaterThanOrEqual(7);
+          expect(ratioRgb(rgbOf(hexIn(block, textName)), fill)).toBeGreaterThanOrEqual(4.5);
         });
+  it("tints are white (light) and the dark surface", () => {
+    expect(tint(lightBlock, "--glass-bar-tint").rgb).toEqual([255, 255, 255]);
+    expect(tint(darkBlock, "--glass-bar-tint").rgb).toEqual(rgbOf(hexIn(darkBlock, "--c-surface")));
+  });
 });
 
 describe("no glass on visitor screens", () => {
