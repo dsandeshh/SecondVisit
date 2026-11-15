@@ -5,7 +5,7 @@ import { AUTO_SWEEP_MS, autoSweep, sweepContact, TapGate } from "../audio/cane";
 import type { AudioEngine } from "../audio/engine";
 import { pulse, PULSE } from "../audio/haptics";
 import { LandmarkSounds } from "../audio/landmarks";
-import type { Speech } from "../audio/speech";
+import { RATE_MAX, RATE_MIN, type Speech } from "../audio/speech";
 import type { KeyActions } from "../input/keyboard";
 import { possiblyOpts, spokenOf } from "../names";
 import type { Entrance, Landmark, Vec2 } from "../types";
@@ -183,7 +183,8 @@ export class Explore implements KeyActions {
   rate(delta: number): void {
     this.speech.setRate(this.speech.rate + delta);
     try { localStorage.setItem("sv.rate", String(this.speech.rate)); } catch { /* private mode */ }
-    this.speech.say(delta > 0 ? "Faster." : "Slower.", 2);
+    const r = this.speech.rate;
+    this.speech.say(r >= RATE_MAX ? "Fastest." : r <= RATE_MIN ? "Slowest." : delta > 0 ? "Faster." : "Slower.", 2);
   }
 
   clockTo(p: Vec2): number {

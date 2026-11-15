@@ -9,6 +9,7 @@ import type { ObsMsg } from "../observer/protocol";
 import type { BuildingPackage, Landmark, RunEvent } from "../types";
 import { fetchCoach as realFetchCoach, scriptedCoach, type CoachResult } from "./coach";
 import type { Explore, ExploreHooks } from "./explore";
+import { BUMP_HELP, BumpWatcher, closeness, Intro, nextAction, type NextCtx } from "./guide";
 import { KEYS_LINE } from "./interact";
 import { PointTask, POINT_TURN_DEG, pointFeedback } from "./point";
 import { buildQuiz, QuizSession } from "./quiz";
@@ -28,6 +29,18 @@ export type SessionDeps = {
   audioRunning?: () => boolean;
   /** K: show the keys panel. */
   onKeys?: () => void;
+  /** The one next action changed (bottom strip). */
+  onNext?: (text: string) => void;
+  /** The intro prompt to draw large, or null. */
+  onIntro?: (text: string | null) => void;
+  /** Pause or resume all sound (P). */
+  onHold?: (on: boolean) => void;
+  /** Escape with nothing running: move focus out of the stage. */
+  onLeave?: () => void;
+  /** Play the arrival chime. */
+  chime?: () => void;
+  introSeen?: () => boolean;
+  introRemember?: () => void;
 };
 
 const TICK_MS = 250;
@@ -41,6 +54,11 @@ export class Session implements KeyActions {
   coach: CoachResult | null = null;
   reader: SummaryReader | null = null;
   private pointed = false;
+  private held = false;
+  private introEsc = false;
+  private lastNext = "";
+  private bumps = new BumpWatcher();
+  readonly intro: Intro;
   private paused = false;
   private runStarted = false;
   private sent = 0;
@@ -59,7 +77,11 @@ export class Session implements KeyActions {
     hooks.onMove = t => pub({ v: 1, t: "pose", ts: this.now(), pos: [t.pos[0], t.pos[1]], heading: t.heading, cane_deg: t.caneDeg });
     hooks.onTap = (at, code) => pub({ v: 1, t: "tap", ts: this.now(), at, code: code as 0 | 1 | 2 | 3 | 4 | 5 });
     hooks.onStep = t => { if (this.phase === "rehearse" && this.run) this.afterRun(() => this.run!.onMove(t)); };
-    hooks.onBump = t => { if (this.phase === "rehearse" && this.run) this.afterRun(() => this.run!.bump(t)); };
+    hooks.onBump = t => {
+      if (this.phase === "rehearse" && this.run) this.afterRun(() => this.run!.bump(t));
+      if (this.live && this.bumps.note(this.now())) this.say(BUMP_HELP, 2);
+    };
+    this.intro = new Intro({ say: t => this.say(t), show: t => this.deps.onIntro?.(t), seen: deps.introSeen, remember: deps.introRemember });
     hooks.onHint = t => { if (this.phase === "rehearse" && this.run) this.afterRun(() => this.run!.hint(t)); };
     this.interval = setInterval(() => this.tick(TICK_MS), TICK_MS);
     (this.interval as any)?.unref?.();
@@ -70,7 +92,7 @@ export class Session implements KeyActions {
   private pub(m: ObsMsg) { try { this.deps.publish?.(m); } catch { /* */ } }
   private say(t: string, p: Priority = 2) { this.speech.say(t, p); }
 
-  private setPhase(p: Phase) { this.phase = p; this.deps.onPhase?.(p); }
+  private setPhase(p: Phase) { this.phase = p; this.deps.onPhase?.(p); this.refreshNext(); }
 
   private get goal(): Landmark | null {
     const r = this.route;
@@ -79,7 +101,20 @@ export class Session implements KeyActions {
 
   destroy(): void { if (this.interval) clearInterval(this.interval); this.interval = null; }
 
+  /** The text for the bottom strip: one clear next action. */
+  next(): string {
+    const c: NextCtx = { phase: this.phase, intro: this.intro.active ? this.intro.prompt : null,
+      picked: !!this.ex.fx.picked, pointed: this.pointed, answered: this.quiz?.isAnswered, runNo: this.runNo, hasRoute: this.hasRoute };
+    return nextAction(c);
+  }
+  private refreshNext(): void {
+    const t = this.next();
+    if (t !== this.lastNext) { this.lastNext = t; this.deps.onNext?.(t); }
+  }
+
   tick(dtMs: number): void {
+    this.refreshNext();
+    if (this.held) return;
     if (this.phase !== "rehearse" || !this.run || this.paused) return;
     this.afterRun(() => this.run!.tick(dtMs));
   }
@@ -137,6 +172,7 @@ export class Session implements KeyActions {
     this.pointed = true;
     const r = task.confirm(this.now());
     this.run!.addPoint(r);
+    this.deps.chime?.();
     this.pub({ v: 1, t: "point", ts: this.now(), from: r.at, heading: r.heading, target_bearing: r.target_bearing, error_deg: r.error_deg });
     const next = this.runNo === 1 ? "Press Enter for three questions." : "Press Enter for the summary.";
     this.say(`${pointFeedback(r, task.startHeading, spokenOf(task.target))} ${next}`, 2);
@@ -196,7 +232,14 @@ export class Session implements KeyActions {
 
   // ---- KeyActions ---------------------------------------------------------------------------
 
+  private blocked(): boolean {
+    if (!this.held) return false;
+    this.say("Paused. Press P to resume.", 2);
+    return true;
+  }
+
   enter(): void {
+    if (this.blocked()) return;
     switch (this.phase) {
       case "explore":
         if (this.ex.fx.picked) { this.ex.fx.startBeacon(); return; }   // a place was chosen with Tab: go there
@@ -223,9 +266,10 @@ export class Session implements KeyActions {
     }
   }
 
-  step(dir: 1 | -1): void { this.ex.step(dir); }
+  step(dir: 1 | -1): void { if (this.blocked()) return; this.ex.step(dir); }
 
   turn(deg: number): void {
+    if (this.blocked()) return;
     if (this.phase === "point" && this.point) {
       if (this.pointed) return;
       this.point.turn(Math.sign(deg) * POINT_TURN_DEG);
@@ -278,13 +322,33 @@ export class Session implements KeyActions {
   around(detail: boolean): void { if (this.live) void this.ex.fx.around(detail); }
   ahead(): void { if (this.live) void this.ex.fx.ahead(); }
   pick(dir: 1 | -1): void { if (this.live) this.ex.fx.pick(dir); }
-  escape(): void { this.ex.fx.escape(); }
+  escape(): void {
+    if (this.introEsc) { this.introEsc = false; return; }          // that Escape only skipped the intro
+    const fx = this.ex.fx as any;
+    const busy = !!fx.beacon || !!fx.sweeping || !!fx.picked;
+    fx.escape();
+    if (!busy && (this.phase === "explore" || this.phase === "summary") && this.deps.onLeave) {
+      this.say("Left the rehearsal. Press Enter on Explore to come back.", 2);
+      this.deps.onLeave();
+    }
+  }
+  /** P: pause or resume everything (sound, speech and the hesitation clock). */
+  pause(): void {
+    this.held = !this.held;
+    this.say(this.held ? "Paused. Press P to resume." : "Resumed.", 3);
+    this.deps.onHold?.(this.held);
+  }
+  get isHeld(): boolean { return this.held; }
+  /** Start the guided intro (first visit only unless forced). */
+  startIntro(force = false): boolean { const on = this.intro.start(force); this.refreshNext(); return on; }
   keys(): void { this.say(KEYS_LINE, 2); this.deps.onKeys?.(); }
   private get live(): boolean { return this.phase === "explore" || this.phase === "rehearse"; }
   rate(d: number): void { this.ex.rate(d); }
   /** Any key interrupts speech (CLAUDE.md rule 7), then resumes a paused AudioContext. */
   any(key?: string): void {
     this.speech.stop();
+    if (key !== undefined && this.intro.active) this.introEsc = this.intro.key(key) === "skip";
+    queueMicrotask(() => this.refreshNext());
     if (key !== undefined && !key.startsWith("Arrow")) this.ex.fx.cancel();   // walking keeps a sweep going
     this.ex.any(key);
   }

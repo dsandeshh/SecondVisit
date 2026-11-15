@@ -41,6 +41,7 @@
             <div id="stage" class="stage" role="application" tabindex="0"
                  aria-label="Rehearsal. Up arrow to walk, left and right to turn, Space to repeat, W for where am I.">
               <div id="room3d" class="room3d viz" aria-hidden="true"></div>
+              <p id="intro-prompt" class="intro-prompt" aria-hidden="true" hidden></p>
               <div class="room3d-bar viz" role="group" aria-label="3D view">
                 <button type="button" class="btn btn--secondary btn--small" data-view="behind" aria-pressed="true">Behind</button>
                 <button type="button" class="btn btn--secondary btn--small" data-view="top" aria-pressed="false">Top</button>
@@ -74,6 +75,7 @@
           </aside>
         </div>
         <section id="strip" class="strip" aria-label="Current instruction">
+          <p id="next-action" class="next-action">Next: press Enter to start the rehearsal</p>
           <section class="transcript" aria-labelledby="tr-h">
             <h2 id="tr-h" class="sr-only">What SecondVisit says</h2>
             <div class="transcript__row"><p id="say-polite" class="transcript__now" aria-live="off"></p><p id="say-dir" class="transcript__dir" aria-hidden="true" hidden></p></div>
@@ -125,12 +127,14 @@
                 <dt>E</dt><dd>ahead of me: what is within 30 degrees, then the wall or open space</dd>
                 <dt>Tab, Shift+Tab</dt><dd>choose the next or previous place</dd>
                 <dt>Enter</dt><dd>go to the chosen place with the beacon (Explore); hint (Rehearse); start rehearsal when no place is chosen; continue</dd>
-                <dt>Escape</dt><dd>stop the beacon or a sweep</dd>
+                <dt>Escape</dt><dd>stop the beacon or a sweep; with nothing running, leave the rehearsal so Tab works again (then Enter on Explore comes back)</dd>
+                <dt>F6, Shift+F6</dt><dd>move between the top bar, the rehearsal, Keys and Agent and data</dd>
+                <dt>P</dt><dd>pause or resume all sound</dd>
                 <dt>S</dt><dd>source of this line</dd>
                 <dt>Shift+S</dt><dd>swap left and right</dd>
                 <dt>K</dt><dd>these keys, spoken</dd>
                 <dt>1 to 4, R</dt><dd>quiz answer, repeat options</dd>
-                <dt>+ and −</dt><dd>speech rate</dd>
+                <dt>+ and −</dt><dd>speech speed, 80 to 160 percent</dd>
               </dl>
             </section>
           </details>

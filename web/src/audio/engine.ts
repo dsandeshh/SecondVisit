@@ -53,6 +53,13 @@ export class AudioEngine {
   onResume: () => void = () => {};
   private matrix: GainNode[] = []; // LL, LR, RL, RR
   private resumeArmed = false;
+  /** P: the visitor paused everything on purpose (no "sound paused" alarm). */
+  holding = false;
+  hold(on: boolean): void {
+    this.holding = on;
+    const c = this.ctx;
+    if (on) { void c?.suspend?.(); } else { void c?.resume?.(); }
+  }
 
   constructor(readonly speech: Speech) {
     this.bus = speech.bus;
@@ -81,7 +88,7 @@ export class AudioEngine {
     const [, p] = await Promise.all([resumed, perm, wake]); // first await
     const motion: Motion = p === "granted" ? await firstRealOrientation(motionWaitMs) : p;
     this.build(ctx);
-    ctx.onstatechange = () => { if (ctx.state !== "running") this.onAudioPaused(); };
+    ctx.onstatechange = () => { if (ctx.state !== "running" && !this.holding) this.onAudioPaused(); };
     this.mode = modeFor(motion);
     this.report = { audio: ctx.state === "running" ? "running" : "failed", motion,
       vibrate: "vibrate" in navigator && typeof nav.vibrate === "function", latencyMs: latencyOf(ctx) };

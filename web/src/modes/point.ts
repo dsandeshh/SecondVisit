@@ -1,4 +1,5 @@
 // Pointing task after arrival (Task 10 web, v2). No hint before confirm: only the heading is ever shown.
+import { closeness } from "./guide";
 import { clockHour } from "../clock";
 import { spokenOf } from "../names";
 import type { Landmark, PointResult, Vec2 } from "../types";
@@ -57,5 +58,5 @@ export class PointTask {
 
 export function pointFeedback(r: PointResult, startHeading: number, label: string): string {
   const h = clockHour(wrap180(r.target_bearing - startHeading));
-  return `You were ${Math.round(r.error_deg)} degrees off. The ${lower(label)} is at ${h} o'clock from here.`;
+  return `You were ${Math.round(r.error_deg)} degrees off. ${closeness(Math.round(r.error_deg))} The ${lower(label)} is at ${h} o'clock from here.`;
 }

@@ -1,7 +1,9 @@
 // Visitor app wiring: Start gate, output mode choice, Explore on laptop and phone (Task 8).
 import { AudioEngine, type StartReport } from "./audio/engine";
 import { Speech } from "./audio/speech";
-import { ClipStore, VoiceOut } from "./audio/voice";
+import { ClipStore, routeLineIds, VoiceOut } from "./audio/voice";
+import { INTRO, INTRO_READY, INTRO_SKIPPED, storeSeen, storedSeen } from "./modes/guide";
+import { spokenOf } from "./names";
 import { Captions } from "./ui/captions";
 import { attachFocusGuard, attachKeys } from "./input/keyboard";
 import { MotionInput } from "./input/orientation";
@@ -57,21 +59,25 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
   $("start").addEventListener("click", () => {
     if (audio.ctx || !app.pkg) return;
     const started = audio.start("app"); // synchronous part runs inside this click
-    void started.then(r => enter(app, doc, r, op));
+    // Clips for this route and room are fetched inside the same gesture, before anything else.
+    const store = new ClipStore(audio.ctx!, `/buildings/${app.pkg.id}`);
+    const pkg = app.pkg;
+    const first = [...INTRO.map(s => s.text), INTRO_READY, INTRO_SKIPPED, ...pkg.routes.flatMap(r => r.segments.map(s => s.instruction)),
+      ...pkg.landmarks.map(l => spokenOf(l))];
+    void store.init().then(() => store.preload([...routeLineIds(first, store), ...store.ids])).catch(() => undefined);
+    void started.then(r => enter(app, doc, r, op, store));
   });
   return app;
 }
 
-function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
+function enter(app: App, doc: Document, r: StartReport, op: boolean, store: ClipStore): void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => doc.getElementById(id) as T;
   const { audio, speech } = app;
   const pkg = app.pkg!;
   const phone = audio.mode !== "keys";
   const hooks: ExploreHooks = {};
   // One event bus: voice clips, captions and the observer all subscribe to speech.bus (the 3D ring does in the cockpit).
-  const store = new ClipStore(audio.ctx!, `/buildings/${pkg.id}`);
   app.voice = new VoiceOut(audio, speech, store);
-  void store.init().then(() => store.preload()).catch(() => undefined);
   app.captions = new Captions(doc, speech.bus);
   speech.bus.subscribe(c => obs.publish(c as ObsMsg));
   const ex = new Explore(new World(pkg), audio, speech, hooks);
@@ -82,6 +88,13 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
     audioRunning: () => audio.ctx?.state === "running",
     onPhase: p => showPhase(doc, session, p),
     onQuestion: q => showQuiz(doc, session, q),
+    onNext: t => { $("next-action").textContent = t; },
+    onIntro: t => showIntro(doc, t),
+    onHold: on => { audio.hold(on); try { on ? globalThis.speechSynthesis?.pause() : globalThis.speechSynthesis?.resume(); } catch { /* none */ } },
+    onLeave: () => { const tab = doc.querySelector<HTMLElement>("#steps-list li span"); tab?.focus(); },
+    chime: () => { audio.cue("chime", { bus: "cue", gain: 1, announce: true, label: "chime" }); },
+    introSeen: () => new URLSearchParams(doc.location?.search).get("intro") === "1" ? false : storedSeen(),
+    introRemember: storeSeen,
     onKeys: () => { const k = doc.getElementById("keys-panel") as HTMLDetailsElement | null; if (!k) return; k.open = true; k.classList.add("is-flash"); setTimeout(() => k.classList.remove("is-flash"), 1500); },
   });
   app.session = session;
@@ -103,6 +116,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
 
   const stage = $("stage");
   attachKeys(stage, session);
+  wireRegions(doc, stage, speech, session);
   stage.addEventListener("mousemove", (e: MouseEvent) => {
     const b = stage.getBoundingClientRect();
     if (b.width > 0) ex.setCane(((e.clientX - b.left) / b.width * 2 - 1) * 50);
@@ -158,7 +172,8 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
   showPhase(doc, session, "explore");
   ex.begin();
   // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
-  speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
+  if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
+  else speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
   audio.play(1, { pan: -1, send: 0 });
   setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
 }
@@ -235,4 +250,40 @@ function showQuiz(doc: Document, s: Session, q: QuizSession | null): void {
   });
   const rp = doc.createElement("p"); rp.className = "note"; rp.textContent = "Keys 1 to 4 answer. R repeats the options. Enter goes on.";
   host.append(rp);
+}
+
+/** The large intro prompt over the 3D view (and on the phone, the next action strip carries it). */
+function showIntro(doc: Document, text: string | null): void {
+  const el = doc.getElementById("intro-prompt");
+  if (!el) return;
+  el.textContent = text ?? "";
+  el.hidden = !text;
+}
+
+/** The way out of the stage (WCAG 2.1.2): Escape with nothing running, or F6 / Shift+F6 to cycle regions. */
+export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, session: Session): void {
+  const tab = doc.querySelector<HTMLElement>("#steps-list li span");
+  if (tab) {
+    tab.tabIndex = 0; tab.setAttribute("role", "button");
+    tab.setAttribute("aria-label", "Explore. Press Enter to go back to the rehearsal.");
+    const back = () => { stage.focus(); speech.say("Back in the rehearsal.", 2); };
+    tab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); back(); } });
+    tab.addEventListener("click", back);
+  }
+  const regions: [string, () => HTMLElement | null][] = [
+    ["Top bar.", () => tab ?? null], ["Rehearsal.", () => stage],
+    ["Keys.", () => doc.querySelector<HTMLElement>("#keys-panel > summary")],
+    ["Agent and data.", () => doc.querySelector<HTMLElement>("#data-panel > summary")],
+  ];
+  doc.addEventListener("keydown", e => {
+    if (e.key !== "F6") return;
+    e.preventDefault();
+    const at = regions.findIndex(([, f]) => { const el = f(); return !!el && (el === doc.activeElement || el.contains(doc.activeElement)); });
+    const n = regions.length, i = ((at < 0 ? 0 : at + (e.shiftKey ? -1 : 1)) + n) % n;
+    const [name, f] = regions[i];
+    f()?.focus();
+    speech.stop();
+    speech.say(name, 2);
+  });
+  void session;
 }
