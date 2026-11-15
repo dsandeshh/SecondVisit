@@ -264,3 +264,48 @@ def edit_landmark(sid: str, edit: LandmarkEdit) -> dict:
     path.write_text(json.dumps(d, indent=2) + "\n")
     return {"ok": True, "extra_landmarks": extra, "deleted_landmark_ids": deleted, "label_overrides": labels,
             "note": "saved to overrides.json; rebuild the package to re-plan the route"}
+
+
+# --- Live voice lines (A7b): POST /api/tts renders one line with Kokoro (node web/scripts/voice.mjs) and caches it. ---
+import subprocess
+import uuid
+
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+_ROOT = Path(__file__).resolve().parents[2]
+TTS_CACHE = _ROOT / "data" / "tts_cache"
+TTS_TIMEOUT_S = 10
+_VOICE_RE = re.compile(r"^[a-z]{2}_[a-z0-9]{2,20}$")
+
+
+class TtsRequest(BaseModel):
+    text: str
+    voice: str | None = None
+
+
+@app.post("/api/tts")
+def tts_endpoint(req: TtsRequest) -> FileResponse:
+    from dr.voice_lines import line_id, normalise
+
+    voice = req.voice or os.environ.get("SV_VOICE") or "af_heart"
+    text = normalise(req.text)
+    if not text or len(text) > 500 or not _VOICE_RE.match(voice):
+        raise HTTPException(422, "text (1 to 500 chars) and a voice like af_heart are required")
+    out = TTS_CACHE / voice / f"{line_id(text)}.wav"
+    if not (out.is_file() and out.stat().st_size > 0):
+        out.parent.mkdir(parents=True, exist_ok=True)
+        tmp = out.with_name(f".{uuid.uuid4().hex}.wav")
+        try:
+            # the script ends by SIGKILL (onnxruntime aborts at exit), so judge by the file, not the exit code
+            subprocess.run(["node", str(_ROOT / "web" / "scripts" / "voice.mjs"), "--render", text, voice, str(tmp)],
+                           cwd=_ROOT / "web", timeout=TTS_TIMEOUT_S, capture_output=True)
+            if not (tmp.is_file() and tmp.stat().st_size > 0):
+                raise HTTPException(503, "voice render failed")
+            tmp.replace(out)
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            raise HTTPException(503, f"voice render unavailable: {type(exc).__name__}") from exc
+        finally:
+            tmp.unlink(missing_ok=True)
+    return FileResponse(out, media_type="audio/wav")

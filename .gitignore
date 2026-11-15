@@ -253,3 +253,4 @@ data/*/landmarks.md
 data/*/vision_cache
 .env.*
 !.env.example
+data/tts_cache/
