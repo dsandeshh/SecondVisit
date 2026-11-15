@@ -51,7 +51,7 @@ Inside each stream: P0 first, then P1, then P2, respecting dependencies.
 - [ ] Task 20 help: `build_light` under 10 s per model
 
 ### Stream C: experience
-- [ ] P1 setup: tokens import, self hosted fonts, contrast test (`docs/CLAUDE_CODE_SETUP.md` P1)
+- [x] P1 setup + design change: tokens, system font (human change: Apple minimal, no web fonts), contrast and glass tests (`docs/CLAUDE_CODE_SETUP.md` P1)
 - [ ] Task 8: web world, audio, input, Explore, all v2 amendments, desktop, Android and iOS paths (P0) — checkpoint (c): first playable rehearsal on the clinic
 - [ ] Task 9: Rehearse and pocket summary (P0)
 - [ ] Task 10 web side: pointing task, quiz, coach handoff (P0)
