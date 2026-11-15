@@ -10,15 +10,17 @@ import type { BuildingPackage, Landmark, Vec2 } from "../types";
 import { decodeCells } from "../world";
 import { floorPlanPlacement, headingDir3, headingToYaw, roomMask, toThree, wallRects, type FloorPlanMeta, type Rect } from "./mapping";
 import { nearestPanos, panoToGL, type ProjIndex, type ProjPano, type RotMode } from "./panoproj";
-import { PROJ_SLOTS, patchMaterial, projUniforms, type ProjUniforms } from "./projshader";
+import { DEPTH_PX, PROJ_SLOTS, distanceMaterial, patchMaterial, projUniforms, type ProjStage, type ProjUniforms } from "./projshader";
 
 const CUBE_FILES = ["px.jpg", "nx.jpg", "py.jpg", "ny.jpg", "pz.jpg", "nz.jpg"];
 /** Pano cube maps kept on the GPU (about 32 MB each at 1024 px faces with mips); the least recently bound go first. */
 const PROJ_CACHE = 10;
+type ProjEntry = { tex: THREE.CubeTexture; ready: boolean; used: number; depth: THREE.WebGLCubeRenderTarget | null };
 type ProjState = {
-  base: string; idx: ProjIndex; u: ProjUniforms; rot: RotMode;
+  base: string; idx: ProjIndex; u: ProjUniforms; rot: RotMode; stage: ProjStage;
+  depthScene: THREE.Scene; distMat: THREE.ShaderMaterial;
   slots: (string | null)[];
-  cache: Map<string, { tex: THREE.CubeTexture; ready: boolean; used: number }>;
+  cache: Map<string, ProjEntry>;
 };
 
 export type ViewMode = "behind" | "top" | "orbit" | "eye";
@@ -232,11 +234,12 @@ export class Room3D {
 
   /**
    * ?view=proj (experimental): colour the scan from the real panorama photos (pano/index.json and cube maps from
-   * engine/scripts/export_pano_faces.py). The PROJ_SLOTS panos nearest the camera are bound each frame; wherever no
-   * bound pano gives a photo texel the shader keeps the baked texture. Resolves with a reason on failure (the baked
-   * view then stays exactly as it was), null on success.
+   * engine/scripts/export_pano_faces.py). The PROJ_SLOTS panos nearest the camera are bound each frame; for stages
+   * c and d each bound pano also gets a distance cube (the mesh rendered from the pano once, on the GPU) so a surface
+   * only takes colour from panos that can see it. Wherever no bound pano gives a trustworthy texel the shader keeps
+   * the baked texture. Resolves with a reason on failure (the baked view then stays as it was), null on success.
    */
-  async enableProjection(base: string, o: { rot?: RotMode; debug?: boolean } = {}): Promise<string | null> {
+  async enableProjection(base: string, o: { rot?: RotMode; debug?: boolean; stage?: ProjStage } = {}): Promise<string | null> {
     if (!this.scan) return "no scan";
     try {
       const r = await fetch(`${base}pano/index.json`);
@@ -244,18 +247,26 @@ export class Room3D {
       if (/text\/html/.test(r.headers.get("content-type") ?? "")) return "pano index missing";
       const idx = (await r.json()) as ProjIndex;
       if (!idx.panos?.length) return "no panos";
+      const stage = o.stage ?? "d";
       const u = projUniforms(PROJ_SLOTS);
+      // the line of sight scene: the same geometry (shared GPU buffers), unclipped, drawn as distance from the pano
+      const depthScene = new THREE.Scene(), distMat = distanceMaterial();
+      this.scan.updateMatrixWorld(true);
       this.scan.traverse(x => {
         const m = x as THREE.Mesh; if (!m.isMesh) return;
-        for (const mat of ([] as THREE.Material[]).concat(m.material)) if ((mat as THREE.MeshStandardMaterial).map) patchMaterial(mat as THREE.MeshStandardMaterial, u, { debug: o.debug });
+        for (const mat of ([] as THREE.Material[]).concat(m.material)) if ((mat as THREE.MeshStandardMaterial).map) patchMaterial(mat as THREE.MeshStandardMaterial, u, { debug: o.debug, stage });
+        const dm = new THREE.Mesh(m.geometry, distMat); dm.matrixAutoUpdate = false; dm.matrix.copy(m.matrixWorld); dm.matrixWorld.copy(m.matrixWorld);
+        depthScene.add(dm);
       });
-      this.proj = { base, idx, u, rot: o.rot ?? "quat", slots: new Array(PROJ_SLOTS).fill(null), cache: new Map() };
+      this.disposables.push(distMat);
+      this.proj = { base, idx, u, rot: o.rot ?? "quat", stage, depthScene, distMat, slots: new Array(PROJ_SLOTS).fill(null), cache: new Map() };
       return null;
     } catch (e) { return e instanceof Error ? e.message : "failed"; }
   }
   get projecting(): boolean { return !!this.proj; }
 
-  /** Bind the panos nearest the camera to the shader's slots, loading their cube maps on first use. */
+  /** Bind the panos nearest the camera to the shader's slots, loading their cube maps on first use (and rendering
+   *  at most one distance cube per frame, so binding never stalls a frame for long). */
   private updateProj(now: number): void {
     const P = this.proj; if (!P) return;
     const cam: [number, number] = [this.camera.position.x, -this.camera.position.z];   // three -> plan
@@ -264,30 +275,50 @@ export class Room3D {
     P.slots = P.slots.map(id => (id && ids.has(id) ? id : null));     // keep panos that stay, free the rest
     for (const p of want) if (!P.slots.includes(p.id)) P.slots[P.slots.indexOf(null)] = p.id;
     const byId = new Map(P.idx.panos.map(p => [p.id, p] as const));
+    let depthBudget = 1;
     P.slots.forEach((id, i) => {
       const p = id ? byId.get(id) : undefined;
       const c = p ? this.projTex(p) : undefined;
       if (c) c.used = now;
-      P.u.svOn.value[i] = c?.ready ? 1 : 0;
-      P.u[`svCube${i}`].value = c?.ready ? c.tex : null;
+      if (p && c && P.stage !== "b" && !c.depth && depthBudget > 0) { c.depth = this.renderDepth(p); depthBudget--; }
+      const ready = !!c?.ready && (P.stage === "b" || !!c.depth);
+      P.u.svOn.value[i] = ready ? 1 : 0;
+      P.u[`svCube${i}`].value = ready ? c!.tex : null;
+      P.u[`svDepth${i}`].value = ready && c!.depth ? c!.depth.texture : null;
       if (p) { P.u.svPos.value[i].set(...p.pos); P.u.svG.value[i].set(...(panoToGL(p, P.idx.face_yaw0_deg, P.rot) as [number, number, number, number, number, number, number, number, number])); }
     });
     if (P.cache.size > PROJ_CACHE) {
       const old = [...P.cache.entries()].filter(([id]) => !P.slots.includes(id)).sort((a, b) => a[1].used - b[1].used);
-      for (const [id, c] of old.slice(0, P.cache.size - PROJ_CACHE)) { c.tex.dispose(); P.cache.delete(id); }
+      for (const [id, c] of old.slice(0, P.cache.size - PROJ_CACHE)) { c.tex.dispose(); c.depth?.dispose(); P.cache.delete(id); }
     }
   }
 
-  private projTex(p: ProjPano): { tex: THREE.CubeTexture; ready: boolean; used: number } {
+  private projTex(p: ProjPano): ProjEntry {
     const P = this.proj!;
     let c = P.cache.get(p.id);
     if (!c) {
-      const entry = { tex: null as unknown as THREE.CubeTexture, ready: false, used: 0 };
+      const entry: ProjEntry = { tex: null as unknown as THREE.CubeTexture, ready: false, used: 0, depth: null };
       entry.tex = new THREE.CubeTextureLoader().setPath(P.base + p.dir).load(CUBE_FILES, () => { entry.ready = true; }, undefined, () => { /* stays baked */ });
       entry.tex.colorSpace = THREE.SRGBColorSpace;
       P.cache.set(p.id, entry); c = entry;
     }
     return c;
+  }
+
+  /** The pano's line of sight: the whole mesh (no 2 m cut) rendered from the pano's camera centre into a cube of
+   *  distances. A surface point is visible from the pano when it is no farther than the cube says in its direction. */
+  private renderDepth(p: ProjPano): THREE.WebGLCubeRenderTarget {
+    const P = this.proj!;
+    const rt = new THREE.WebGLCubeRenderTarget(DEPTH_PX, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, generateMipmaps: false, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+    const cc = new THREE.CubeCamera(0.05, 100, rt);
+    const at = new THREE.Vector3(...toThree([p.pos[0], p.pos[1]], p.pos[2]));
+    cc.position.copy(at); cc.updateMatrixWorld(true);
+    (P.distMat.uniforms.uFrom.value as THREE.Vector3).copy(at);
+    const prevColor = this.renderer.getClearColor(new THREE.Color()), prevAlpha = this.renderer.getClearAlpha();
+    this.renderer.setClearColor(0xffffff, 1);          // 1 = nothing within DEPTH_SCALE metres
+    cc.update(this.renderer, P.depthScene);
+    this.renderer.setClearColor(prevColor, prevAlpha);
+    return rt;
   }
 
   /** "scan": the real mesh (cut above 2 m) under the pins, route and walker; "plan": the built walls and floor plan. */
@@ -754,7 +785,7 @@ export class Room3D {
     cancelAnimationFrame(this.raf);
     this.ro?.disconnect();
     this.disposables.forEach(d => d.dispose());
-    this.proj?.cache.forEach(c => c.tex.dispose());
+    this.proj?.cache.forEach(c => { c.tex.dispose(); c.depth?.dispose(); });
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

@@ -66,10 +66,48 @@ export function nearestPanos(at: [number, number], panos: ProjPano[], k: number)
 /** `?view=proj` turns the experimental photo projection on; anything else leaves the baked texture alone. */
 export const projWanted = (search: string): boolean => new URLSearchParams(search).get("view") === "proj";
 
-/** Debug knobs for ?view=proj: projrot=yaw drops the quaternion's small tilt (default: full quaternion, which matched
+/** The stage ?view=proj shows unless projstage=b|c|d says otherwise: the last stage that looked better than the one before. */
+export const PROJ_STAGE: "b" | "c" | "d" = "c";
+
+/** Debug knobs for ?view=proj (projstage picks a stage, see PROJ_STAGE): projrot=yaw drops the quaternion's small tilt (default: full quaternion, which matched
  *  the baked mesh best in a headless A/B over 9 camera poses: edge correlation 0.873 vs 0.798 yaw only, and yaw0 90
  *  beat 88 and 92), projdebug=1 tints projected texels green and baked fallback red. */
-export function projOpts(search: string): { rot: RotMode; debug: boolean } {
-  const q = new URLSearchParams(search);
-  return { rot: q.get("projrot") === "yaw" ? "yaw" : "quat", debug: q.get("projdebug") === "1" };
+export function projOpts(search: string): { rot: RotMode; debug: boolean; stage: "b" | "c" | "d" } {
+  const q = new URLSearchParams(search), st = q.get("projstage");
+  return { rot: q.get("projrot") === "yaw" ? "yaw" : "quat", debug: q.get("projdebug") === "1", stage: st === "b" || st === "c" || st === "d" ? st : PROJ_STAGE };
+}
+
+// ---- which panos colour a surface point (stages c and d); projshader.ts mirrors this in GLSL ----
+
+/** One candidate pano for one surface point. `visible`: the pano's depth cube says nothing is in between.
+ *  `facing`: cos of the angle between the surface normal (turned toward the viewer) and the ray to the pano. */
+/** `lumDiff`: |luma of the pano's blurred colour - luma of the baked texture's blurred colour| (sRGB-ish 0..1) at
+ *  this point. The baked texture is right at low frequency, so a big difference means the photo shows something
+ *  else (a scan edge a few cm off, a hole in the mesh): the photo-consistency check. */
+export type ProjCand = { dist: number; visible: boolean; facing: number; lumDiff?: number };
+/** Beyond FADE_M a pano fades out, by MAX_M it gives nothing; under FACING_LO (grazing, ~80 degrees) nothing,
+ *  full trust from FACING_HI (~65 degrees); full trust up to AGREE_LO luma difference, none from AGREE_HI. */
+export const PROJ = { FADE_M: 6, MAX_M: 9, FACING_LO: 0.15, FACING_HI: 0.4, AGREE_LO: 0.2, AGREE_HI: 0.45, CAP: 3 };
+const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+/** Trust in one candidate, 0..1: line of sight, facing, range, photo consistency. */
+export function projConf(c: ProjCand): number {
+  if (!c.visible) return 0;
+  return smooth(PROJ.FACING_LO, PROJ.FACING_HI, c.facing) * (1 - smooth(PROJ.FADE_M, PROJ.MAX_M, c.dist))
+    * (1 - smooth(PROJ.AGREE_LO, PROJ.AGREE_HI, c.lumDiff ?? 0));
+}
+
+/**
+ * Blend weights over candidates: w = conf / (dist^2 + 0.25), only the `cap` largest kept, normalised to sum 1.
+ * `alpha` is how much of the photo to show over the baked texel (the best candidate's trust); 0 = baked only.
+ * cap 1 is stage c (the single best visible pano), cap 3 is stage d.
+ */
+export function projBlend(cands: ProjCand[], cap = PROJ.CAP): { weights: number[]; alpha: number } {
+  const raw = cands.map(c => projConf(c) / (c.dist * c.dist + 0.25));
+  const keep = raw.map((w, i) => [w, i] as const).filter(([w]) => w > 0).sort((a, b) => b[0] - a[0]).slice(0, cap);
+  const weights = new Array(cands.length).fill(0);
+  const sum = keep.reduce((s, [w]) => s + w, 0);
+  if (sum <= 0) return { weights, alpha: 0 };
+  keep.forEach(([w, i]) => { weights[i] = w / sum; });
+  return { weights, alpha: Math.max(...keep.map(([, i]) => projConf(cands[i]))) };
 }

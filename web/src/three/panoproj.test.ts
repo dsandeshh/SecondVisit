@@ -1,6 +1,6 @@
 // Photo projection math (?view=proj): plan direction -> the pano's GL cube lookup, nearest pano choice, flag.
 import { describe, expect, it } from "vitest";
-import { applyMat3, glFace, nearestPanos, panoToGL, projOpts, projWanted, quatMat3, type ProjPano } from "./panoproj";
+import { applyMat3, glFace, nearestPanos, panoToGL, PROJ, PROJ_STAGE, projBlend, projConf, projOpts, projWanted, quatMat3, type ProjPano } from "./panoproj";
 
 const pano = (id: string, pos: [number, number, number], yawDeg = 0, quat?: [number, number, number, number]): ProjPano => {
   const h = yawDeg * Math.PI / 360;
@@ -87,7 +87,54 @@ describe("projWanted: ?view=proj, default off", () => {
 
 describe("projOpts", () => {
   it("defaults to the full quaternion and no debug tint", () => {
-    expect(projOpts("?view=proj")).toEqual({ rot: "quat", debug: false });
-    expect(projOpts("?view=proj&projrot=yaw&projdebug=1")).toEqual({ rot: "yaw", debug: true });
+    expect(projOpts("?view=proj")).toEqual({ rot: "quat", debug: false, stage: PROJ_STAGE });
+    expect(projOpts("?view=proj&projrot=yaw&projdebug=1&projstage=b")).toEqual({ rot: "yaw", debug: true, stage: "b" });
+    expect(projOpts("?view=proj&projstage=zz").stage).toBe(PROJ_STAGE);
+  });
+});
+
+describe("projBlend: which panos colour a surface point, and the baked fallback", () => {
+  const C = (dist: number, visible = true, facing = 1) => ({ dist, visible, facing });
+  it("falls back to the baked texel (alpha 0) when no pano can see the point", () => {
+    expect(projBlend([C(2, false), C(3, false)])).toEqual({ weights: [0, 0], alpha: 0 });
+    expect(projBlend([])).toEqual({ weights: [], alpha: 0 });
+  });
+  it("falls back when every pano is far away (past MAX_M) or only grazes / faces the back of the surface", () => {
+    expect(projBlend([C(PROJ.MAX_M + 0.1)]).alpha).toBe(0);
+    expect(projBlend([C(2, true, 0.05), C(3, true, -0.8)]).alpha).toBe(0);
+  });
+  it("a single clear, facing, near pano gives the full photo", () => {
+    const b = projBlend([C(2), C(3, false)]);
+    expect(b.weights).toEqual([1, 0]); expect(b.alpha).toBe(1);
+  });
+  it("the nearer of two clear panos weighs more (1/d^2) and weights sum to 1", () => {
+    const b = projBlend([C(1), C(2)]);
+    expect(b.weights[0]).toBeGreaterThan(b.weights[1]);
+    expect(b.weights[0] + b.weights[1]).toBeCloseTo(1);
+    expect(b.weights[0] / b.weights[1]).toBeCloseTo((4 + 0.25) / (1 + 0.25));
+  });
+  it("keeps only the 3 strongest; cap 1 is the single best visible pano (stage c)", () => {
+    const b = projBlend([C(1), C(2), C(3), C(4)]);
+    expect(b.weights.filter(w => w > 0)).toHaveLength(3); expect(b.weights[3]).toBe(0);
+    expect(projBlend([C(1, false), C(2), C(3)], 1).weights).toEqual([0, 1, 0]);
+  });
+  it("fades out between FADE_M and MAX_M instead of cutting (no hard seam on the floor)", () => {
+    const a = projBlend([C(PROJ.FADE_M - 0.1)]).alpha, m = projBlend([C((PROJ.FADE_M + PROJ.MAX_M) / 2)]).alpha;
+    expect(a).toBe(1); expect(m).toBeGreaterThan(0.2); expect(m).toBeLessThan(0.8);
+  });
+});
+
+describe("photo consistency: a pano whose blurred colour disagrees with the blurred baked colour is not trusted", () => {
+  const C = (dist: number, lumDiff?: number) => ({ dist, visible: true, facing: 1, lumDiff });
+  it("small disagreement (fine detail the baked texture blurred) keeps full trust", () => {
+    expect(projBlend([C(2, 0.05)]).alpha).toBe(1);
+  });
+  it("large disagreement (the photo shows what is behind a badly scanned edge) falls back to baked", () => {
+    expect(projBlend([C(2, PROJ.AGREE_HI + 0.01)]).alpha).toBe(0);
+  });
+  it("in between fades, and an agreeing farther pano takes over from a disagreeing nearer one", () => {
+    const m = projConf(C(2, (PROJ.AGREE_LO + PROJ.AGREE_HI) / 2));
+    expect(m).toBeGreaterThan(0.2); expect(m).toBeLessThan(0.8);
+    expect(projBlend([C(1, 0.5), C(3, 0.02)], 1).weights).toEqual([0, 1]);
   });
 });
