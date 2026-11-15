@@ -149,3 +149,15 @@ def test_line_id_golden_shared_with_web():
     from pathlib import Path
     rows = json.loads((Path(__file__).parent / "line_id_golden.json").read_text(encoding="utf-8"))
     assert rows and all(voice_lines.line_id(r["text"]) == r["id"] for r in rows)
+
+
+def test_voice_lines_cover_the_beacon_target_lines():
+    pkg = _pkg()
+    names.fill_spoken(pkg.landmarks)
+    pkg.routes[0].to = pkg.landmarks[0].id
+    got = voice_lines.collect(pkg)
+    assert {"Beacon on.", "Beacon off.", "Target cleared."} <= got
+    for lm in pkg.landmarks:
+        assert f"Target set, {lm.spoken}." in got
+    dest = pkg.landmarks[0]
+    assert f"Target cleared. Heading to {dest.spoken}." in got

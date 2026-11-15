@@ -141,6 +141,7 @@ def collect(pkg: BuildingPackage) -> set[str]:
     for lm in pkg.landmarks:
         sp = lm.spoken or names.spoken_name(lm.label, lm.kind)
         out.add(sp)
+        out.add(f"Target set, {sp}.")                      # web interact.ts setTarget (Tab, then Enter)
     for r in pkg.rooms:
         if r.label:
             out.add(r.label)
@@ -165,6 +166,7 @@ def collect(pkg: BuildingPackage) -> set[str]:
                     out.add(f"Passing the {spoken[lid].lower()}.")
         if rt.to in spoken:
             out.add(f"You have reached the {spoken[rt.to].lower()}.")
+            out.add(f"Target cleared. Heading to {spoken[rt.to]}.")   # web interact.ts escape()
     out.add("You have reached the destination.")
     a = pkg.arrival
     if a:
