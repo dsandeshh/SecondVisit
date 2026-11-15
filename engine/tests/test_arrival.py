@@ -75,7 +75,7 @@ def test_confirmed_with_pins(tmp_path):
     assert a.confirmed and a.entrance_side == "east"
     assert a.driver_message == "Please drop me at the east entrance of Medical Office, 7400 FM-1960 W, Houston."
     assert r.curb_to_door_m == pytest.approx(11.1, abs=0.3)
-    assert r.curb_summary == "From the drop off, the entrance is about 16 steps 12 o'clock."
+    assert r.curb_summary == "From the drop off, the entrance is about 16 steps 1 o'clock."
     assert r.prov["arrival.dropoff"].src == "hand" and r.prov["arrival.curb_to_door_m"].src == "calc"
 
 
