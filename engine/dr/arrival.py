@@ -140,6 +140,9 @@ def _wall_hit(curb, heading_vec, door, wall_dir):
     return (t, u) if t > 0 else None
 
 
+DOOR_BEACON_LINE = "Press B to hear the door."   # B outdoors: the door beacon (web outdoor controller)
+
+
 def curb_script(anchor: GeoAnchor, entrance, curb_plan, door_plan, ov: dict, side: str, costar: dict | None):
     """Lines 1 to 8 and recovery lines, computed from the geometry (agent6 4.1.6). Every line passes grounded()."""
     ov = ov or {}
@@ -166,6 +169,7 @@ def curb_script(anchor: GeoAnchor, entrance, curb_plan, door_plan, ov: dict, sid
     lines.append(f"You are at the drop off, on the {side} side of the building.")
     lines.append(f"Face the building{', ' + words.removeprefix('facing the building').strip() if words and words != 'facing the building' else ''}. "
                  f"The entrance is at {hour} o'clock, about {steps} steps.")
+    lines.append(DOOR_BEACON_LINE)
     # traffic: the CoStar frontage line, relative to the reference (CS, simulated sound)
     traffic_rel = None
     fr = ((((costar or {}).get("property") or {}).get("propertyRetail") or {}).get("frontage")) or []

@@ -12,6 +12,9 @@ describe("arrival line timing", () => {
     expect(p.start).toHaveLength(3); expect(p.lane).toHaveLength(1); expect(p.edge).toHaveLength(1);
     expect(p.canopy).toHaveLength(1); expect(p.door).toHaveLength(1); expect(p.inside).toHaveLength(1);
   });
+  it("the door beacon line is said at the start", () => {
+    expect(whenOf("Press B to hear the door.")).toBe("start");
+  });
   it("other edge and door variants", () => {
     expect(whenOf("A curb ramp takes you up onto the walkway.")).toBe("edge");
     expect(whenOf("The doors slide open by themselves.")).toBe("door");

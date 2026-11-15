@@ -11,6 +11,7 @@ import type { BuildingPackage, Vec2 } from "../../types";
 import { DOOR_S, FLY_S, REVEAL_AT, doorPose, followPose, lerpPose, overheadPose, type Pose, type RevealKey } from "./camera";
 import { plan, recoveryFor } from "./lines";
 import { OutdoorScene } from "./scene";
+import { startHeading } from "./start";
 import { stepOutdoor, worldOf, type OutdoorWorld } from "./step";
 import "./outdoor.css";
 
@@ -59,10 +60,10 @@ export class OutdoorController {
     this.reduced = o.reducedMotion ?? (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
     this.sc = new OutdoorScene(o.pkg);
     this.curb = this.sc.curb; this.door = this.sc.door;
-    const entry = o.pkg.entrances[0]?.heading_deg ?? 270;
+    const entry = startHeading(o.pkg);
     this.world = worldOf(a, this.door, entry);
     this.pos = [...this.curb] as Vec2;
-    // face the building: the entrance heading (perpendicular to the facade), as the arrival script says
+    // face the building: the entrance heading (perpendicular to the facade), the arrival script's own reference
     this.heading = entry;
     this.lineByWhen = plan(a.lines ?? []);
     this.done = new Promise(r => { this.resolveDone = r; });

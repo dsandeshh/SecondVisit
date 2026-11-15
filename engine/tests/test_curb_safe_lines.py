@@ -50,3 +50,9 @@ def test_traffic_line_is_generic_unless_street_confirmed():
     assert "Breton" not in line and line.startswith("Traffic from the street is ")
     line2 = next(x for x in _script_costar({"street_confirmed": True})["lines"] if x.startswith("Traffic"))
     assert "Breton Ridge" in line2
+
+
+def test_door_beacon_line_follows_the_clock_line():
+    s = _script({})
+    i = next(i for i, x in enumerate(s["lines"]) if x.startswith("Face the building"))
+    assert s["lines"][i + 1] == arrival.DOOR_BEACON_LINE == "Press B to hear the door."
