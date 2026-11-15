@@ -78,6 +78,10 @@ def merge_landmarks(pkg: BuildingPackage, sid: str, data_root: Path = DATA) -> N
     if dest is not None:
         lms[dest.id] = dest
         pkg.prov[f"landmark:{dest.id}"] = Prov(src="hand", ref="overrides.json destination", at=now)
+    for lid, label in ov.label_overrides.items():
+        if lid in lms:
+            lms[lid].label = label
+            pkg.prov[f"landmark:{lid}.label"] = Prov(src="hand", ref="overrides.json label_overrides", at=now)
     pkg.landmarks = list(lms.values())
 
 

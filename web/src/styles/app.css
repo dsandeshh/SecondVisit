@@ -64,13 +64,14 @@ main { max-width: 72rem; padding: var(--sp-section) var(--gutter); }
 .phone__turns { bottom: var(--bottom-bar-h); grid-template-columns: 1fr 1fr; }
 .phone__turns .btn { min-height: var(--target-primary); justify-content: center; }
 body.is-phone main { padding: 0; }
-body.is-phone #rehearsal > :not(.stage-row):not(.phone):not(.quiz):not(.summary):not(.coach):not(.actions) { display: none; }
+body.is-phone #rehearsal > :not(.cockpit):not(.phone):not(.quiz):not(.summary):not(.coach):not(.actions) { display: none; }
 body.is-phone[data-phase="quiz"] .step-button, body.is-phone[data-phase="summary"] .step-button { display: none; }
 body.is-phone[data-phase="quiz"] #rehearsal, body.is-phone[data-phase="summary"] #rehearsal { padding: 160px var(--gutter) calc(var(--bottom-bar-h) + 24px); }
 body.is-phone .actions { display: none; }
 body.is-phone[data-phase="explore"] .actions { display: flex; position: fixed; left: 0; right: 0; bottom: var(--bottom-bar-h); z-index: var(--z-sticky); padding: var(--sp-2); background: var(--c-paper); }
 body.is-phone[data-phase="explore"] .actions .btn { width: 100%; min-height: 72px; justify-content: center; }
-body.is-phone .keys { display: none; }
+body.is-phone .keys, body.is-phone .viz, body.is-phone .cockpit__side, body.is-phone .room3d-bar { display: none; }
+body.is-phone .topline__meta, body.is-phone .topline__tags, body.is-phone .topline .steps { display: none; }
 body.is-phone .stage { position: fixed; top: 48px; left: 0; right: 0; z-index: var(--z-caption); pointer-events: none;
   min-height: 0; border: 0; padding: var(--sp-3) var(--gutter); background: var(--c-surface); }
 body.is-phone .transcript__label, body.is-phone .transcript__history, body.is-phone .stage__status { display: none; }
@@ -119,3 +120,69 @@ body.is-phone .actions, body.is-phone .quiz, body.is-phone .summary, body.is-pho
 .layer-meter__seg { background: var(--c-ink); min-width: 4px; }
 .layer-meter__seg.is-hand { background: var(--c-mark); outline: 1px solid var(--c-ink); }
 .layer-meter p { font-size: var(--fs-small); color: var(--c-ink-2); margin: var(--sp-2) 0 0; }
+
+/* ---- Rehearsal cockpit for sighted watchers (UI_DESIGN 4.2a). Phone keeps its own layout above. ---- */
+body[data-phase]:not(.is-phone) main { max-width: 112rem; padding: var(--sp-4) var(--gutter) var(--sp-6); }
+.btn--small { min-height: 2.5rem; padding: 0 var(--sp-3); font-size: var(--fs-small); }
+.btn[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); border-color: var(--c-ink); }
+.linkbtn { font: inherit; font-weight: var(--fw-bold); color: var(--c-accent); background: none; border: 0; padding: 0; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.linkbtn[aria-pressed="true"] { color: var(--c-ink); text-decoration-thickness: 3px; }
+
+.topline { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-5); padding: var(--sp-3) var(--gutter);
+  border-bottom: var(--bw-hair) solid var(--c-rule-soft); }
+.topline__id { display: flex; flex-direction: column; min-width: 14rem; }
+.topline__name { font-size: var(--fs-h3); font-weight: var(--fw-heavy); letter-spacing: var(--tracking-title-visitor); line-height: 1.15; }
+.topline__meta { font-size: var(--fs-small); color: var(--c-ink-2); display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.topline__tags { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.topline__tags .chip { cursor: default; }
+.topline .steps { margin-left: auto; }
+.topline .steps ol { gap: var(--sp-5); }
+.topline__voice { font-size: var(--fs-small); color: var(--c-ink-2); }
+
+.cockpit { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); --cockpit-h: clamp(26rem, calc(100vh - 23rem), 50rem); }
+@media (min-width: 1100px) { .cockpit { grid-template-columns: minmax(0, 1fr) 26rem; } }
+.cockpit__main { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.room3d-bar { display: flex; align-items: center; gap: var(--sp-2); }
+.cockpit .stage { padding: 0; height: var(--cockpit-h); min-height: 0; justify-content: flex-start; border-color: var(--c-rule-soft); overflow: hidden; }
+.room3d { position: relative; flex: 1 1 auto; min-height: 0; background: var(--c-surface-2); }
+.room3d__canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.cockpit .transcript { flex: none; border-top: var(--bw-hair) solid var(--c-rule-soft); padding: var(--sp-3) var(--sp-4); background: var(--c-surface); }
+.cockpit .transcript__now { font-size: var(--fs-body); margin: 0; min-height: 2.6em; max-height: 3.9em; font-size: var(--fs-small); line-height: 1.3; }
+.cockpit .stage__status { margin: var(--sp-1) 0 0; }
+
+.cockpit__side { display: flex; flex-direction: column; gap: var(--sp-4); height: var(--cockpit-h); min-height: 0; }
+.cockpit__side h2 { font-size: var(--fs-h3); margin: 0 0 var(--sp-2); }
+.objects { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.objects__scroll { flex: 1 1 auto; min-height: 0; overflow: auto; border-top: var(--bw-control) solid var(--c-ink); }
+.objects__table { width: 100%; border-collapse: collapse; font-size: var(--fs-small); }
+.objects__table th, .objects__table td { padding: var(--sp-2) var(--sp-2); vertical-align: top; text-align: left; border-bottom: var(--bw-hair) solid var(--c-rule-soft); font-weight: var(--fw-body); }
+.objects__table thead th { font-weight: var(--fw-bold); color: var(--c-ink-2); }
+.objects__table tr.is-selected { background: var(--c-surface-2); box-shadow: inset 4px 0 0 var(--c-ink); }
+.objects__sub { display: block; color: var(--c-ink-2); }
+.objects__act { display: flex; gap: var(--sp-1); flex-wrap: wrap; }
+.objects__add { font-size: var(--fs-small); margin-top: var(--sp-2); }
+.objects__add form { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
+.objects__add label { display: grid; gap: var(--sp-1); }
+.objects__add input, .objects__add select { font: inherit; min-height: 2.5rem; padding: 0 var(--sp-2); border: var(--bw-control) solid var(--c-rule); border-radius: var(--r-control); background: var(--c-surface); color: var(--c-ink); }
+.miniplan { margin: 0; flex: none; }
+.miniplan figcaption { font-size: var(--fs-h3); font-weight: var(--fw-bold); margin-bottom: var(--sp-2); }
+.miniplan canvas { width: 100%; height: 11rem; display: block; background: var(--c-surface); border: var(--bw-hair) solid var(--c-rule-soft); }
+
+.strip { display: grid; gap: var(--sp-1); border-top: var(--bw-control) solid var(--c-ink); padding-top: var(--sp-3); margin-top: var(--sp-4); }
+.strip__lede { margin: 0; font-size: var(--fs-small); color: var(--c-ink-2); }
+.strip__text { margin: 0; font-size: var(--fs-caption); font-weight: var(--fw-heavy); line-height: 1.15; letter-spacing: var(--tracking-title-visitor); max-width: 40ch; min-height: 1.15em; }
+.strip__meta { display: flex; align-items: center; gap: var(--sp-5); font-size: var(--fs-body); font-weight: var(--fw-bold); flex-wrap: wrap; }
+.strip__bar { flex: 1 1 12rem; height: 0.5rem; background: var(--c-surface-2); border: var(--bw-hair) solid var(--c-rule-soft); }
+.strip__bar > span { display: block; height: 100%; width: 0; background: var(--c-ink); }
+
+.below { display: grid; gap: var(--sp-2); margin-top: var(--sp-4); }
+@media (min-width: 1100px) { .below { grid-template-columns: 2fr 1fr; align-items: start; } }
+.panel { border-top: var(--bw-control) solid var(--c-ink); padding-top: var(--sp-2); }
+.panel > summary { font-size: var(--fs-h3); font-weight: var(--fw-bold); cursor: pointer; min-height: var(--target-min); display: flex; align-items: center; }
+.panel__grid { display: grid; gap: var(--sp-5); grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); padding: var(--sp-3) 0; }
+.panel h2 { font-size: var(--fs-body); margin: 0 0 var(--sp-2); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-1) var(--sp-3); margin: 0; font-size: var(--fs-small); }
+.facts dd { margin: 0; }
+.facts-list { padding-left: var(--sp-4); font-size: var(--fs-small); margin: 0 0 var(--sp-3); }
+.trace { padding-left: var(--sp-4); font-size: var(--fs-small); max-height: 12rem; overflow: auto; }
+.cockpit .keys dl { grid-template-columns: auto 1fr; font-size: var(--fs-small); }

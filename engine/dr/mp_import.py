@@ -459,6 +459,7 @@ class Overrides(BaseModel):
     destination: OverrideDestination | None = None
     extra_landmarks: list[Landmark] = Field(default_factory=list)
     deleted_landmark_ids: list[str] = Field(default_factory=list)
+    label_overrides: dict[str, str] = Field(default_factory=dict)  # landmark id -> new label (rename in the objects list)
     face_yaw0_deg: float = 0.0
     faces_clockwise: bool = True
     arrival: ArrivalPins | None = None

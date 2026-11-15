@@ -11,7 +11,7 @@ SOURCES: tuple[str, ...] = get_args(Source)
 
 # Documented fact-id patterns (contract comment in package.py / plan v2 additions).
 KEY_PATTERNS = [re.compile(p) for p in (
-    r"landmark:[\w-]+(\.fixed)?",
+    r"landmark:[\w-]+(\.fixed|\.label)?",
     r"room:[\w-]+(\.label)?",
     r"door:[\w-]+",
     r"entrance:[\w-]+",

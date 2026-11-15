@@ -559,6 +559,47 @@ plain text so Start is the only focusable element before Start (Task 8 test `sta
   built from data: "Aerial photo, north at the top. Drop off point on the north side by the main
   entrance." Chips next to each fact. Under the run, "Start run 2" (primary) with the coach line above it.
 
+### 4.2a Rehearsal, laptop and projector: the 3D room (supersedes the 4.2 sketch above and its "no map" rule)
+
+The rehearsal screen is also what judges and companions watch. The traveller's experience does not change:
+audio, keys, the `role="application"` stage and the transcript behave exactly as in 4.2. The visual layer is
+decorative for sighted watchers (`aria-hidden="true"` canvas and mini plan) and carries nothing a blind
+user needs. It is hidden on phones (4.3 is unchanged).
+
+```
+┌ top bar ───────────────────────────────────────────────────────────────────────────────────────┐
+│ Medical Office   29.9666, -95.5394   Map 2024-05-24   MP VX CS AI HAND     Explore Rehearse ...  │
+├───────────────────────────────────────────────────────────┬─────────────────────────────────────┤
+│ STAGE role="application" tabindex="0"                      │ Objects (every landmark)            │
+│  3D room (three.js canvas, aria-hidden), largest           │  name, kind, confidence, fixed or   │
+│  view buttons: Behind, Top, Orbit; Scanned view if a file  │  movable, source tag; click = ring  │
+│  caption card: the current spoken line (transcript)        │  in 3D; Rename, Remove, Add         │
+│                                                            ├─────────────────────────────────────┤
+│                                                            │ Floor plan (Matterport image, route,│
+│                                                            │ you are here dot and heading)       │
+├───────────────────────────────────────────────────────────┴─────────────────────────────────────┤
+│ Live instruction, --fs-caption     Stretch 2 of 5    Steps to destination 14    progress bar    │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Agent and data (a <details>, closed by default): agent trace, quiz, coach line and plan,         │
+│ pointing error run 1 and run 2, record facts                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+* Style stays light Apple minimal: tokens only, solid surfaces, 2px ink rules, no shadows beyond the
+  3D scene's own soft light. The scene palette is neutral: floor and plan image on white, walls soft light
+  grey, glass a pale translucent blue, movable furniture low soft grey blocks, unscanned rooms hatched.
+  The route is the accent blue, the walker and "you are here" are `--c-mark` yellow, the destination is ink.
+* 3D data comes only from `package.json`: walls from grid code 1, glass 4, movable 3, fixed 2, rooms with
+  `scanned: false` hatched, landmarks as labelled pins, the route as a ribbon with the current segment
+  solid and the rest lighter. The floor is textured with `floorplan.jpg` placed by `floorplan.json`
+  (origin metres, resolution px per metre). Missing plan: the visible note "Floor plan not available" (R16).
+* Camera: behind and above the walker with smooth follow; buttons Behind, Top, Orbit (keys `[`, `]` and `\`
+  are free; existing keys keep their meaning). `prefers-reduced-motion`: the camera snaps.
+* Walker: a small yellow capsule; the cane a thin line that sweeps with the cane angle; a ring marks a tap.
+* Objects list is a real `<table>` with a caption. Edits save to `data/<sid>/overrides.json` through
+  `POST /api/overrides/<sid>/landmarks`; they take effect in the package on the next build and the list says so.
+* Bottom strip text is the route's own instruction and counters from the package, not model text.
+
 ### 4.3 Rehearsal, phone
 
 ```
