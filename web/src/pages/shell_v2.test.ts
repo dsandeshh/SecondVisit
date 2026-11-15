@@ -196,3 +196,61 @@ describe("#/inside never falls back to #/home on an error", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("the address box is honest: three tiers", () => {
+  const json = (j: unknown, ok = true) => ({ ok, headers: { get: () => "application/json" }, json: async () => j });
+  const boot3 = async (resolveAnswer: () => unknown) => {
+    window.location.hash = "#/home";
+    await new Promise(r => setTimeout(r, 0));
+    load();
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => {
+      if (/\/api\/resolve/.test(String(u))) return resolveAnswer();
+      if (/package\.json/.test(String(u))) return json(fixturePkg());
+      return json({}, false);
+    }));
+    const app = await boot(document, new URLSearchParams("b=fixture"));
+    const spoken: string[] = [];
+    const orig = app.speech.say.bind(app.speech);
+    app.speech.say = (t: string, p?: 1 | 2 | 3) => { spoken.push(t); return orig(t, p); };
+    return { app, spoken };
+  };
+  const submit = (q: string) => {
+    document.querySelector<HTMLInputElement>("#addr")!.value = q;
+    document.getElementById("start")!.click();
+  };
+  it("ready: a built building opens the full flow", async () => {
+    const { app } = await boot3(() => json({ tier: "ready", sid: "fixture", name: "Demo lobby", address: "" }));
+    submit("demo lobby");
+    await vi.waitFor(() => expect(["#/arrive", "#/inside"]).toContain(window.location.hash));   // earlier apps share the window
+    expect(app.pkg?.id).toBe(fixturePkg().id);
+    vi.unstubAllGlobals();
+  });
+  it("outdoor: a Houston or LA model with no package says so, stays home, and the buttons still start", async () => {
+    const { spoken, app } = await boot3(() => json({ tier: "outdoor", sid: "1uXpcwty9Sr", name: "Brentwood Medical Plaza", address: "11980 San Vicente Blvd", city: "Los Angeles" }));
+    submit("Brentwood Medical Plaza");
+    await vi.waitFor(() => expect(spoken).toContain("No indoor scan yet for this building. Choose one of the buildings below."));
+    const note = document.getElementById("home-tier")!;
+    expect(note.hidden).toBe(false);
+    expect(note.textContent).toContain("Brentwood Medical Plaza");
+    expect(note.textContent).toContain("No indoor scan yet for this building.");
+    expect(note.getAttribute("aria-live")).toBe("off");   // Michael says it; the screen reader does not double it
+    expect(document.activeElement?.closest("#buildings")).not.toBeNull();
+    expect(app.explore).toBeNull();
+    document.querySelector<HTMLButtonElement>('#buildings button[data-sid="fixture"]')!.click();
+    await vi.waitFor(() => expect(app.explore).not.toBeNull());
+    vi.unstubAllGlobals();
+  });
+  it("none: anything else is not available yet, never a silent jump into another building", async () => {
+    const { spoken, app } = await boot3(() => json({ error: "not_found", tier: "none" }, false));
+    submit("10 Downing Street London");
+    await vi.waitFor(() => expect(spoken).toContain("This building is not available yet. Choose one of the buildings below."));
+    expect(document.getElementById("home-tier")!.textContent).toContain("This building is not available yet.");
+    expect(spoken.join(" ")).not.toContain("No indoor scan yet");
+    expect(app.explore).toBeNull();
+    // the building buttons are there to pick from: Office B beside the clinic and the demo lobby
+    const names = Array.from(document.querySelectorAll("#buildings button strong")).map(e => e.textContent);
+    expect(names).toEqual(expect.arrayContaining(["Medical Office", "Office B", "Demo lobby"]));
+    vi.unstubAllGlobals();
+  });
+});

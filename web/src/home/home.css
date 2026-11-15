@@ -15,3 +15,5 @@
 .home__err { min-height: 1.5em; margin: var(--sp-3) 0 0; font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--c-bad); }
 .home__note { margin: var(--sp-5) 0 0; font-size: var(--fs-small); color: var(--c-ink-2); max-width: var(--measure); }
 @media (max-width: 560px) { .home__row { flex-direction: column; } .home__go { min-height: var(--target-primary); } }
+/* v2 shell: the address box tier note (no indoor scan yet / not available yet), spoken by Michael, so aria-live off. */
+.home-tier { margin: var(--sp-3) auto 0; max-width: var(--measure); font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--c-ink); text-align: center; }

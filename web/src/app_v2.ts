@@ -23,7 +23,7 @@ import { FALLBACK_LINE } from "./showcase/load";
 import { loadShowcase, type ShowcaseHandle } from "./pages/showcase_hook";
 import { renderScore, type RunResult } from "./pages/score";
 import { cardWanted, mountKeyCard } from "./pages/keycard";
-import { OFFLINE, resolveAddress } from "./home/home";
+import { OFFLINE, resolveAddress, tierLines, type Resolved } from "./home/home";
 import { World } from "./world";
 import { loadOutdoorHook, runFlow } from "./flow";
 
@@ -112,17 +112,38 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
   }
   if (!(await loadId(id)) && id !== "fixture") await loadId("fixture");
 
+  // The address box is honest (three tiers): a built building opens; a Houston or LA model without a package, or
+  // anything else, is said and shown here with the building buttons to pick from. Never a silent jump into another building.
+  const tierNote = $("home-tier");
+  const sayTier = async (hit: Resolved | null): Promise<void> => {
+    const lines = tierLines(hit);
+    tierNote.textContent = (hit ? `${hit.name}${hit.address ? `, ${hit.address}` : ""}. ` : "") + lines.join(" ");
+    tierNote.hidden = false;
+    doc.querySelector<HTMLButtonElement>("#buildings button")?.focus();
+    if (!app.voice && audio.ctx) {   // Michael's clips for UI lines live in every built building's voice folder
+      const store = new ClipStore(audio.ctx, `/buildings/${id}`);
+      await store.init();
+      app.voice = new VoiceOut(audio, speech, store);
+    }
+    speech.say(lines.join(" "), 2);   // one cue: VoiceOut plays it as two clipped sentences
+  };
+
   // Always app voice (CLAUDE.md rule 7): Start is the gesture that creates the AudioContext and goes straight in.
+  let entering = false;
+  let audioStarted: Promise<StartReport> | null = null;
   const begin = (pick?: string): void => {
-    if (audio.ctx || (!app.pkg && !pick)) return;
-    const started0 = audio.start(); // synchronous part runs inside this click
+    if (entering || (!app.pkg && !pick)) return;
+    entering = true;
+    const started0 = audioStarted ??= audio.start(); // synchronous part runs inside this click; a later press reuses it
     const typed = pick ? "" : $<HTMLInputElement>("addr").value.trim();
+    tierNote.hidden = true;
     void (async () => {
       try {
-      if (pick && pick !== id && !(await loadId(pick))) return;
+      if (pick && pick !== id && !(await loadId(pick))) { entering = false; return; }
       if (typed) {   // an address that names another building loads it first (the list below the box, or the engine resolver)
         const hit = await resolveAddress(typed);
-        if (hit && hit.sid !== id) await loadId(hit.sid);
+        if (!hit || hit.tier === "outdoor") { await started0; entering = false; await sayTier(hit); return; }
+        if (hit.sid !== id && !(await loadId(hit.sid))) { entering = false; return; }
       }
       const r = await started0;
       const pkg = app.pkg!;
@@ -137,7 +158,7 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
       // Never a silent kick back to Home mid rehearsal: once started, the safe state is #/inside.
       console.error("SecondVisit: starting the rehearsal failed", e);
       if (started) safeInside(app, doc);
-      else { const err = $("load-error"); err.hidden = false; err.textContent = "Error: the rehearsal could not start. Reload the page and press Start again."; }
+      else { entering = false; const err = $("load-error"); err.hidden = false; err.textContent = "Error: the rehearsal could not start. Reload the page and press Start again."; }
      }
     })();
   };
@@ -152,6 +173,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   const phone = audio.mode !== "keys";
   const hooks: ExploreHooks = {};
   // One event bus: voice clips, captions and the observer all subscribe to speech.bus (the 3D ring does in the cockpit).
+  app.voice?.destroy();   // the home tier voice (if any) hands over to this building's clips
   app.voice = new VoiceOut(audio, speech, store);
   app.captions = new Captions(doc, speech.bus);
   speech.bus.subscribe(c => obs.publish(c as ObsMsg));
