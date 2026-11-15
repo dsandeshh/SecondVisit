@@ -22,7 +22,8 @@ from shapely.geometry import Polygon
 from dr import probe, resolver
 from dr.grid import OccGrid
 from dr.mp_import import build_from_matterport
-from dr.package import BuildingPackage, Entrance, PortfolioRow, Prov, Room
+from dr.package import BuildingPackage, Entrance, PortfolioRow, Room
+from dr.prov import ProvBuilder
 
 MEDICAL_WORDS = ("clinic", "medical", "doctor", "dental", "physician", "health", "surgery", "urgent care")
 OFFICE_WORDS = ("office", "suite", "ste ", "ste.", "professional", "plaza", "tower", "center", "centre")
@@ -133,6 +134,7 @@ def build_light(sid: str, data_root: Path = probe.DATA, client=None) -> Building
     grid = OccGrid.from_b64(pkg.grid.cells_b64, pkg.grid.width, pkg.grid.height, pkg.grid.res, pkg.grid.origin)
     dpos = snap_free(grid, room_centroid(dest))
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    pb = ProvBuilder(now)
     if not pkg.entrances:
         a = assumed_entrance_pano(raw)
         if a is None:
@@ -140,10 +142,10 @@ def build_light(sid: str, data_root: Path = probe.DATA, client=None) -> Building
         pid, pos = a
         heading = math.degrees(math.atan2(dpos[0] - pos[0], dpos[1] - pos[1])) % 360
         pkg.entrances.append(Entrance(id="assumed", label="Entrance (assumed)", pos=pos, heading_deg=round(heading, 1)))
-        pkg.prov["entrance:assumed"] = Prov(src="calc", ref=f"pano:{pid} (lowest numeric label)", at=now)
+        pkg.prov["entrance:assumed"] = pb.add("entrance:assumed", "calc", f"assumed: pano:{pid} (lowest numeric label)", confidence=0.3)
         pkg.notes.append("assumed entrance: the pano with the lowest numeric label")
     pkg.notes.append(f"destination: {dest.label} room {dest.id} centroid {dpos[0]:.2f},{dpos[1]:.2f}")
-    pkg.prov["portfolio.destination"] = Prov(src="calc", ref=f"room:{dest.id}", at=now)
+    pkg.prov["portfolio.destination"] = pb.add("portfolio.destination", "calc", f"room:{dest.id}", inputs=[f"room:{dest.id}"])
     return pkg
 
 

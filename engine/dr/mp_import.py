@@ -21,6 +21,7 @@ from dr.config import GRID_RES
 from dr.grid import OccGrid
 from dr.mp_client import ROOT
 from dr.package import BuildingPackage, Door, Entrance, Grid, Landmark, Prov, Room
+from dr.prov import ProvBuilder
 
 DATA = ROOT / "data"
 Vec2 = tuple[float, float]
@@ -452,13 +453,14 @@ def build_from_matterport(sid: str, data_root: Path = DATA) -> BuildingPackage:
     notes.append(f"doors from the wall graph (gaps or door edges): {len(gap_doors)}")
     notes.append(f"doors carved by ensure_doors: {len(carved)}")
 
-    prov: dict[str, Prov] = {}
+    pb = ProvBuilder(now)
+    prov = pb.entries
     cloud = raw / "cloud_sample.xyz"
     if cloud.exists() and panos:
         fz = floor_z_from_cloud(str(cloud), panos)
         grid = obstacles_from_cloud(str(cloud), grid, fz, panos)
         notes.append(f"obstacle cells (code 3, movable): {int((grid.cells == 3).sum())}; floor_z {fz:.2f} m")
-        prov["grid.obstacles"] = Prov(src="calc", ref="obstacles_from_cloud", at=now,
+        pb.add("grid.obstacles", src="calc", ref="obstacles_from_cloud",
                                       inputs=["matterport:cloud_sample.xyz"])
     else:
         notes.append("no point cloud sample: no obstacles")
@@ -473,22 +475,22 @@ def build_from_matterport(sid: str, data_root: Path = DATA) -> BuildingPackage:
     if ov.entrance:
         e = ov.entrance
         entrances.append(Entrance(id=e.id, label=e.label, pos=e.pos, heading_deg=e.heading_deg))
-        prov[f"entrance:{e.id}"] = Prov(src="hand", ref="overrides.json", at=now)
+        pb.add(f"entrance:{e.id}", src="hand", ref="overrides.json")
     else:
         notes.append("no entrance: data/<sid>/overrides.json missing or has no entrance (set it in pick.html)")
 
-    prov["grid"] = Prov(src="calc", ref="rasterize", at=now, inputs=["matterport:rooms.json#walls"])
+    pb.add("grid", src="calc", ref="rasterize", inputs=["matterport:rooms.json#walls"])
     for r in rooms:
-        prov[f"room:{r.id}"] = Prov(src="matterport", ref=f"rooms.json#{r.id}", at=now)
-        prov[f"room:{r.id}.label"] = Prov(src="matterport", ref=f"rooms.json#{r.id}.classifications", at=now)
+        pb.add(f"room:{r.id}", src="matterport", ref=f"rooms.json#{r.id}")
+        pb.add(f"room:{r.id}.label", src="matterport", ref=f"rooms.json#{r.id}.classifications")
     for d in gap_doors:
-        prov[f"door:{d.id}"] = Prov(src="matterport", ref="rooms.json#walls", at=now)
+        pb.add(f"door:{d.id}", src="matterport", ref="rooms.json#walls")
     for d in carved:
-        prov[f"door:{d.id}"] = Prov(src="calc", ref="ensure_doors", at=now,
+        pb.add(f"door:{d.id}", src="calc", ref="ensure_doors",
                                     inputs=[f"room:{x}" for x in d.rooms])
     map_date = idx.get("original_created", "")
     if map_date:
-        prov["map_date"] = Prov(src="matterport", ref="index_row.json#original_created", at=now)
+        pb.add("map_date", src="matterport", ref="index_row.json#original_created")
 
     h, w = grid.cells.shape
     return BuildingPackage(

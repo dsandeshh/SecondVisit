@@ -17,6 +17,7 @@ from dr import probe
 from dr.config import STEP_M
 from dr.mp_client import ROOT
 from dr.package import Arrival, GeoAnchor, Prov
+from dr.prov import ProvBuilder
 from dr.probe import VexcelCoverageError, vexcel_ortho_body
 
 __all__ = ["VexcelCoverageError", "vexcel_ortho", "vexcel_ortho_body", "arrival", "build", "ArrivalResult"]
@@ -99,14 +100,15 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
     lat, lon = float(model["geolocation"]["lat"]), float(model["geolocation"]["long"])
     name, address = model.get("name") or "the building", (model.get("address") or {}).get("address") or ""
     at = date.today().isoformat()
-    prov: dict[str, Prov] = {}
+    pb = ProvBuilder(at)
+    prov = pb.entries
 
     cached = raw / "vexcel_ortho.jpg"
     img = cached.read_bytes() if cached.exists() else (fetch or vexcel_ortho)(lat, lon, ORTHO_HALF_M)
     out = (web_dir or ROOT / "web" / "public" / "buildings") / sid
     out.mkdir(parents=True, exist_ok=True)
     (out / "arrival.jpg").write_bytes(img)
-    prov["arrival.image"] = Prov(src="vexcel", ref=f"ortho/extract {2 * ORTHO_HALF_M:.0f} m square at {lat:.6f},{lon:.6f}", at=at)
+    pb.add("arrival.image", src="vexcel", ref=f"ortho/extract {2 * ORTHO_HALF_M:.0f} m square at {lat:.6f},{lon:.6f}")
 
     costar_p = raw / "costar.json"
     hint = _frontage_hint(json.loads(costar_p.read_text()), lat, lon) if costar_p.exists() else None
@@ -120,23 +122,22 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
         summary = curb_summary(curb_m, clock_hour(to_door - facing))
         dropoff = [pins["curb_lat"], pins["curb_lon"]]
         plan = [(pins["curb_lon"] - lon) * 111_320 * math.cos(math.radians(lat)), (pins["curb_lat"] - lat) * 111_320]
-        prov["arrival.entrance_side"] = Prov(src="calc", ref="bearing model centre to door pin", at=at,
+        pb.add("arrival.entrance_side", src="calc", ref="bearing model centre to door pin",
                                              inputs=["arrival.door_pin", "arrival.image"])
-        prov["arrival.door_pin"] = Prov(src="hand", ref="overrides.json arrival.door_lat/door_lon", at=at)
-        prov["arrival.dropoff"] = Prov(src="hand", ref="overrides.json arrival.curb_lat/curb_lon", at=at)
-        prov["arrival.curb_to_door_m"] = Prov(src="calc", ref="haversine curb pin to door pin", at=at,
+        pb.add("arrival.door_pin", src="hand", ref="overrides.json arrival.door_lat/door_lon")
+        pb.add("arrival.dropoff", src="hand", ref="overrides.json arrival.curb_lat/curb_lon")
+        pb.add("arrival.curb_to_door_m", src="calc", ref="haversine curb pin to door pin",
                                               inputs=["arrival.door_pin", "arrival.dropoff"])
     else:
         side = hint or "unknown"
         dropoff = [lat, lon]
         if hint:
-            prov["arrival.entrance_side"] = Prov(src="costar", ref="propertyRetail.frontage[].footprint", at=at,
+            pb.add("arrival.entrance_side", src="costar", ref="propertyRetail.frontage[].footprint",
                                                  confidence=0.5)
     where = "the main" if side == "unknown" else f"the {side}"
     msg = f"Please drop me at {where} entrance of {name}, {address}."
     anchor = GeoAnchor(lat=lat, lon=lon, plan_pos=[0.0, 0.0], plan_north_deg=0.0)
-    prov["frames.geo_anchor"] = Prov(src="calc", ref="assumed: model lat/lon at plan origin, plan north = true north",
-                                     at=at, confidence=0.3)
+    pb.add("frames.geo_anchor", src="calc", ref="assumed: model lat/lon at plan origin, plan north = true north", confidence=0.3)
     arr = Arrival(lat=lat, lon=lon, entrance_side=side, dropoff=dropoff, driver_message=msg,
                   image_url=f"/buildings/{sid}/arrival.jpg", confirmed=pins is not None,
                   curb_to_door_m=curb_m, dropoff_plan=plan)

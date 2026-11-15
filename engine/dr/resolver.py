@@ -15,6 +15,7 @@ from rapidfuzz import fuzz
 
 from dr import probe
 from dr.mp_client import ROOT
+from dr.prov import ProvBuilder
 
 MEDICAL_WORDS = ("clinic", "medical", "doctor", "dental", "physician")
 MEDICAL_BOOST = 5.0
@@ -80,6 +81,14 @@ def resolve(text: str) -> dict:
     best = cands[0] if cands else None
     ambiguous = len(cands) > 1 and cands[0]["score"] - cands[1]["score"] <= AMBIGUOUS_GAP
     cs = costar_record(best["costar_property_id"]) if best and best["costar_property_id"] else None
+    entries = {}
+    if best:
+        pb = ProvBuilder()
+        pb.add("resolver.suite", "costar" if cs else "calc",
+               f"models_index.csv rapidfuzz token_set_ratio" + (f"; costar:{best['costar_property_id']}" if cs else ""),
+               confidence=min(1.0, best["score"] / 100))
+        entries = pb.entries
     return {"best": best, "candidates": cands, "costar": cs, "ambiguous": ambiguous,
             "prov": {"source": "models_index.csv", "matcher": "rapidfuzz token_set_ratio",
-                     "costar": "local kit" if cs else None}}
+                     "costar": "local kit" if cs else None},
+            "prov_entries": entries}
