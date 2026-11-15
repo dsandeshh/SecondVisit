@@ -13,7 +13,7 @@ import type { BuildingPackage } from "../types";
 
 function make(pkg: BuildingPackage = fixturePkg()) {
   document.body.innerHTML = `<p id="say-polite"></p><p id="say-assertive"></p><ol id="say-history"></ol><div id="stage" tabindex="0"></div>`;
-  const speech = new Speech({ synth: null, doc: document, raf: f => f() });
+  const speech = new Speech({ doc: document, raf: f => f() });
   const said: string[] = [];
   speech.onSay = t => said.push(t);
   const audio = new AudioEngine(speech);

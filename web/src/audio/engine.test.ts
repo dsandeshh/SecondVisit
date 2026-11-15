@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { FakeAudioContext, fakeSynth, FakeUtterance } from "../test/fakes";
+import { FakeAudioContext } from "../test/fakes";
 import { AudioEngine } from "./engine";
 import { pulse } from "./haptics";
 import { Speech } from "./speech";
@@ -9,9 +9,8 @@ const nav = navigator as any;
 
 function engine() {
   document.body.innerHTML = `<p id="say-polite"></p><p id="say-assertive"></p>`;
-  const synth = fakeSynth();
-  const speech = new Speech({ synth, Utterance: FakeUtterance as any, raf: (f) => f() });
-  return { e: new AudioEngine(speech), synth };
+  const speech = new Speech({ raf: (f) => f() });
+  return { e: new AudioEngine(speech), speech };
 }
 
 describe("AudioEngine.start", () => {
@@ -43,18 +42,6 @@ describe("AudioEngine.start", () => {
     const r = await p;
     expect(order).toEqual(["session:playback", "context"]);
     expect(r.audio).toBe("running");
-  });
-
-  it("speaks the prime line inside the gesture in app mode only", async () => {
-    const a = engine();
-    vi.useFakeTimers();
-    const p = a.e.start("app");
-    expect(a.synth.calls).toContain("speak"); // before the first await resolves
-    await vi.advanceTimersByTimeAsync(1100); await p;
-    const b = engine();
-    const q = b.e.start("screenreader");
-    await vi.advanceTimersByTimeAsync(1100); await q;
-    expect(b.synth.calls).not.toContain("speak");
   });
 
   it("motion unavailable on desktop", async () => {
@@ -100,14 +87,15 @@ describe("AudioEngine.start", () => {
   });
 
   it("announces when audio is interrupted and resumes on the next gesture", async () => {
-    const { e, synth } = engine();
+    const { e, speech } = engine();
+    const said: string[] = []; speech.onSay = t => said.push(t);
     vi.useFakeTimers();
     const p = e.start("app");
     await vi.advanceTimersByTimeAsync(1100); await p;
     const ctx = e.ctx as unknown as FakeAudioContext;
     ctx.state = "interrupted";
     ctx.onstatechange?.();
-    expect(synth.spoken.at(-1)!.text).toMatch(/Sound paused/);
+    expect(said.at(-1)).toMatch(/Sound paused/);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: " " }));
     expect(ctx.state).toBe("running");
   });

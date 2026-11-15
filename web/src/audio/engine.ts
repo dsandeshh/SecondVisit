@@ -7,7 +7,7 @@ import { Echo } from "./echo";
 import { tapGain } from "./cane";
 import { placeListener } from "./space";
 import { HrtfBudget, spatialChain } from "./spatial";
-import type { Output, Speech } from "./speech";
+import type { Speech } from "./speech";
 import { renderRecipes, type RecipeName } from "./recipes";
 import { renderTaps, type TapKind } from "./taps";
 
@@ -70,9 +70,8 @@ export class AudioEngine {
    * Call synchronously from the Start (mode choice) click. Everything that needs the gesture happens
    * before the first await: audio session, AudioContext, unlock buffer, speech prime, motion permission.
    */
-  async start(output: Output, motionWaitMs = 1000): Promise<StartReport> {
+  async start(_output?: unknown, motionWaitMs = 1000): Promise<StartReport> {
     const nav = navigator as any;
-    this.speech.setOutput(output);
     if (nav.audioSession) { try { nav.audioSession.type = "playback"; } catch { /* old iOS */ } }
     const AC: typeof AudioContext = (globalThis as any).AudioContext ?? (globalThis as any).webkitAudioContext;
     const ctx = new AC({ latencyHint: "interactive" });
@@ -82,7 +81,6 @@ export class AudioEngine {
       const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
       s.connect(ctx.destination); s.start();
     } catch { /* fake or closed context */ }
-    this.speech.prime("Starting.");
     const perm = requestMotion();
     const wake = nav.wakeLock?.request?.("screen")?.catch?.(() => null) ?? Promise.resolve(null);
     const [, p] = await Promise.all([resumed, perm, wake]); // first await
@@ -194,6 +192,19 @@ export class AudioEngine {
   }
 
   panning: PanningModelType = "HRTF";
+
+  /** The only sound that stands in for a voice that could not be made: a soft sine, about 0.12 s. The caption stays up. */
+  softTone(): void {
+    const c = this.ctx; if (!c) return;
+    try {
+      const o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
+      o.type = "sine"; o.frequency.value = 440;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.02); g.gain.linearRampToValueAtTime(0, t + 0.12);
+      o.connect(g); g.connect(this.buses?.voice ?? c.destination);
+      o.start(t); o.stop(t + 0.14);
+      this.bus.publish({ kind: "sound", sound: "tone", label: "voice unavailable", bus: "voice" });
+    } catch { /* closed context */ }
+  }
 
   /** A sound recipe (pulse, thud, jamb, chime ...) with a little pitch and level variation (agent5 4.3). */
   cue(name: RecipeName, o: PlayOpts): Playing | null {

@@ -8,7 +8,7 @@ import { VoiceOut, partsFor, type ClipStore } from "./audio/voice";
 import { captionText, polar, ringLabel, ringPoint, type Cue } from "./events";
 import { lineId } from "./lines";
 import { spokenLower, spokenOf } from "./names";
-import { fixturePkg, FakeAudioContext, fakeSynth, FakeUtterance } from "./test/fakes";
+import { fixturePkg, FakeAudioContext } from "./test/fakes";
 import { Captions } from "./ui/captions";
 import type { Landmark, Vec2 } from "./types";
 
@@ -17,7 +17,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
 /** An engine with a fake context whose panners are recorded. */
 function rig(known: string[] = []) {
   document.body.innerHTML = `<div class="transcript__row"><p id="say-polite"></p><p id="say-dir" hidden></p></div><p id="say-assertive"></p>`;
-  const speech = new Speech({ synth: fakeSynth(), Utterance: FakeUtterance as any, raf: f => f() });
+  const speech = new Speech({ raf: f => f() });
   const audio = new AudioEngine(speech);
   const ctx = new FakeAudioContext();
   const panners: any[] = [];
@@ -152,17 +152,19 @@ describe("clips play from the object", () => {
     expect(r.played).toEqual([lineId("Sound on.")]);
   });
 
-  it("falls back to the browser voice when no clip arrives in time", async () => {
-    const synth = fakeSynth();
+  it("with no clip and no live render: caption stays, a soft tone plays, never another voice", async () => {
     document.body.innerHTML = `<p id="say-polite"></p>`;
-    const speech = new Speech({ synth, Utterance: FakeUtterance as any, raf: f => f() });
+    const speech = new Speech({ raf: f => f() });
     const audio = new AudioEngine(speech);
     audio.ctx = new FakeAudioContext() as unknown as AudioContext; (audio as any).build(audio.ctx);
     const store = { has: () => false, get: () => Promise.resolve(null), live: () => Promise.resolve(null) } as unknown as ClipStore;
     new VoiceOut(audio, speech, store);
+    let tones = 0; speech.bus.subscribe(c => { if (c.kind === "sound" && c.sound === "tone") tones++; });
     speech.say("Nothing prerendered here.", 2);
     await tick(); await tick();
-    expect(synth.spoken.map((u: FakeUtterance) => u.text)).toEqual(["Nothing prerendered here."]);
+    expect(document.getElementById("say-polite")!.textContent).toBe("Nothing prerendered here.");
+    expect(tones).toBe(1);
+    expect(speech.speaking).toBe(false);
   });
 });
 

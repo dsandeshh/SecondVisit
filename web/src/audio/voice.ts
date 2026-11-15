@@ -1,5 +1,6 @@
 // Spoken lines as audio: pre rendered Kokoro clips (web/public/buildings/<id>/voice/<line id>.wav), live lines from
-// POST /api/tts, and the browser voice as the fallback when neither is ready within 600 ms (CLAUDE.md rule 7).
+// POST /api/tts. There is no other voice: when neither is ready within 600 ms (or the engine is down) the caption stays
+// up and a soft tone plays (CLAUDE.md rule 7).
 // A line with a position plays from there through the HRTF chain (audio.playBuf); a sentence is centred.
 import type { Cue } from "../events";
 import { lineId } from "../lines";
@@ -107,10 +108,9 @@ export class VoiceOut {
 
   private async onSay(c: Cue): Promise<void> {
     const seq = c.seq ?? 0, pri = (c.pri ?? 2) as Priority;
-    if (this.speech.output !== "app") return;
     this.token = seq;
     const parts = partsFor(c, this.store);
-    const fallback = () => { if (this.token === seq) this.speech.speakBrowser(parts.map(p => p.text).join(" "), pri, seq); };
+    const fallback = () => { if (this.token !== seq) return; this.audio.softTone(); this.speech.clipEnded(seq); };
     const play = async (i: number): Promise<void> => {
       if (this.token !== seq) return;
       if (i >= parts.length) { this.active = null; this.speech.clipEnded(seq); return; }

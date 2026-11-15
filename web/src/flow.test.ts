@@ -7,6 +7,11 @@ import { CueBus } from "./events";
 const base = () => ({ pkg: fixturePkg(), stage: document.createElement("div"), say: vi.fn(), bus: new CueBus() });
 
 describe("full flow", () => {
+  it("passes the audio engine to the hook", async () => {
+    const audio = { id: "engine" }; let got: unknown;
+    await runFlow({ ...base(), audio, begin: () => {}, hook: { startOutdoor: o => { got = (o as any).audio; } } });
+    expect(got).toBe(audio);
+  });
   it("is off unless ?flow=full", () => {
     expect(fullFlow(new URLSearchParams(""))).toBe(false);
     expect(fullFlow(new URLSearchParams("flow=full"))).toBe(true);

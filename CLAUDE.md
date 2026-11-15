@@ -37,7 +37,7 @@ another task owns, code against that task's **Interfaces** block; do not build i
    orientation after a permission tap, no vibration. Orientation needs HTTPS: use a tunnel for phones.
 7. **The app is used by blind people.** Keyboard first, large high contrast text, nothing only visual.
    Nothing plays before Start. **Always app voice** (human decision 14 Nov 23:37): there is no "app voice /
-   my screen reader" choice; we speak every line (Kokoro clips, browser speech fallback) and captions stay
+   my screen reader" choice; we speak every line in one voice, am_michael (a pre-rendered clip, else `POST /api/tts` cached by the same line hash; if that fails or is slow a soft tone plays and the caption stays up; never a browser voice, never `speechSynthesis`) and captions stay
    visible, with direction ("Reception desk, 2 o'clock" plus an arrow); the caption region is
    `aria-live="off"` so screen readers do not double the voice. Speech always equals its caption (clips
    keyed by text hash). Any key interrupts speech. Phones: full screen Step button plus Repeat, Where am I,

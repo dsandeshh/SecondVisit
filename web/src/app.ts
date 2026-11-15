@@ -59,7 +59,7 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
   // Always app voice (CLAUDE.md rule 7): Start is the gesture that creates the AudioContext and goes straight in.
   $("start").addEventListener("click", () => {
     if (audio.ctx || !app.pkg) return;
-    const started = audio.start("app"); // synchronous part runs inside this click
+    const started = audio.start(); // synchronous part runs inside this click
     // Clips for this route and room are fetched inside the same gesture, before anything else.
     const store = new ClipStore(audio.ctx!, `/buildings/${app.pkg.id}`);
     const pkg = app.pkg;
@@ -91,7 +91,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     onQuestion: q => showQuiz(doc, session, q),
     onNext: t => { $("next-action").textContent = t; },
     onIntro: t => showIntro(doc, t),
-    onHold: on => { audio.hold(on); try { on ? globalThis.speechSynthesis?.pause() : globalThis.speechSynthesis?.resume(); } catch { /* none */ } },
+    onHold: on => { audio.hold(on); },
     onLeave: () => { const tab = doc.querySelector<HTMLElement>("#steps-list li:not([data-arrive]) span"); tab?.focus(); },
     chime: () => { audio.cue("chime", { bus: "cue", gain: 1, announce: true, label: "chime" }); },
     introSeen: () => new URLSearchParams(doc.location?.search).get("intro") === "1" ? false : storedSeen(),
@@ -113,7 +113,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     $("op-latency").textContent = `${r.latencyMs} ms${r.latencyMs > 50 ? " (over 50, check headphones are wired)" : ""}`;
     $("op-motion").textContent = `${r.motion}, mode ${audio.mode}`;
     $("op-output").textContent = "app voice";
-    $("op-voice").textContent = speech.voice?.name ?? "default";
+    $("op-voice").textContent = "am_michael";
   }
 
   const stage = $("stage");
@@ -185,7 +185,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   if (!full) { beginInterior(); return; }
   // ?flow=full: Home, fly in, curb walk (outdoor hook), then the interior at pkg.entrances[0] (see flow.ts for the contract).
   void loadOutdoorHook().then(hook => runFlow({
-    hook, pkg, stage, say: (t, p) => speech.say(t, p ?? 2), bus: speech.bus, begin: beginInterior,
+    hook, pkg, stage, say: (t, p) => speech.say(t, p ?? 2), bus: speech.bus, audio, begin: beginInterior,
     onOutdoor: on => { doc.body.dataset.flow = on ? "arrive" : "inside"; $("room3d").hidden = on; setArriveTab(doc, on); },
   }));
 }

@@ -141,3 +141,11 @@ def test_disambiguate_uses_room_then_ordinal_and_keeps_hand():
     assert sp["h"] == "Back door"
     assert sp["a"] == "Door in the lab"
     assert sp["c"] == "Door 1" and sp["b"] == "Door 2"  # c is closer to the entrance
+
+
+def test_line_id_golden_shared_with_web():
+    """web/src/lines.test.ts reads the same file: the browser id must equal the engine id for every sample."""
+    import json
+    from pathlib import Path
+    rows = json.loads((Path(__file__).parent / "line_id_golden.json").read_text(encoding="utf-8"))
+    assert rows and all(voice_lines.line_id(r["text"]) == r["id"] for r in rows)

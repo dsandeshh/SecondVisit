@@ -1,118 +1,60 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { fakeSynth, FakeUtterance } from "../test/fakes";
 import { Speech } from "./speech";
 
-function setup(voices: unknown[] = []) {
-  document.body.innerHTML = `<p id="say-polite" aria-live="off"></p><p id="say-assertive" aria-live="off"></p>
-    <ol id="say-history"></ol>`;
-  const synth = fakeSynth(voices);
-  const sp = new Speech({ synth, Utterance: FakeUtterance as any, raf: (f) => f() });
-  return { synth, sp };
+function setup() {
+  document.body.innerHTML = `<p id="say-polite" aria-live="off"></p><p id="say-assertive" aria-live="off"></p><ol id="say-history"></ol>`;
+  return new Speech({ raf: (f) => f() });
 }
+const el = (id: string) => document.getElementById(id)!;
 
-describe("Speech", () => {
+describe("Speech (captions and priority; the voice is VoiceOut's)", () => {
   beforeEach(() => { document.body.innerHTML = ""; });
 
-  it("say interrupts", () => {
-    const { synth, sp } = setup();
-    sp.say("Wall on your left.");
-    sp.say("Turn right.");
-    const c = synth.calls as string[];
-    expect(c.filter(x => x === "speak").length).toBe(2);
-    expect(c.slice(c.indexOf("speak") + 1, c.lastIndexOf("speak"))).toContain("cancel");
+  it("writes every line to the caption and publishes it on the bus", () => {
+    const sp = setup(), seen: string[] = [];
+    sp.bus.subscribe(c => { if (c.kind === "say") seen.push(c.text ?? ""); });
+    sp.say("Turn left.");
+    expect(el("say-polite").textContent).toBe("Turn left.");
+    sp.say("Turn left.");
+    expect(el("say-polite").textContent).toBe("Turn left.");
+    expect(seen).toEqual(["Turn left.", "Turn left."]);
   });
 
-  it("speech priority", () => {
-    const { synth, sp } = setup();
+  it("the caption region stays aria-live off", () => {
+    const sp = setup();
+    sp.say("x"); sp.say("Stairs ahead.", 3);
+    expect(el("say-polite").getAttribute("aria-live")).toBe("off");
+    expect(el("say-assertive").getAttribute("aria-live")).toBe("off");
+  });
+
+  it("a lower priority line is dropped while a higher one plays, and speaks after it ended", () => {
+    const sp = setup();
+    sp.hasClips = true;
     sp.say("Walk about 12 steps.", 2);
-    const n = synth.calls.length;
     sp.say("Possibly a sign.", 1);
-    expect(synth.calls.length).toBe(n); // dropped: no cancel, no speak
+    expect(el("say-polite").textContent).toBe("Walk about 12 steps.");
     sp.say("Stairs ahead.", 3);
-    expect(synth.calls.slice(n)).toEqual(["cancel", "speak"]);
-  });
-
-  it("lower priority speaks once the current line ended", () => {
-    const { synth, sp } = setup();
-    sp.say("Walk.", 2);
-    synth.spoken[0].onend?.({});
+    expect(el("say-polite").textContent).toBe("Stairs ahead.");
+    sp.stop();
     sp.say("Possibly a sign.", 1);
-    expect(synth.spoken.length).toBe(2);
+    expect(el("say-polite").textContent).toBe("Possibly a sign.");
   });
 
-  it("speech splits long text", () => {
-    const { synth, sp } = setup();
-    const s = (w: string) => (w + " ").repeat(Math.floor(98 / (w.length + 1))).trim() + ".";
-    const text = [s("alpha"), s("bravo"), s("charlie"), s("delta")].join(" ").padEnd(400, " ");
-    expect(text.length).toBeGreaterThanOrEqual(395);
-    sp.say(text);
-    expect(synth.spoken.length).toBeGreaterThanOrEqual(3);
-    for (const u of synth.spoken) expect(u.text.length).toBeLessThanOrEqual(160);
-    expect(sp.live.length).toBe(synth.spoken.length); // references kept
-  });
-
-  it("splits a single sentence longer than 160 at word boundaries", () => {
-    const { synth, sp } = setup();
-    sp.say(("word ".repeat(70)).trim());
-    for (const u of synth.spoken) expect(u.text.length).toBeLessThanOrEqual(160);
-    expect(synth.spoken.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it("screen reader mode does not speak", () => {
-    const { synth, sp } = setup();
-    sp.setOutput("app");
-    expect(document.getElementById("say-polite")!.getAttribute("aria-live")).toBe("off");
-    sp.setOutput("screenreader");
-    sp.say("x");
-    expect(document.getElementById("say-polite")!.textContent).toBe("x");
-    expect(document.getElementById("say-polite")!.getAttribute("aria-live")).toBe("polite");
-    expect(document.getElementById("say-assertive")!.getAttribute("aria-live")).toBe("assertive");
-    sp.say("Stairs ahead.", 3);
-    expect(document.getElementById("say-assertive")!.textContent).toBe("Stairs ahead.");
-    sp.prime("Starting.");
-    expect(synth.calls).not.toContain("speak");
-  });
-
-  it("app mode mirrors text to the transcript", () => {
-    const { sp } = setup();
-    sp.setOutput("app");
-    sp.say("Turn left.");
-    expect(document.getElementById("say-polite")!.textContent).toBe("Turn left.");
-    sp.say("Turn left.");
-    expect(document.getElementById("say-polite")!.textContent).toBe("Turn left.");
-  });
-
-  it("voice prefers local", () => {
-    const google = { name: "Google US English", lang: "en-US", localService: false, default: true };
-    const local = { name: "Samantha", lang: "en-US", localService: true, default: false };
-    const { synth, sp } = setup([google, local]);
-    synth.fire("voiceschanged");
-    expect(sp.voice).toBe(local);
-    sp.say("Hello.");
-    expect(synth.spoken[0].voice).toBe(local);
-  });
-
-  it("treats canceled and interrupted as normal and resumes a paused synth", () => {
-    const { synth, sp } = setup();
-    synth.paused = true;
+  it("ducks while a clip plays and keeps the rate in range", () => {
+    const sp = setup(), duck: boolean[] = [];
+    sp.onDuck = on => duck.push(on);
+    sp.setRate(3); expect(sp.rate).toBe(1.6);
+    sp.setRate(0.1); expect(sp.rate).toBe(0.8);
+    sp.hasClips = true;
     sp.say("One.");
-    expect(synth.calls).toContain("resume");
-    expect(() => synth.spoken[0].onerror?.({ error: "interrupted" })).not.toThrow();
-    expect(sp.errors).toEqual([]);
-    synth.spoken[0].onerror?.({ error: "synthesis-failed" });
-    expect(sp.errors).toEqual(["synthesis-failed"]);
-  });
-
-  it("ducks while speaking and calls rate", () => {
-    const { synth, sp } = setup();
-    const duck: boolean[] = [];
-    sp.onDuck = (on) => duck.push(on);
-    sp.setRate(1.3);
-    sp.say("One.");
-    synth.spoken[0].onstart?.({});
-    synth.spoken[0].onend?.({});
+    const seq = (sp as any).seq as number;
+    sp.clipStarted(seq, 2); sp.clipEnded(seq);
     expect(duck).toEqual([true, false]);
-    expect(synth.spoken[0].rate).toBeCloseTo(1.3);
+  });
+
+  it("has no browser speech in it", () => {
+    expect(Object.keys(setup())).not.toContain("synth");
+    expect((setup() as any).speakBrowser).toBeUndefined();
   });
 });

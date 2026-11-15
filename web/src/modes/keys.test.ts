@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AudioEngine } from "../audio/engine";
 import { Speech } from "../audio/speech";
 import { attachKeys, STEP_GAP_MS } from "../input/keyboard";
-import { FakeAudioContext, fakeSynth, fixturePkg } from "../test/fakes";
+import { FakeAudioContext, fixturePkg } from "../test/fakes";
 import { World } from "../world";
 import { Explore } from "./explore";
 import { Session } from "./session";
@@ -12,8 +12,7 @@ import { Session } from "./session";
 function rig() {
   document.body.innerHTML = `<p id="say-polite"></p><p id="say-assertive"></p><ol id="say-history"></ol><div id="stage" tabindex="0"></div>`;
   vi.stubGlobal("AudioContext", FakeAudioContext);
-  const speech = new Speech({ synth: fakeSynth() as any, Utterance: class { constructor(public text: string) {} } as any, doc: document, raf: f => f() });
-  speech.setOutput("screenreader");
+  const speech = new Speech({ doc: document, raf: f => f() });
   const out: string[] = [];
   speech.onSay = t => out.push("say:" + t);
   speech.bus.subscribe(c => out.push("cue:" + (c as any).kind));

@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { AudioEngine } from "../audio/engine";
 import { Speech } from "../audio/speech";
-import { fakeSynth, fixturePkg } from "../test/fakes";
+import { fixturePkg } from "../test/fakes";
 import { World } from "../world";
 import { Explore } from "./explore";
 import { Session, type Phase } from "./session";
@@ -11,8 +11,7 @@ function make(opts: { routes?: boolean } = {}) {
   document.body.innerHTML = `<p id="say-polite"></p><p id="say-assertive"></p><ol id="say-history"></ol>`;
   const pkg = fixturePkg();
   if (opts.routes === false) pkg.routes = [];
-  const speech = new Speech({ synth: fakeSynth() as any, Utterance: class { constructor(public text: string) {} } as any, doc: document, raf: f => f() });
-  speech.setOutput("screenreader"); // lines land in the transcript only
+  const speech = new Speech({ doc: document, raf: f => f() });
   const said: string[] = [];
   speech.onSay = t => said.push(t);
   const audio = new AudioEngine(speech);

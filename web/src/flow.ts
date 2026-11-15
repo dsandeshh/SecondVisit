@@ -17,7 +17,7 @@ import type { CueBus } from "./events";
 import type { BuildingPackage } from "./types";
 
 export interface OutdoorOpts {
-  pkg: BuildingPackage; stage: HTMLElement; say: (text: string, pri?: 1 | 2 | 3) => void; bus: CueBus; onInside: () => void;
+  pkg: BuildingPackage; stage: HTMLElement; say: (text: string, pri?: 1 | 2 | 3) => void; bus: CueBus; onInside: () => void; audio?: unknown;
 }
 export interface OutdoorModule { startOutdoor(o: OutdoorOpts): unknown }
 
@@ -38,13 +38,13 @@ export async function loadOutdoorHook(): Promise<OutdoorModule | null> {
  * Run the outdoor part when a hook is there, then `begin()` the interior. Returns "outdoor" when the outdoor
  * part took over (begin runs later, from onInside), "interior" when begin ran at once (no hook, or it threw).
  */
-export async function runFlow(o: { hook: OutdoorModule | null; pkg: BuildingPackage; stage: HTMLElement; say: OutdoorOpts["say"]; bus: CueBus; begin: () => void; onOutdoor?: (on: boolean) => void }): Promise<"outdoor" | "interior"> {
+export async function runFlow(o: { hook: OutdoorModule | null; pkg: BuildingPackage; stage: HTMLElement; say: OutdoorOpts["say"]; bus: CueBus; audio?: unknown; begin: () => void; onOutdoor?: (on: boolean) => void }): Promise<"outdoor" | "interior"> {
   if (!o.hook) { o.begin(); return "interior"; }
   let inside = false;
   const onInside = () => { if (inside) return; inside = true; o.onOutdoor?.(false); o.begin(); };
   try {
     o.onOutdoor?.(true);
-    const h: any = await o.hook.startOutdoor({ pkg: o.pkg, stage: o.stage, say: o.say, bus: o.bus, onInside });
+    const h: any = await o.hook.startOutdoor({ pkg: o.pkg, stage: o.stage, say: o.say, bus: o.bus, audio: o.audio, onInside });
     if (h && typeof h === "object" && "onInside" in h) h.onInside = onInside;
     return "outdoor";
   } catch {

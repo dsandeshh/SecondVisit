@@ -29,7 +29,7 @@ without it the app opens inside, so the demo never depends on it. Add `&intro=1`
 | Portfolio entrance and weights | Portfolio | `assumed` |
 | Landmark under 0.6 confidence | objects list, 3D labels | `possibly`, chip `AI 0.xx` |
 | Human confirmed pin | chips | `HAND` |
-| No pre-rendered clip for a line | spoken by the engine, caption always on | (see voice section of UI_DESIGN) |
+| No pre-rendered clip for a line | rendered by `/api/tts` (am_michael), caption shows at once | none; if the engine is down, a soft tone and the caption only |
 | Matterport tour or SDK not on localhost | observer tour box | text only, tour not loaded |
 | Floor plan image or json missing | observer, venue | note under the plan |
 | Outdoor hook absent | walker | app opens inside; no Arrive tab |

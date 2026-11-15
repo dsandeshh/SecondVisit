@@ -304,7 +304,7 @@ Focus goes to Step when Rehearse starts.
   that place. Try the clinic name and the city, or the street address."
 * `enterkeyhint="go"`, `autocomplete="off"`. Enter submits the same as Start.
 
-### 3.3 Mode switcher (app voice or my screen reader)
+### 3.3 Mode switcher (superseded: always app voice, no choice screen)
 
 After Start, the Start button is replaced in place by two large choice buttons; focus moves to the
 first. Each is a `.btn--secondary` at least 96px tall, full width on phone, side by side above 720px:
@@ -340,7 +340,7 @@ One persistent element present from page load (CLAUDE.md rule 7, agent3 section 
   ("Stairs ahead.").
 * Replace the text, never append. Same line twice: clear, then set on the next animation frame.
 * History: `--fs-small`, `--c-ink-2`, newest first.
-* A small text tag "Speaking" shows while `speechSynthesis.speaking`; no waveform, no pulsing dot.
+* A small text tag "Speaking" shows while a clip plays (`Speech.speaking`); no waveform, no pulsing dot.
 
 ### 3.5 Provenance chip and layer meter
 
@@ -843,6 +843,10 @@ fill (4.5, and 3 as the focus ring), good, bad and caution on page (4.5), rule o
 (3), route and glass data colours on surface (3). For glass: ink and ink 2 on each tint over white and
 black at 4.5 or better. It also fails if a removed token (`--c-sign*`, `--focus-inner/outer`) or an
 `@font-face` comes back, and if any visitor file mentions `backdrop-filter` or `glass-`.
+
+**Voice rule (15 Nov 2026, supersedes the mode switcher above):** one voice, am_michael. A line with a pre-rendered clip plays it; a line without one is
+rendered by `POST /api/tts` (same line hash) while the caption shows at once; if that fails or takes over 600 ms a soft sine tone (about 0.12 s) plays and the caption
+stays. Browser speech (`speechSynthesis`) is not used anywhere. The ids agree between web and engine (`engine/tests/line_id_golden.json`, checked by both suites).
 
 ### 6.1 Result of the check, 15 Nov 2026 (index, observer, venue, pick)
 
