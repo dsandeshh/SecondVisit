@@ -88,7 +88,7 @@ class Route(BaseModel):
     segments: list[Segment]
     score: Score
 
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "serialize_by_alias": True}
 
 
 class SimResult(BaseModel):
