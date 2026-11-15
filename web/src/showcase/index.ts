@@ -25,7 +25,7 @@ import type { CueBus } from "../events";
 import type { BuildingPackage, Route, Vec2 } from "../types";
 import type { World } from "../world";
 import { fitCalibration, headingToYaw, planToSdk, sdkToPlan, type Calibration, type PlanPoint } from "./calibrate";
-import { chooseSweep, moveStyle, SweepFollower, type PlanSweep } from "./follow";
+import { chooseSweep, moveStyle, SweepFollower, zoomFor, type PlanSweep } from "./follow";
 import { Hud, type CamPose } from "./hud";
 import { FALLBACK_LINE, SDK_TIMEOUT_MS, connectSdk, withTimeout } from "./load";
 
@@ -39,7 +39,7 @@ export interface ShowcaseHandle {
   calibration: Calibration | null;
   ready: boolean;
   /** Diagnostics for the dev page: sweep moves done and the last move's duration in ms. */
-  stats: { moves: number; lastMoveMs: number; sweeps: number; queued?: number };
+  stats: { moves: number; lastMoveMs: number; sweeps: number; queued?: number; zooms?: number };
   /** Dev only: every Sweep.moveTo we sent (id, transition, ms, jump metres, plan pos at send time). */
   moveLog?: { id: string; transition: string; ms: number; jumpM: number; t: number }[];
   /** Dev only: the last SDK camera pose. */
@@ -121,12 +121,12 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
       stage(`PLAYING reached: iframe ${boxOf(iframe)}`);
       return s;
     })(), SDK_TIMEOUT_MS, "Showcase SDK not connected/PLAYING within 20 s");
-    const sweepMap = new Map<string, { position: { x: number; y: number; z: number }; enabled: boolean }>();
+    const sweepMap = new Map<string, { position: { x: number; y: number; z: number }; enabled: boolean; neighbors: string[] }>();
     await withTimeout(new Promise<void>(res => {
       subs.push(sdk.Sweep.data.subscribe({
         onCollectionUpdated(col: Record<string, any>) {
           sweepMap.clear();
-          for (const k of Object.keys(col)) sweepMap.set(col[k].id ?? k, { position: col[k].position, enabled: col[k].enabled !== false });
+          for (const k of Object.keys(col)) sweepMap.set(col[k].id ?? k, { position: col[k].position, enabled: col[k].enabled !== false, neighbors: Array.isArray(col[k].neighbors) ? col[k].neighbors : [] });
           if (sweepMap.size) res();
         },
       }));
@@ -138,7 +138,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
     console.info("[showcase] calibration", { ...cal, rotDeg: +cal.rotDeg.toFixed(2), tx: +cal.tx.toFixed(3), ty: +cal.ty.toFixed(3),
       meanErrCm: +(cal.meanErr * 100).toFixed(2), maxErrCm: +(cal.maxErr * 100).toFixed(2) });
 
-    const planSweeps = (): PlanSweep[] => [...sweepMap].map(([id, s]) => ({ id, enabled: s.enabled, plan: sdkToPlan(cal, s.position.x, s.position.z) }));
+    const planSweeps = (): PlanSweep[] => [...sweepMap].map(([id, s]) => ({ id, enabled: s.enabled, neighbors: s.neighbors, plan: sdkToPlan(cal, s.position.x, s.position.z) }));
     const cached = planSweeps();
     let pose: CamPose | null = null;
     subs.push(sdk.Camera.pose.subscribe((p: CamPose) => { pose = p; hud?.setPose(p); }));
@@ -155,10 +155,12 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
     // FLY between adjacent sweeps (what the viewer's own arrow keys do); a long jump or the entrance is a slower FLY.
     const follower = new SweepFollower(o.world, () => cached, async (id, h, info) => {
       if (firstMove) { firstMove = false; stage(`first Sweep.moveTo ${id}`); }
-      const st = moveStyle(info.jumpM, info.first), transition = sdk.Sweep.Transition.FLY;
+      const st = moveStyle(info.jumpM, info.first, info.adjacent), transition = sdk.Sweep.Transition.FLY;
       moveLog.push({ id, transition: `${transition}${st.long ? " long" : " step"}`, ms: st.ms, jumpM: +info.jumpM.toFixed(2), t: Math.round(performance.now()) });
-      stage(`Sweep.moveTo ${id} ${st.long ? "long" : "step"} ${transition} ${st.ms} ms jump ${info.jumpM.toFixed(2)} m`);
+      stage(`Sweep.moveTo ${id} ${st.long ? "long" : "step"} ${transition} ${st.ms} ms jump ${info.jumpM.toFixed(2)} m${info.adjacent ? " neighbour" : ""}`);
       await withTimeout(sdk.Sweep.moveTo(id, { rotation: { x: PITCH_DOWN, y: headingToYaw(cal, h) }, transition, transitionTime: st.ms }), 4000, "move stalled").catch(e => { if ((e as Error).message === "move stalled") onOffline(); throw e; });
+      zoomAnchor = pos; // zoom counts the steps walked since this sweep landed
+      if (lastZoom !== 1) { lastZoom = 1; void Promise.resolve(sdk.Camera.zoomTo(1)).catch(() => undefined); } // new sweep: unzoomed
       // turns made during the flight: settle on the walker's current heading
       void Promise.resolve(sdk.Camera.setRotation({ x: PITCH_DOWN, y: headingToYaw(cal, heading) }, { speed: 220 })).catch(() => undefined);
     });
@@ -167,7 +169,14 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
     if (pose) hud.setPose(pose);
 
     let pos: Vec2 = o.pkg.entrances[0]?.pos ?? [0, 0], heading = o.pkg.entrances[0]?.heading_deg ?? 0;
-    let lastRot = 0, lastHeading = NaN;
+    let lastRot = 0, lastHeading = NaN, lastZoom = 1, zoomAnchor: Vec2 | null = null;
+    const zoomStep = (): void => { // every step between sweep moves zooms in a little (SDK zoomTo, Inside mode)
+      if (!zoomAnchor || follower.busy) return;
+      const z = zoomFor(zoomAnchor, pos, heading);
+      if (Math.abs(z - lastZoom) < 0.01) return;
+      lastZoom = z; handle.stats.zooms = (handle.stats.zooms ?? 0) + 1;
+      void Promise.resolve(sdk.Camera.zoomTo(z)).catch(() => undefined);
+    };
     const follow = async (): Promise<void> => {
       if (stopped) return;
       await follower.update(pos, heading); // while a move is in flight this queues the newest pose (depth 1)
@@ -176,7 +185,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
     handle.setPose = (p, h) => {
       if (stopped) return; // after a fallback the walker keeps going; we just stop drawing
       pos = p; heading = h; hud?.setWalker(p, h);
-      void follow();
+      void follow().then(zoomStep);
       const now = performance.now();
       if (!follower.busy && h !== lastHeading && now - lastRot > 90) {
         lastRot = now; lastHeading = h;
@@ -196,7 +205,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
         if (follower.current === null) await new Promise(r => setTimeout(r, 350));
       }
       if (follower.current === null) throw new Error("entrance sweep not shown");
-      pos = ent.pos; heading = ent.heading_deg; hud?.setWalker(pos, heading);
+      pos = ent.pos; heading = ent.heading_deg; hud?.setWalker(pos, heading); zoomAnchor = ent.pos;
       return { pos: ent.pos, heading: ent.heading_deg };
     };
 

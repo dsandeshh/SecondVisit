@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fixturePkg } from "../test/fakes";
 import { World } from "../world";
 import { fitCalibration, headingToYaw, planToSdk, sdkToPlan, yawToHeading } from "./calibrate";
-import { chooseSweep, chooseSweepAhead, moveStyle, SweepFollower, type PlanSweep } from "./follow";
+import { chooseSweep, chooseSweepAhead, moveStyle, zoomFor, ZOOM_MAX, ZOOM_PER_M, SweepFollower, type PlanSweep } from "./follow";
 import { FALLBACK_LINE, SDK_TIMEOUT_MS, waitPlaying, withTimeout } from "./load";
 
 const panos = Array.from({ length: 20 }, (_, i) => ({ id: `p${i}`, x: Math.cos(i * 1.7) * 9 + i * 0.8, y: Math.sin(i * 2.3) * 5 - i * 0.3 }));
@@ -121,6 +121,14 @@ describe("sweep ahead", () => {
     expect(moveStyle(1.2, false)).toEqual({ long: false, ms: 400 });
     expect(moveStyle(4.5, false).long).toBe(true);
     expect(moveStyle(0.5, true).long).toBe(true);
+    // sparse scans: a 5.9 m hop to a graph neighbour is still a walking step, a little slower
+    expect(moveStyle(5.9, false, true)).toEqual({ long: false, ms: 649 });
+  });
+  it("zoom: walking past the shown sweep zooms in along the heading, so a press reacts even on the same photo", () => {
+    expect(zoomFor([0, 0], [0, -1], 0)).toBe(1);             // the sweep is ahead: no zoom
+    expect(zoomFor([0, 0], [0, 0.7], 0)).toBeCloseTo(1 + 0.7 * ZOOM_PER_M, 6);
+    expect(zoomFor([0, 0], [0, 1.4], 0)).toBeGreaterThan(zoomFor([0, 0], [0, 0.7], 0));
+    expect(zoomFor([0, 0], [0, 40], 0)).toBe(ZOOM_MAX);
   });
 });
 

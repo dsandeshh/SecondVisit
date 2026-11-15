@@ -2,7 +2,7 @@
 import type { Vec2 } from "../types";
 import { bearing, dist, wrap180, type World } from "../world";
 
-export type PlanSweep = { id: string; plan: Vec2; enabled: boolean };
+export type PlanSweep = { id: string; plan: Vec2; enabled: boolean; neighbors?: string[] };
 
 /** Max distance for a sweep to be worth showing; beyond it the picture would feel detached from the walker. */
 export const MAX_SWEEP_M = 6;
@@ -65,12 +65,25 @@ export function chooseSweepAhead(world: World, sweeps: PlanSweep[], pos: Vec2, h
   return best?.id ?? chooseSweep(world, sweeps, pos, currentId);
 }
 
-/** Walking steps blend in STEP_MOVE_MS; a long jump or the first placement is a longer fly. */
-export function moveStyle(jumpM: number, first: boolean): { long: boolean; ms: number } {
-  return first || jumpM > LONG_JUMP_M ? { long: true, ms: LONG_MOVE_MS } : { long: false, ms: STEP_MOVE_MS };
+/** Walking steps blend in STEP_MOVE_MS (a little longer for a long hop to a graph neighbour, up to STEP_MAX_MS);
+ *  a long jump to a non-neighbour, or the first placement, is a slower fly. */
+export const STEP_MAX_MS = 700;
+export function moveStyle(jumpM: number, first: boolean, adjacent = false): { long: boolean; ms: number } {
+  if (first || (jumpM > LONG_JUMP_M && !adjacent)) return { long: true, ms: LONG_MOVE_MS };
+  return { long: false, ms: Math.round(Math.max(STEP_MOVE_MS, Math.min(STEP_MAX_MS, jumpM * 110))) };
 }
 
-export type MoveInfo = { jumpM: number; first: boolean };
+/** Zoom per metre walked (along the heading) since the shown sweep landed, and its cap. Inside mode only (SDK). */
+export const ZOOM_PER_M = 0.1;
+export const ZOOM_MAX = 1.7;
+/** Between sweep moves each step zooms the photo in a little, so every press visibly moves you forward. */
+export function zoomFor(anchor: Vec2, pos: Vec2, headingDeg: number): number {
+  const h = headingDeg * Math.PI / 180;
+  const fwd = (pos[0] - anchor[0]) * Math.sin(h) + (pos[1] - anchor[1]) * Math.cos(h);
+  return Math.max(1, Math.min(ZOOM_MAX, 1 + ZOOM_PER_M * fwd));
+}
+
+export type MoveInfo = { jumpM: number; first: boolean; adjacent: boolean };
 
 /** One move at a time, plus a queue of depth 1: a pose that arrives while a move is in flight replaces any queued
  *  pose (newest wins) and is followed as soon as the move lands, so holding Up chains moves instead of dropping them. */
@@ -90,7 +103,8 @@ export class SweepFollower {
     const id = chooseSweepAhead(this.world, all, pos, headingDeg, this.current);
     if (!id || id === this.current) return false;
     const from = all.find(s => s.id === this.current), to = all.find(s => s.id === id)!;
-    const info: MoveInfo = { jumpM: from ? dist(from.plan, to.plan) : 0, first: this.current === null };
+    const info: MoveInfo = { jumpM: from ? dist(from.plan, to.plan) : 0, first: this.current === null,
+      adjacent: !!from && (!!from.neighbors?.includes(id) || !!to.neighbors?.includes(from.id)) };
     this.busy = true;
     const t0 = Date.now();
     try { await this.move(id, headingDeg, info); this.current = id; this.moves++; }
