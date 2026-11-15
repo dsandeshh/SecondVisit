@@ -844,6 +844,24 @@ fill (4.5, and 3 as the focus ring), good, bad and caution on page (4.5), rule o
 black at 4.5 or better. It also fails if a removed token (`--c-sign*`, `--focus-inner/outer`) or an
 `@font-face` comes back, and if any visitor file mentions `backdrop-filter` or `glass-`.
 
+### 6.1 Result of the check, 15 Nov 2026 (index, observer, venue, pick)
+
+Automated in `web/src/a11y.test.ts` (all four pages) plus `app.test.ts`, `tokens.test.ts`, and a Chrome run with real Tab, Escape and F6.
+
+Passed: `lang` and a `SecondVisit` title on every page; the stage is `role="application"` with the four keys in its name;
+`#say-polite`, `#say-assertive`, `#caption`, agent log and venue trace are `aria-live="off"`; the 3D view, intro prompt and mini plan are
+`aria-hidden`; every button, input, select and tab has a text name (Rename and Remove carry the object's name); canvases are `role="img"` with a label;
+no positive `tabindex`; the focus ring (3px accent) shows on Start, the stage, the top bar and the panel summaries in Chrome; Home Tab reaches Start first;
+Escape with nothing running leaves the stage for the top bar (Enter returns), F6 and Shift+F6 cycle top bar, stage, objects list, Keys, Agent and data;
+all token contrast pairs (light and dark) pass; no page scrolls at 1280x800, 1440x900, 1920x1080 (`docs/screens/fit_*.png`).
+
+Failed and fixed: (1) the objects list and add form could not be reached by keyboard at all (Tab is the stage's place picker): F6 now stops on the objects list;
+(2) the pick page canvas had a label but no role: `role="img"` added; (3) observer and venue drew 48 overlapping landmark names: only confident names and the destination are written, the rest are dots;
+(4) observer, venue and pick requested a missing favicon (404 in the console): `data:` icon added.
+
+Not fixed: the 3D view buttons (Behind, Top, Orbit) sit inside the stage and have no key; they are for sighted companions and work with the mouse only.
+`index.html` has no skip link on purpose (Start must be the first Tab stop; the top bar is hidden at Home). Zoom 200%, VoiceOver and the vision-deficiency emulation (rows 2, 4, 7) were not run by hand in this pass.
+
 ---
 
 ## 7. Build order for the 10 hours (web side)

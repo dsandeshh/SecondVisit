@@ -132,7 +132,8 @@ export function start(S: new () => ObserverState, openBus: (s: string, o?: { rel
     // 12-13 landmarks, destination
     for (const l of pkg.landmarks) {
       ctx.beginPath(); ctx.arc(X(l.pos[0]), Y(l.pos[1]), 10 * k, 0, 7); ctx.strokeStyle = P.ink; ctx.lineWidth = 3 * k; ctx.stroke();
-      halo((l.confidence < 0.6 ? "possibly " : "") + l.label, X(l.pos[0]) + 16 * k, Y(l.pos[1]) + 8 * k);
+      // 48 landmarks overprint each other: name only the confident ones and the destination; the rest stay dots (the table lists all).
+      if (l.confidence >= 0.6 || l.id === route?.to) halo(l.label.length > 24 ? l.label.slice(0, 23) + "…" : l.label, X(l.pos[0]) + 16 * k, Y(l.pos[1]) + 8 * k);
     }
     const dest = route && pkg.landmarks.find((l) => l.id === route.to);
     if (dest) { ctx.fillStyle = P.ink; ctx.fillRect(X(dest.pos[0]) - 8 * k, Y(dest.pos[1]) - 8 * k, 16 * k, 16 * k); }

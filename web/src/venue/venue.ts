@@ -92,7 +92,7 @@ function draw() {
   for (const lm of pkg.landmarks) {
     ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.setLineDash(pkg.prov?.[`landmark:${lm.id}`]?.src === "ai" ? [2, 3] : []);
     ctx.beginPath(); ctx.arc(X(lm.pos[0]), Y(lm.pos[1]), 5, 0, 7); ctx.stroke(); ctx.setLineDash([]);
-    label(ctx, lm.label, X(lm.pos[0]) + 9, Y(lm.pos[1]), P);
+    if (lm.confidence >= 0.6 || lm.id === route?.to) label(ctx, lm.label.length > 24 ? lm.label.slice(0, 23) + "…" : lm.label, X(lm.pos[0]) + 9, Y(lm.pos[1]), P);
   }
   if (report?.best?.pos) {  // proposed desk: blue dashed square
     const [x, y] = [X(report.best.pos[0]), Y(report.best.pos[1])];
@@ -289,6 +289,12 @@ async function boot() {
   const note = floorplanNote(!!img, !!fp);
   $("plan-note").textContent = note ?? "";
   legend(); draw();
+  // A saved report shows at once, labelled replay; Run layout advisor replaces it with a fresh one.
+  const saved = await getJson<LayoutReport>(`${base}layout_report.json`);
+  if (saved?.best) {
+    renderReport(saved, "replay");
+    $("mode-note").innerHTML = `Showing a saved report from an earlier run. <span class="tag tag--replay">replay</span> Press Run layout advisor for a new one.`;
+  }
   if (location.hash === "#portfolio" || params.get("tab") === "portfolio") showTab("portfolio");
 }
 void boot();
