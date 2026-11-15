@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { fixturePkg } from "../test/fakes";
 import { World } from "../world";
@@ -82,4 +83,19 @@ describe("fallback", () => {
     vi.useRealTimers();
   });
   it("fallback line is the agreed copy", () => expect(FALLBACK_LINE).toBe("Photo view needs internet; showing the scan."));
+});
+
+describe("mountShowcase failure", () => {
+  it("offline: onFail once with the calm line, resolves an inert handle, never rejects", async () => {
+    const { mountShowcase } = await import("./index");
+    const { CueBus } = await import("../events");
+    const pkg = fixturePkg(); const say = vi.fn(), onFail = vi.fn();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    const h = await mountShowcase({ host: document.createElement("div"), pkg, world: new World(pkg), bus: new CueBus(), say, onFail, sdkKey: "k" });
+    expect(h.ready).toBe(false);
+    expect(onFail).toHaveBeenCalledTimes(1);
+    expect(say).toHaveBeenCalledWith(FALLBACK_LINE);
+    expect(() => h.setPose([1, 1], 0)).not.toThrow();
+    vi.restoreAllMocks();
+  });
 });

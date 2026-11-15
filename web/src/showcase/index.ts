@@ -9,6 +9,7 @@
 //   bus    CueBus (the HUD sound compass reads cues; we publish nothing, captions are the page's).
 //   say    optional (text) => void; called once with FALLBACK_LINE if the photo view cannot start.
 //   onReady optional () => void, once the SDK is connected, calibrated and the first sweep is shown.
+//   (mountShowcase never rejects: on any failure it calls onFail once and resolves an inert handle, ready=false.)
 //   onFail  optional (reason: string) => void, within 8 s if the SDK is not ready or we are offline. The page then
 //           shows Overview (the GLB scan) and the line "Photo view needs internet; showing the scan.".
 //   Optional extras: sdkKey (default import.meta.env.VITE_MATTERPORT_SDK_KEY), panos (default fetched from
@@ -18,7 +19,8 @@
 //   enterAtEntrance(): Promise<{ pos: Vec2; heading: number }>   outdoor flow: show the entrance sweep facing into the
 //          building; the page then places the walker at the returned pos/heading.
 //   stop()  tear down iframe, HUD and subscriptions.   calibration: Calibration | null   ready: boolean
-// If mountShowcase rejects or calls onFail, the handle is not usable; the page falls back to Overview.
+// onFail also fires if the connection is lost after a good start (the iframe is removed, setPose becomes a no-op, so
+// the walker and audio are untouched); the page shows Overview. If onFail fired the handle is not usable.
 import type { CueBus } from "../events";
 import type { BuildingPackage, Route, Vec2 } from "../types";
 import type { World } from "../world";
@@ -61,11 +63,17 @@ async function loadPanos(pkg: BuildingPackage): Promise<PlanPoint[]> {
 }
 
 export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
-  const fail = (reason: string): never => {
+  let failed = false;
+  const notify = (reason: string): void => { // once only; never throws into the walker or the audio
+    if (failed) return;
+    failed = true;
     try { o.say?.(FALLBACK_LINE); } catch { /* the page still switches */ }
-    o.onFail?.(reason);
-    throw new Error(reason);
+    try { o.onFail?.(reason); } catch { /* */ }
   };
+  const inert: ShowcaseHandle = { calibration: null, ready: false, stats: { moves: 0, lastMoveMs: 0, sweeps: 0 }, pose: () => null,
+    setPose: () => undefined, enterAtEntrance: async () => ({ pos: o.pkg.entrances[0]?.pos ?? [0, 0], heading: o.pkg.entrances[0]?.heading_deg ?? 0 }), stop: () => undefined };
+  // Never rejects: the page learns through onFail, gets an inert handle, and shows Overview plus the calm note.
+  const fail = (reason: string): ShowcaseHandle => { notify(reason); return inert; };
   const key = o.sdkKey ?? (import.meta as any).env?.VITE_MATTERPORT_SDK_KEY;
   if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return fail("Showcase SDK is allowed on localhost only");
   if (typeof navigator !== "undefined" && navigator.onLine === false) return fail("offline");
@@ -83,8 +91,10 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
   let hud: Hud | null = null;
   let stopped = false;
   const subs: { cancel(): void }[] = [];
-  const stop = (): void => { stopped = true; subs.forEach(s => { try { s.cancel(); } catch { /* */ } }); hud?.destroy(); iframe.remove(); };
+  const onOffline = (): void => { if (!stopped && !failed) { stop(); notify("connection lost"); } };
+  const stop = (): void => { stopped = true; window.removeEventListener("offline", onOffline); subs.forEach(s => { try { s.cancel(); } catch { /* */ } }); hud?.destroy(); iframe.remove(); };
 
+  window.addEventListener("offline", onOffline);
   try {
     sdk = await withTimeout((async () => {
       await loadSdkScript();
@@ -117,7 +127,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
       pose: () => pose, _sdk: sdk, setPose: () => undefined, enterAtEntrance: async () => ({ pos: [0, 0], heading: 0 }), stop,
     };
     const follower = new SweepFollower(o.world, () => cached, async (id, h) => {
-      await sdk.Sweep.moveTo(id, { rotation: { x: PITCH_DOWN, y: headingToYaw(cal, h) }, transition: sdk.Sweep.Transition.FLY, transitionTime: MOVE_MS });
+      await withTimeout(sdk.Sweep.moveTo(id, { rotation: { x: PITCH_DOWN, y: headingToYaw(cal, h) }, transition: sdk.Sweep.Transition.FLY, transitionTime: MOVE_MS }), 4000, "move stalled").catch(e => { if ((e as Error).message === "move stalled") onOffline(); throw e; });
       // turns made during the flight: settle on the walker's current heading
       void Promise.resolve(sdk.Camera.setRotation({ x: PITCH_DOWN, y: headingToYaw(cal, heading) }, { speed: 220 })).catch(() => undefined);
     });
@@ -134,6 +144,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
       if (moved && !stopped) void follow(); // catch up once, never queued: update() drops calls while busy
     };
     handle.setPose = (p, h) => {
+      if (stopped) return; // after a fallback the walker keeps going; we just stop drawing
       pos = p; heading = h; hud?.setWalker(p, h);
       void follow();
       const now = performance.now();
@@ -161,6 +172,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
 
     // first picture: the entrance sweep, facing in
     await withTimeout(handle.enterAtEntrance(), SDK_TIMEOUT_MS, "Showcase first sweep not shown within 8 s");
+    if (stopped || failed) throw new Error("lost during start");
     handle.ready = true;
     o.onReady?.();
     return handle;

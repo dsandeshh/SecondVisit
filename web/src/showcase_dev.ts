@@ -19,8 +19,9 @@ async function main(): Promise<void> {
   note.textContent = "connecting...";
   let h: ShowcaseHandle;
   try {
-    h = await mountShowcase({ host, pkg, world, bus, route: pkg.routes[+(q.get("route") ?? 0)], say: s => (note.textContent = s), onFail: r => (note.textContent = `${r}. Photo view needs internet; showing the scan.`) });
-  } catch (e) { note.textContent = `FAILED: ${(e as Error).message}`; return; }
+    h = await mountShowcase({ host, pkg, world, bus, route: pkg.routes[+(q.get("route") ?? 0)], say: s => (note.textContent = s), onFail: r => { w.__failAt = performance.now(); w.__failWhy = r; note.textContent = "Photo view needs internet; showing the scan."; } });
+    if (!h.ready) return;
+  } catch { note.textContent = "Photo view needs internet; showing the scan."; return; }
   w.__sc = { h, t, bus };
   const sync = (): void => { bus.listener = { pos: t.pos, heading: t.heading }; h.setPose(t.pos, t.heading); };
   if (at.length === 3) sync();
