@@ -218,3 +218,27 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# SecondVisit
+.env
+data/*/raw/
+node_modules/
+__pycache__/
+.venv/
+*.pyc
+mp_out/
+.DS_Store
+secondvisit-kit-v3.zip
+
+# Sponsor data: never in git
+data/costar/
+vendor/matterport/models_index.csv
+vendor/matterport/basemap.json
+web/public/buildings/*/
+!web/public/buildings/fixture/
+web/public/portfolio.json
+traces/
+*.xyz
+*.obj
+*.ply
+*.zip
