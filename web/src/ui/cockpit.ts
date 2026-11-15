@@ -99,7 +99,7 @@ export class Cockpit {
     const note = this.$("plan-note");
     if ("missing" in this.fp) { note.hidden = false; note.textContent = `Floor plan not available (${this.fp.missing}).`; }
     try {
-      this.room = new Room3D(this.$("room3d"), this.pkg, { floorPlan: "meta" in this.fp ? { meta: this.fp.meta, url: this.fp.url } : null });
+      this.room = new Room3D(this.$("room3d"), this.pkg, { floorPlan: "meta" in this.fp ? { meta: this.fp.meta, url: this.fp.url } : null, compact: this.$("room3d").dataset.compact === "1" });
       const prev = hooks.onTap;
       hooks.onTap = (at, code) => { prev?.(at, code); this.room?.tap(at); };
       this.room.setLandmarks(this.landmarks);

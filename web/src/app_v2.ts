@@ -180,7 +180,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
       if (!mod) { $("overview").hidden = true; return; }
       const fail = () => { showcase = null; setView(true); $("overview").dataset.off = "1"; $("overview").hidden = true; };
       return mod.mountShowcase({ host: $("showcase"), pkg, world: ex.world, bus: speech.bus, say: (t: string, p?: 1 | 2 | 3) => speech.say(t, p ?? 2),
-        onReady: () => setView(false), onFail: fail }).then(h => { showcase = h; }).catch(fail);
+        onReady: () => setView(false), onFail: fail, safeTop: 70, safeBottom: 170 }).then(h => { showcase = h; }).catch(fail);
     }).catch(() => { $("overview").hidden = true; });
   };
   setInterval(() => { if (showcase?.ready) showcase.setPose(ex.traveller.pos, ex.traveller.heading); }, 100);
@@ -378,7 +378,7 @@ export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, s
     ["Controls.", () => page() === "home" ? doc.getElementById("start") : page() === "about" ? doc.getElementById("about-back")
       : page() === "check" ? (doc.querySelector<HTMLElement>("#quiz button") ?? doc.getElementById("go"))
       : page() === "summary" ? doc.getElementById("again") : doc.getElementById("pause")],
-    ["View.", () => page() !== "inside" ? null : stage.dataset.view === "overview" ? doc.querySelector<HTMLElement>(".room3d-bar button:not(:disabled)[aria-pressed=true]") : doc.getElementById("overview")],
+    ["View.", () => page() !== "inside" ? null : doc.getElementById("overview")],
     ["", () => page() === "about" ? doc.querySelector<HTMLElement>(".objects__scroll") : null],
     ["Keys.", () => page() === "about" ? doc.querySelector<HTMLElement>("#keys-panel > summary") : null],
     ["Agent and data.", () => page() === "about" ? doc.querySelector<HTMLElement>("#data-panel > summary") : null],

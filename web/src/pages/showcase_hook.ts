@@ -7,7 +7,7 @@ import type { World } from "../world";
 export interface ShowcaseHandle { setPose(planPos: Vec2, headingDeg: number): void; stop(): void; calibration?: unknown; ready: boolean }
 export interface ShowcaseOpts {
   host: HTMLElement; pkg: BuildingPackage; world: World; bus: CueBus; say: (text: string, pri?: 1 | 2 | 3) => void;
-  onReady: () => void; onFail: (why?: unknown) => void;
+  onReady: () => void; onFail: (why?: unknown) => void; safeTop?: number; safeBottom?: number;
 }
 export interface ShowcaseModule { mountShowcase(o: ShowcaseOpts): Promise<ShowcaseHandle> }
 

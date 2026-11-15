@@ -5,7 +5,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { CANE_M } from "../config";
 import { ringPoint } from "../events";
-import { shownName } from "../names";
+import { shownName, spokenOf, isPossibly } from "../names";
 import type { BuildingPackage, Landmark, Vec2 } from "../types";
 import { decodeCells } from "../world";
 import { floorPlanPlacement, headingDir3, headingToYaw, roomMask, toThree, wallRects, type FloorPlanMeta, type Rect } from "./mapping";
@@ -60,7 +60,9 @@ function labelSprite(text0: string, ink: string): THREE.Sprite {
   return s;
 }
 
-export type Room3DOptions = { floorPlan?: { meta: FloorPlanMeta; url: string } | null; reducedMotion?: boolean };
+/** compact (the v2 pages): no big sound ring or flashes in the scene (the small compass says it), and only the destination and the
+ *  nearest landmark are named, as dark text on a white chip drawn in the page (always 18 px, never "possibly"). */
+export type Room3DOptions = { floorPlan?: { meta: FloorPlanMeta; url: string } | null; reducedMotion?: boolean; compact?: boolean };
 
 export class Room3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -75,7 +77,12 @@ export class Room3D {
   private caneDeg = 0;
   private routeMeshes: THREE.Mesh[] = [];
   private seg = 0;
-  private pins = new Map<string, { grp: THREE.Group; full: THREE.Group; dot: THREE.Mesh; pos: Vec2; dest: boolean }>();
+  private pins = new Map<string, { grp: THREE.Group; full: THREE.Group; dot: THREE.Mesh; pos: Vec2; dest: boolean; name: string; sure: boolean }>();
+  private compact = false;
+  private named: string[] = [];
+  private chips = new Map<string, HTMLElement>();
+  private layer: HTMLElement | null = null;
+  private v = new THREE.Vector3();
   private selId: string | null = null;
   private bounds: { cx: number; cz: number; w: number; d: number };
   private hi: THREE.Mesh;
@@ -102,6 +109,7 @@ export class Room3D {
 
   constructor(readonly host: HTMLElement, readonly pkg: BuildingPackage, opts: Room3DOptions = {}) {
     this.reduced = opts.reducedMotion ?? (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    this.compact = !!opts.compact;
     this.accent = css("--c-accent", "#0066CC"); this.mark = css("--c-mark", "#FFC629"); this.ink = css("--c-ink", "#1D1D1F");
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(2, globalThis.devicePixelRatio || 1));
@@ -133,6 +141,8 @@ export class Room3D {
     this.walker.add(halo, cap, nose);
     this.scene.add(this.walker);
     this.buildRing();
+    this.ringGrp.visible = !this.compact;
+    if (this.compact) { this.layer = document.createElement("div"); this.layer.className = "room3d__labels"; host.append(this.layer); }
     const fan = (deg: number, r: number, color: string, op: number) => {
       const m = new THREE.Mesh(new THREE.CircleGeometry(r, 40, (90 - deg / 2) * Math.PI / 180, deg * Math.PI / 180),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false }));
@@ -340,7 +350,8 @@ export class Room3D {
     const [x, , z] = toThree(l.pos);
     grp.position.set(x, 0, z);
     this.scene.add(grp);
-    this.pins.set(l.id, { grp, full, dot, pos: l.pos, dest });
+    this.pins.set(l.id, { grp, full, dot, pos: l.pos, dest, name: spokenOf(l), sure: !isPossibly(l) });
+    if (this.compact) label.visible = false;
     this.refreshPins();
   }
 
@@ -349,6 +360,11 @@ export class Room3D {
     const near = [...this.pins.entries()]
       .map(([id, p]) => [id, Math.hypot(p.pos[0] - this.pos[0], p.pos[1] - this.pos[1])] as const)
       .filter(([, d]) => d < 5).sort((a, b) => a[1] - b[1]).slice(0, 1).map(([id]) => id);
+    if (this.compact) {   // the page draws the two names; the scene keeps only pins
+      const best = [...this.pins.entries()].filter(([id, p]) => !p.dest && p.sure && Math.hypot(p.pos[0] - this.pos[0], p.pos[1] - this.pos[1]) < 6)
+        .sort((a, b) => Math.hypot(a[1].pos[0] - this.pos[0], a[1].pos[1] - this.pos[1]) - Math.hypot(b[1].pos[0] - this.pos[0], b[1].pos[1] - this.pos[1]))[0]?.[0];
+      this.named = [...this.pins.entries()].filter(([id, p]) => p.dest || id === best).map(([id]) => id);
+    }
     this.pins.forEach((p, id) => {
       const on = p.dest || id === this.selId || near.includes(id) || this.focusIds.has(id);
       p.full.visible = on; p.dot.visible = !on;
@@ -428,6 +444,7 @@ export class Room3D {
    * `at` null is a sound in the head (a sentence): a ripple around the walker.
    */
   flash(at: Vec2 | null, label: string, color = this.accent, now = performance.now()): void {
+    if (this.compact) return;
     if (this.flashes.length > 8) this.dropFlash(this.flashes[0]);
     const g = new THREE.Group();
     const mat = (c: string) => new THREE.MeshBasicMaterial({ color: c, transparent: true, side: THREE.DoubleSide, depthWrite: false });
@@ -618,11 +635,33 @@ export class Room3D {
       this.scene.remove(tp.m); tp.m.geometry.dispose(); (tp.m.material as THREE.Material).dispose();
       return false;
     });
+    if (this.layer) this.placeChips();
     if (this.host.clientWidth > 0) this.renderer.render(this.scene, this.camera);
     this.raf = requestAnimationFrame(t2 => this.frame(t2));
   }
 
+  private placeChips(): void {
+    const W = this.host.clientWidth, H = this.host.clientHeight;
+    const live = new Set(this.named);
+    this.chips.forEach((el, id) => { if (!live.has(id)) { el.remove(); this.chips.delete(id); } });
+    let k = 0;
+    for (const id of this.named) {
+      const p = this.pins.get(id); if (!p) continue;
+      let el = this.chips.get(id);
+      if (!el) { el = document.createElement("div"); el.className = "room3d__chip"; el.textContent = p.name; this.layer!.append(el); this.chips.set(id, el); }
+      this.v.set(...toThree(p.pos)); this.v.y = p.dest ? 2.3 : 1.8; this.v.project(this.camera);
+      const behind = this.v.z > 1;
+      const w = el.offsetWidth || 160, h = el.offsetHeight || 34;
+      const x = Math.max(12 + w / 2, Math.min(W - 12 - w / 2, (this.v.x * 0.5 + 0.5) * W));
+      const y = Math.max(72 + h, Math.min(H - 170, (-this.v.y * 0.5 + 0.5) * H - 8 + k * 0));
+      el.style.transform = `translate(${Math.round(x - w / 2)}px, ${Math.round(y - h)}px)`;
+      el.style.visibility = behind ? "hidden" : "visible";
+      k++;
+    }
+  }
+
   dispose(): void {
+    this.layer?.remove();
     cancelAnimationFrame(this.raf);
     this.ro?.disconnect();
     this.disposables.forEach(d => d.dispose());

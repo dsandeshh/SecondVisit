@@ -2,6 +2,7 @@
       <!-- 1. Home: the journey starts outside. Start is the first Tab stop (it comes first in the DOM, the CSS puts it after the box). -->
       <section id="home" class="page page--home" aria-labelledby="home-h" data-page="home">
         <h1 id="home-h" class="home-title">SecondVisit</h1>
+        <p class="home-tag">Make your first visit your second.</p>
         <form id="home-form" class="home-form" novalidate>
           <button id="start" class="btn btn--primary home-start" type="submit">Start</button>
           <label class="sr-only" for="addr">Address or building name</label>
@@ -19,7 +20,7 @@
         <div id="stage" class="stage" role="application" tabindex="0"
              aria-label="Rehearsal. Up arrow to walk, left and right to turn, Space to repeat, W for where am I.">
           <div id="showcase" class="showcase viz" aria-hidden="true" hidden></div>
-          <div id="room3d" class="room3d viz" aria-hidden="true"></div>
+          <div id="room3d" class="room3d viz" aria-hidden="true" data-compact="1"></div>
           <p id="intro-prompt" class="intro-prompt" aria-hidden="true" hidden></p>
           <div class="room3d-bar viz" role="group" aria-label="3D view">
             <button type="button" class="btn btn--secondary btn--small" data-scene="scan" aria-pressed="true" disabled>Real scan</button>
@@ -37,7 +38,7 @@
             <canvas id="miniplan" aria-hidden="true"></canvas>
             <p id="plan-note" class="sr-only" hidden></p>
           </figure>
-          <canvas id="ring" class="ring" aria-hidden="true" width="132" height="132"></canvas>
+          <canvas id="ring" class="ring" aria-hidden="true" width="144" height="144"></canvas>
         </div>
         <p id="next-action" class="sr-only"></p>
         <p id="status" class="sr-only"></p>

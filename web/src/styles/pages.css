@@ -8,13 +8,14 @@ main { max-width: none; padding: 0; height: 100vh; height: 100dvh; position: rel
 .page[hidden] { display: none !important; }
 
 /* 1. Home */
-.page--home { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0 max(var(--gutter), 12vw); gap: var(--sp-5); }
-.home-title { font-size: clamp(4rem, 9vw, 7.5rem); font-weight: var(--fw-heavy); letter-spacing: -0.04em; line-height: 1; margin: 0 0 var(--sp-4); max-width: none; }
+.page--home { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 0 var(--gutter) 6vh; gap: var(--sp-5); }
+.home-title { font-size: clamp(4rem, 9vw, 7.5rem); font-weight: var(--fw-heavy); letter-spacing: -0.04em; line-height: 1; margin: 0; max-width: none; }
+.home-tag { margin: 0 0 var(--sp-5); font-size: var(--fs-h3); color: var(--c-ink-2); max-width: none; }
 .home-form { display: flex; flex-direction: row-reverse; gap: var(--sp-3); width: min(46rem, 100%); }   /* Start is first in the DOM (first Tab stop), the box shows first */
 .home-input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: var(--fs-lead); min-height: var(--target-primary); padding: 0 var(--sp-5);
   border: var(--bw-control) solid var(--c-rule); border-radius: var(--r-primary); background: var(--c-surface); color: var(--c-ink); }
 .home-start { font-size: var(--fs-lead); padding: 0 var(--sp-7); flex: none; justify-content: center; }
-.buildings { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-4); }
+.buildings { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-3); margin-top: var(--sp-4); }
 .building { display: grid; gap: 2px; text-align: left; font: inherit; padding: var(--sp-3) var(--sp-5); min-height: var(--target-primary); cursor: pointer;
   border: var(--bw-control) solid var(--c-rule-soft); border-radius: var(--r-primary); background: var(--c-surface); color: var(--c-ink); }
 .building strong { font-size: var(--fs-body); }
@@ -22,6 +23,7 @@ main { max-width: none; padding: 0; height: 100vh; height: 100dvh; position: rel
 .building[aria-pressed="true"] { border-color: var(--c-ink); box-shadow: inset 0 0 0 1px var(--c-ink); }
 .building:hover { background: var(--c-surface-2); }
 .page--home .error { margin: 0; }
+.home-form { width: min(44rem, 100%); }
 
 /* 2 and 3. The full screen stage, first person view or outdoor scene */
 .page--stage { background: var(--c-surface-2); }
@@ -33,7 +35,8 @@ main { max-width: none; padding: 0; height: 100vh; height: 100dvh; position: rel
 .stage[data-view="first"] .room3d { visibility: hidden; }
 .stage[data-view="overview"] .showcase { visibility: hidden; }
 .room3d-bar { display: none; position: absolute; top: var(--sp-3); left: 50%; transform: translateX(-50%); z-index: 3; gap: var(--sp-2); align-items: center; }
-.stage[data-view="overview"] .room3d-bar { display: flex; }
+/* v2 has one view control, the Overview toggle. Real scan / Plan / Behind / Top / Orbit stay on the keys ( / [ ] \ ), never on screen. */
+.room3d-bar { display: none !important; }
 .room3d-bar .btn { background: var(--c-surface); min-height: 2.25rem; font-size: var(--fs-small); padding: 0 var(--sp-3); }
 .room3d-bar .btn[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); }
 .intro-prompt { display: none; }   /* the one caption line says it */
@@ -46,7 +49,15 @@ body:not([data-page="inside"]) .hud { display: none; }
 .hud__tl { position: absolute; top: var(--sp-5); left: var(--sp-5); }
 .hud__tr { position: absolute; top: var(--sp-5); right: var(--sp-5); margin: 0; }
 .miniplan canvas { width: 11rem; height: 8rem; border: var(--bw-hair) solid var(--c-rule-soft); border-radius: var(--r-control); background: var(--c-surface); }
-.ring { position: absolute; left: 8.5rem; bottom: var(--sp-5); width: 6.5rem; height: 6.5rem; pointer-events: none; border-radius: 50%; background: rgb(255 255 255 / 0.88); border: var(--bw-hair) solid var(--c-rule-soft); }
+/* Sound compass: small, bottom centre, above the caption. Hidden in first person (the showcase draws its own compass and map). */
+.ring { position: absolute; left: 50%; bottom: 6.75rem; transform: translateX(-50%); width: 4.5rem; height: 4.5rem; pointer-events: none; border-radius: 50%; background: rgb(255 255 255 / 0.92); border: var(--bw-hair) solid var(--c-rule-soft); box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
+body:has(.stage[data-view="first"]) .ring, body:has(.stage[data-view="first"]) .miniplan { display: none; }
+.miniplan canvas { width: 8rem; height: 5.5rem; }
+.room3d, .showcase, .room3d__canvas, .showcase iframe { width: 100%; height: 100%; }
+.room3d__canvas { display: block; }
+.room3d__labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.room3d__chip { position: absolute; left: 0; top: 0; font: 600 18px/1.2 var(--font-sans); color: #0b1020; background: #fff; padding: 7px 14px; border-radius: 999px;
+  box-shadow: 0 3px 12px rgb(0 0 0 / .35); white-space: nowrap; will-change: transform; }
 
 .chipbtn { font: inherit; font-size: var(--fs-small); font-weight: var(--fw-medium); min-height: 2.75rem; padding: 0 var(--sp-5); cursor: pointer; color: var(--c-ink);
   background: var(--c-surface); border: var(--bw-control) solid var(--c-rule-soft); border-radius: 999px; }
@@ -54,7 +65,7 @@ body:not([data-page="inside"]) .hud { display: none; }
 .chipbtn[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); border-color: var(--c-ink); }
 
 /* The one caption line and the two small buttons at the bottom */
-.capline { position: fixed; left: 50%; bottom: var(--sp-5); transform: translateX(-50%); z-index: var(--z-caption); width: min(46rem, calc(100vw - 20rem)); text-align: center; }
+.capline { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); z-index: var(--z-caption); width: min(46rem, calc(100vw - 20rem)); text-align: center; }
 .capline .transcript__row { justify-content: center; }
 .capline .transcript__now { font-size: clamp(1.25rem, 1.6vw, 1.6rem); font-weight: var(--fw-medium); border: 0; margin: 0; padding: var(--sp-3) var(--sp-5); min-height: 0;
   background: var(--c-surface); border-radius: var(--r-primary); line-height: 1.3; }
@@ -67,7 +78,7 @@ body:not([data-page="inside"]) .hud { display: none; }
 #next-action { margin: 0; }
 
 /* 4. Check, 5. Summary: big words on white */
-.page--text { display: flex; flex-direction: column; justify-content: center; padding: 0 max(var(--gutter), 12vw) 6rem; gap: var(--sp-5); }
+.page--text { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 0 var(--gutter) 6rem; gap: var(--sp-5); }
 .page-title { font-size: clamp(3rem, 6.5vw, 5.5rem); font-weight: var(--fw-heavy); letter-spacing: -0.035em; line-height: 1.02; margin: 0; max-width: 18ch; }
 .page-title--sm { font-size: var(--fs-h2); letter-spacing: -0.02em; margin: 0; max-width: none; }
 .page-lede { font-size: var(--fs-lead); color: var(--c-ink-2); margin: 0; max-width: 40rem; }
@@ -128,3 +139,6 @@ body[data-page="arrive"] #help { display: none; }
 .about__meta { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
 
 #about-h:focus { outline: none; }
+/* First person: the showcase's own compass sits at the bottom, so the caption rides above it. */
+body[data-page="inside"]:has(.stage[data-view="first"]) .capline { bottom: 6.75rem; }
+.page--text .quiz { width: min(44rem, 100%); } .page--text .quiz__opt { justify-content: flex-start; text-align: left; } .page-title { max-width: 24ch; } .page-lede { margin-inline: auto; }
