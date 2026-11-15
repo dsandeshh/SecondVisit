@@ -184,6 +184,10 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     };
     void loadShowcase().then(mod => {
       if (!mod) return;
+      // The Showcase iframe must be laid out and visible while it connects: hidden (display:none, 0x0) or
+      // visibility:hidden, Chrome never renders it and App.state never reaches PLAYING. It loads behind the opaque
+      // scan (.room3d z-index 1); onReady switches the view to the photo view, which hides the scan.
+      $("showcase").hidden = false;
       return mod.mountShowcase({ host: $("showcase"), pkg, world: ex.world, bus: speech.bus, say: (t: string, p?: 1 | 2 | 3) => speech.say(t, p ?? 2),
         onReady: () => setView(true), onFail: fail, safeTop: 70, safeBottom: 170 }).then(h => { showcase = h; }).catch(fail);
     }).catch(fail);

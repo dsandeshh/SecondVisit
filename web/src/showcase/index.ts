@@ -62,7 +62,17 @@ async function loadPanos(pkg: BuildingPackage): Promise<PlanPoint[]> {
   return j.map(p => ({ id: p.id, x: p.position.x, y: p.position.y }));
 }
 
+/** Stage diagnostics, only with ?dev=1 (same gate as the debug badge). Never logs the SDK key itself. */
+const DEV = typeof location !== "undefined" && new URLSearchParams(location.search).get("dev") === "1";
+const stage = (...a: unknown[]): void => { if (DEV) console.info("[showcase] stage", ...a); };
+let mounts = 0;
+const boxOf = (el: HTMLElement): string => { const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+  return `${Math.round(r.width)}x${Math.round(r.height)} display=${cs.display} visibility=${cs.visibility} hidden=${el.hidden}`; };
+
 export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
+  mounts++;
+  stage(`mountShowcase call #${mounts}`);
+  if (mounts > 1) console.warn("[showcase] mountShowcase called", mounts, "times in this page");
   let failed = false;
   const notify = (reason: string): void => { // once only; never throws into the walker or the audio
     if (failed) return;
@@ -78,6 +88,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
   const key = o.sdkKey ?? (import.meta as any).env?.VITE_MATTERPORT_SDK_KEY;
   if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return fail("Showcase SDK is allowed on localhost only");
   if (typeof navigator !== "undefined" && navigator.onLine === false) return fail("offline");
+  stage(`key length ${key ? String(key).length : 0}`);
   if (!key) return fail("no SDK key");
   const sid = o.pkg.model_id;
   if (!sid) return fail("package has no Matterport model");
@@ -87,6 +98,8 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
   iframe.tabIndex = -1; iframe.setAttribute("aria-hidden", "true"); iframe.allow = "fullscreen; xr-spatial-tracking";
   Object.assign(iframe.style, { position: "absolute", inset: "0", width: "100%", height: "100%", border: "0", pointerEvents: "none" });
   o.host.prepend(iframe);
+  stage(`iframe created: iframe ${boxOf(iframe)}; host ${boxOf(o.host)}`);
+  iframe.addEventListener("load", () => stage(`iframe load: iframe ${boxOf(iframe)}; host ${boxOf(o.host)}`), { once: true });
   const note = document.createElement("div"); // calm static text, no spinner
   note.textContent = "Loading photo view…"; note.setAttribute("role", "status");
   Object.assign(note.style, { position: "absolute", left: "0", right: "0", top: "45%", textAlign: "center", color: "#fff", font: "16px system-ui, sans-serif", pointerEvents: "none", textShadow: "0 1px 3px #000" });
@@ -102,8 +115,9 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
   window.addEventListener("offline", onOffline);
   try {
     sdk = await withTimeout((async () => {
-      const s = await connectSdk(iframe, key, sid);
+      const s = await connectSdk(iframe, key, sid, stage);
       console.info("[showcase] SDK connected, app phase PLAYING");
+      stage(`PLAYING reached: iframe ${boxOf(iframe)}`);
       return s;
     })(), SDK_TIMEOUT_MS, "Showcase SDK not connected/PLAYING within 20 s");
     const sweepMap = new Map<string, { position: { x: number; y: number; z: number }; enabled: boolean }>();
@@ -132,7 +146,9 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
       calibration: cal, ready: false, stats: { moves: 0, lastMoveMs: 0, sweeps: sweepMap.size },
       pose: () => pose, _sdk: sdk, setPose: () => undefined, enterAtEntrance: async () => ({ pos: [0, 0], heading: 0 }), stop,
     };
+    let firstMove = true;
     const follower = new SweepFollower(o.world, () => cached, async (id, h) => {
+      if (firstMove) { firstMove = false; stage(`first Sweep.moveTo ${id}`); }
       await withTimeout(sdk.Sweep.moveTo(id, { rotation: { x: PITCH_DOWN, y: headingToYaw(cal, h) }, transition: sdk.Sweep.Transition.FLY, transitionTime: MOVE_MS }), 4000, "move stalled").catch(e => { if ((e as Error).message === "move stalled") onOffline(); throw e; });
       // turns made during the flight: settle on the walker's current heading
       void Promise.resolve(sdk.Camera.setRotation({ x: PITCH_DOWN, y: headingToYaw(cal, heading) }, { speed: 220 })).catch(() => undefined);
@@ -180,6 +196,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
     await withTimeout(handle.enterAtEntrance(), SDK_TIMEOUT_MS, "Showcase first sweep not shown within 20 s");
     if (stopped || failed) throw new Error("lost during start");
     handle.ready = true; note.remove();
+    if (DEV) (window as any).__showcase = handle; // dev only: probes spy on handle._sdk
     o.onReady?.();
     return handle;
   } catch (e) {

@@ -113,4 +113,29 @@ describe("index.html", () => {
     expect(spoken).toContain(FALLBACK_LINE); // Michael says it; it is not only printed
     vi.unstubAllGlobals();
   });
+  it("the Showcase host is laid out and visible while the SDK connects (a hidden iframe never reaches PLAYING)", async () => {
+    // Headless Chrome, 15 Nov: with #showcase `hidden` (display:none, 0x0) or `visibility:hidden` (Overview view) the
+    // cross-origin Showcase iframe never renders, App.state never reaches PLAYING and the 20 s fallback fires.
+    load();
+    const here = dirname(fileURLToPath(import.meta.url));
+    const css = document.createElement("style");
+    css.textContent = readFileSync(join(here, "../styles/app.css"), "utf8").match(/^\[hidden\][^\n]*$/m)![0] + "\n" +
+      readFileSync(join(here, "../styles/pages.css"), "utf8").split("\n").filter(l => /^\.(stage|showcase|room3d)/.test(l)).join("\n");
+    document.head.append(css);
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => fixturePkg() })));
+    let seen: { hidden: boolean; display: string; visibility: string } | null = null;
+    showcaseMock.mountShowcase.mockImplementationOnce(async (o: ShowcaseOpts) => {
+      const cs = getComputedStyle(o.host);
+      seen = { hidden: o.host.hidden, display: cs.display, visibility: cs.visibility };
+      return { setPose: () => undefined, stop: () => undefined, ready: false };
+    });
+    await boot(document, new URLSearchParams("b=fixture&flow=interior"));
+    document.getElementById("start")!.click();
+    await vi.waitFor(() => expect(seen).not.toBeNull());
+    expect(document.getElementById("stage")!.dataset.view).toBe("mesh"); // still loading: the scan is in front
+    expect(seen).toEqual({ hidden: false, display: "block", visibility: "visible" });
+    css.remove();
+    vi.unstubAllGlobals();
+  });
 });

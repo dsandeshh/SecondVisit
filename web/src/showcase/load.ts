@@ -11,9 +11,11 @@ export function withTimeout<T>(p: Promise<T>, ms: number, reason: string): Promi
 
 /** Connect to the Showcase iframe with the official package (bootstrap 3.x), then wait for the app to be PLAYING.
  *  Camera and Sweep calls before PLAYING are ignored by the SDK, so nothing touches the camera until this resolves. */
-export async function connectSdk(iframe: HTMLIFrameElement, key: string, space: string): Promise<any> {
+export async function connectSdk(iframe: HTMLIFrameElement, key: string, space: string, stage: (...a: unknown[]) => void = () => undefined): Promise<any> {
   const { setupSdk } = await import("@matterport/sdk");
   const sdk: any = await setupSdk(key, { iframe, space });
+  stage("setupSdk resolved");
+  try { sdk.App.state.subscribe((s: { phase: string }) => stage(`App.state phase ${s.phase}`)); } catch { /* diagnostics only */ }
   await waitPlaying(sdk);
   return sdk;
 }
