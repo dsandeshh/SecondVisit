@@ -29,8 +29,8 @@ describe("coach rules (scripted mirror)", () => {
     expect(c.focus_segment).toBe(1);
     expect(c.line).toContain("stretch 2");
   });
-  it("wire log maps hint to hesitate", () => {
-    expect(toWireLog(log([ev("hint", 1)])).events[0].kind).toBe("hesitate");
+  it("wire log keeps hint", () => {
+    expect(toWireLog(log([ev("hint", 1)])).events[0].kind).toBe("hint");
   });
   it("fetchCoach falls back to null on failure and validates the reply", async () => {
     const bad = vi.fn(async () => { throw new Error("down"); });

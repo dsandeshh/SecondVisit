@@ -167,3 +167,45 @@ class PortfolioRow(BaseModel):
     skipped: str | None = None  # data reason (no walls, no rooms, no route)
     error: str | None = None  # "<Type>: <msg>" for an unexpected exception (a bug, not a data problem)
     tour_url: str = ""
+
+
+# --- RunLog, RunPlan, PointResult (R3). Mirror of web/src/types.ts ---
+RunLogKind = Literal["start", "advance", "off_route", "bump", "hesitate", "hint", "arrive"]
+
+
+class RunEvent(BaseModel):
+    t: float
+    seg: int
+    kind: RunLogKind
+    pos: Vec2
+
+
+class QuizEntry(BaseModel):
+    q: str
+    seg: int
+    correct: bool
+
+
+class PointResult(BaseModel):
+    at: Vec2
+    target: str
+    heading: float
+    target_bearing: float
+    error_deg: float
+    time_s: float
+
+
+class RunLog(BaseModel):
+    """Identified by thread_id + route_id; building_id goes in the /api/coach request body only."""
+    thread_id: str
+    route_id: str
+    events: list[RunEvent] = Field(default_factory=list)
+    quiz: list[QuizEntry] = Field(default_factory=list)
+    point: list[PointResult] = Field(default_factory=list)
+
+
+class RunPlan(BaseModel):
+    start_segment: int
+    repeat_segment: int | None = None
+    extra_cues: bool
+    speech_rate: float

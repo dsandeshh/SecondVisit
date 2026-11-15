@@ -33,9 +33,9 @@ export function scriptedCoach(log: RunLog, n: number): CoachResult {
   return { plan: makePlan(focus), focus_segment: focus, line, source: "scripted" };
 }
 
-/** The engine's RunLog does not know "hint" yet: send it as hesitate (same weight). */
+/** The engine's RunLog knows "hint" (same weight as hesitate), so the log goes as is. */
 export function toWireLog(log: RunLog): RunLog {
-  return { ...log, events: log.events.map(e => (e.kind === "hint" ? { ...e, kind: "hesitate" as const } : e)) };
+  return log;
 }
 
 const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
