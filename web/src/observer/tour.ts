@@ -7,7 +7,7 @@ const SID = /^[A-Za-z0-9]{6,20}$/;
 /** Localhost only (sponsor data never goes into a public link); hidden when the model is private. */
 export function tourDecision(host: string, sid: string, visibility?: string | null, sdkKey?: string): TourDecision {
   if (!LOCAL.has(host)) return { show: false, note: "Showcase tour is shown on localhost only." };
-  if (!SID.test(sid)) return { show: false, note: "Showcase tour not available for this building." };
+  if (sid === "fixture" || !SID.test(sid)) return { show: false, note: "Showcase tour not available for this building." };
   const v = (visibility ?? "").toLowerCase();
   if (v && v !== "public" && v !== "unlisted") return { show: false, note: "Showcase tour not available: the model is private." };
   const key = sdkKey ? `&applicationKey=${encodeURIComponent(sdkKey)}` : "";
