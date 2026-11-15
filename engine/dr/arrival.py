@@ -15,7 +15,7 @@ from datetime import date
 from dr import probe
 from dr.config import STEP_M
 from dr.mp_client import ROOT
-from dr.package import Arrival, Prov
+from dr.package import Arrival, GeoAnchor, Prov
 from dr.probe import VexcelCoverageError, vexcel_ortho_body
 
 __all__ = ["VexcelCoverageError", "vexcel_ortho", "vexcel_ortho_body", "arrival", "build", "ArrivalResult"]
@@ -70,10 +70,11 @@ class ArrivalResult:
     curb_to_door_m: float | None = None
     curb_summary: str | None = None
     prov: dict[str, Prov] = field(default_factory=dict)
+    geo_anchor: GeoAnchor | None = None  # for BuildingPackage.frames.geo_anchor
 
 
 def _pins(overrides: dict | None) -> dict | None:
-    a = (overrides or {}).get("arrival", overrides or {})
+    a = (overrides or {}).get("arrival", overrides or {}) or {}
     return {k: float(a[k]) for k in PIN_KEYS} if all(a.get(k) is not None for k in PIN_KEYS) else None
 
 
@@ -109,7 +110,7 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
     costar_p = raw / "costar.json"
     hint = _frontage_hint(json.loads(costar_p.read_text()), lat, lon) if costar_p.exists() else None
     pins = _pins(overrides)
-    curb_m = summary = None
+    curb_m = summary = plan = None
     if pins:
         side = side_from_bearing(bearing_deg(lat, lon, pins["door_lat"], pins["door_lon"]))
         curb_m = haversine_m(pins["curb_lat"], pins["curb_lon"], pins["door_lat"], pins["door_lon"])
@@ -117,6 +118,7 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
         to_door = bearing_deg(pins["curb_lat"], pins["curb_lon"], pins["door_lat"], pins["door_lon"])
         summary = curb_summary(curb_m, clock_hour(to_door - facing))
         dropoff = [pins["curb_lat"], pins["curb_lon"]]
+        plan = [(pins["curb_lon"] - lon) * 111_320 * math.cos(math.radians(lat)), (pins["curb_lat"] - lat) * 111_320]
         prov["arrival.entrance_side"] = Prov(src="calc", ref="bearing model centre to door pin", at=at,
                                              inputs=["arrival.door_pin", "arrival.image"])
         prov["arrival.door_pin"] = Prov(src="hand", ref="overrides.json arrival.door_lat/door_lon", at=at)
@@ -130,9 +132,13 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
             prov["arrival.entrance_side"] = Prov(src="costar", ref="propertyRetail.frontage[].footprint", at=at,
                                                  confidence=0.5)
     msg = f"Please drop me at the {side} entrance of {name}, {address}."
+    anchor = GeoAnchor(lat=lat, lon=lon, plan_pos=[0.0, 0.0], plan_north_deg=0.0)
+    prov["frames.geo_anchor"] = Prov(src="calc", ref="assumed: model lat/lon at plan origin, plan north = true north",
+                                     at=at, confidence=0.3)
     arr = Arrival(lat=lat, lon=lon, entrance_side=side, dropoff=dropoff, driver_message=msg,
-                  image_url=f"/buildings/{sid}/arrival.jpg", confirmed=pins is not None)
-    return ArrivalResult(arr, curb_m, summary, prov)
+                  image_url=f"/buildings/{sid}/arrival.jpg", confirmed=pins is not None,
+                  curb_to_door_m=curb_m, dropoff_plan=plan)
+    return ArrivalResult(arr, curb_m, summary, prov, anchor)
 
 
 def arrival(sid: str, overrides: dict | None = None, **kw) -> Arrival:

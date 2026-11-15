@@ -105,6 +105,8 @@ class Arrival(BaseModel):
     driver_message: str
     image_url: str | None = None
     confirmed: bool = False
+    curb_to_door_m: float | None = None
+    dropoff_plan: Vec2 | None = None  # curb pin in plan metres (x east, y north from geo_anchor)
 
 
 class Prov(BaseModel):

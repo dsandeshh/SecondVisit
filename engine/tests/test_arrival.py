@@ -83,3 +83,14 @@ def test_clock_and_pixels():
     assert A.clock_hour(0) == 12 and A.clock_hour(90) == 3 and A.clock_hour(-90) == 9
     lat, lon = A.px_to_latlon(700, 0, 30.0, -95.0)
     assert lat > 30.0 and lon == pytest.approx(-95.0)
+
+
+def test_contract_fields_and_null_arrival(tmp_path):
+    kw = _site(tmp_path)
+    assert A.build("S", {"arrival": None}, **kw).arrival.curb_to_door_m is None
+    lat, lon = 29.9666, -95.5394
+    r = A.build("S", {"arrival": {"door_lat": lat, "door_lon": lon + 0.0001, "curb_lat": lat - 0.0001,
+                                  "curb_lon": lon + 0.0001}}, **kw)
+    assert r.arrival.curb_to_door_m == pytest.approx(r.curb_to_door_m)
+    assert r.arrival.dropoff_plan[1] < 0 < r.arrival.dropoff_plan[0]
+    assert r.geo_anchor.plan_north_deg == 0 and "frames.geo_anchor" in r.prov
