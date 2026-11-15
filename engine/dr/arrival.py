@@ -2,7 +2,8 @@
 
 Offline except vexcel_ortho when no cached image exists. Pins come from overrides.json:
 {"arrival": {"door_lat", "door_lon", "curb_lat", "curb_lon"}}. `confirmed` needs both.
-Arrival.dropoff is [lat, lon] of the curb pin (Vec2 reused; no contract change).
+Arrival.dropoff is [lat, lon] of the curb pin (Vec2 reused). Contract additions (R6): curb_to_door_m,
+dropoff_plan. entrance_side is a compass word, or "unknown" until a pin or CS frontage hint exists.
 """
 
 from __future__ import annotations
@@ -21,13 +22,13 @@ from dr.probe import VexcelCoverageError, vexcel_ortho_body
 __all__ = ["VexcelCoverageError", "vexcel_ortho", "vexcel_ortho_body", "arrival", "build", "ArrivalResult"]
 
 SIDES = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"]
-ORTHO_HALF_M = 30.0  # the cached raw/vexcel_ortho.jpg is a 60 m square
+ORTHO_HALF_M = 30.0  # one half side for fetch, pixel mapping and prov; the cached raw/vexcel_ortho.jpg is a 60 m square
 R_EARTH = 6_371_000.0
 PIN_KEYS = ("door_lat", "door_lon", "curb_lat", "curb_lon")
 
 
-def vexcel_ortho(lat: float, lon: float, half_m: float = 40, px: int = 1400, client=None) -> bytes:
-    return probe.vexcel_ortho(lat, lon, half_m, px, client=client)
+def vexcel_ortho(lat: float, lon: float, half_m: float | None = None, px: int = 1400, client=None) -> bytes:
+    return probe.vexcel_ortho(lat, lon, ORTHO_HALF_M if half_m is None else half_m, px, client=client)
 
 
 def bearing_deg(lat1, lon1, lat2, lon2) -> float:
@@ -91,7 +92,7 @@ def _frontage_hint(costar: dict, lat: float, lon: float) -> str | None:
 
 
 def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, fetch=None) -> ArrivalResult:
-    """fetch(lat, lon) -> jpeg bytes, used only when raw/vexcel_ortho.jpg is not cached."""
+    """fetch(lat, lon, half_m) -> jpeg bytes, used only when raw/vexcel_ortho.jpg is not cached."""
     data = (data_dir or ROOT / "data") / sid
     raw = data / "raw"
     model = json.loads((raw / "basics.json").read_text())["model"]
@@ -101,11 +102,11 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
     prov: dict[str, Prov] = {}
 
     cached = raw / "vexcel_ortho.jpg"
-    img = cached.read_bytes() if cached.exists() else (fetch or vexcel_ortho)(lat, lon)
+    img = cached.read_bytes() if cached.exists() else (fetch or vexcel_ortho)(lat, lon, ORTHO_HALF_M)
     out = (web_dir or ROOT / "web" / "public" / "buildings") / sid
     out.mkdir(parents=True, exist_ok=True)
     (out / "arrival.jpg").write_bytes(img)
-    prov["arrival.image"] = Prov(src="vexcel", ref=f"ortho/extract 60 m square at {lat:.6f},{lon:.6f}", at=at)
+    prov["arrival.image"] = Prov(src="vexcel", ref=f"ortho/extract {2 * ORTHO_HALF_M:.0f} m square at {lat:.6f},{lon:.6f}", at=at)
 
     costar_p = raw / "costar.json"
     hint = _frontage_hint(json.loads(costar_p.read_text()), lat, lon) if costar_p.exists() else None
@@ -126,12 +127,13 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
         prov["arrival.curb_to_door_m"] = Prov(src="calc", ref="haversine curb pin to door pin", at=at,
                                               inputs=["arrival.door_pin", "arrival.dropoff"])
     else:
-        side = hint or "main"
+        side = hint or "unknown"
         dropoff = [lat, lon]
         if hint:
             prov["arrival.entrance_side"] = Prov(src="costar", ref="propertyRetail.frontage[].footprint", at=at,
                                                  confidence=0.5)
-    msg = f"Please drop me at the {side} entrance of {name}, {address}."
+    where = "the main" if side == "unknown" else f"the {side}"
+    msg = f"Please drop me at {where} entrance of {name}, {address}."
     anchor = GeoAnchor(lat=lat, lon=lon, plan_pos=[0.0, 0.0], plan_north_deg=0.0)
     prov["frames.geo_anchor"] = Prov(src="calc", ref="assumed: model lat/lon at plan origin, plan north = true north",
                                      at=at, confidence=0.3)

@@ -94,3 +94,20 @@ def test_contract_fields_and_null_arrival(tmp_path):
     assert r.arrival.curb_to_door_m == pytest.approx(r.curb_to_door_m)
     assert r.arrival.dropoff_plan[1] < 0 < r.arrival.dropoff_plan[0]
     assert r.geo_anchor.plan_north_deg == 0 and "frames.geo_anchor" in r.prov
+
+
+def test_fresh_fetch_matches_pixel_mapping(tmp_path, monkeypatch):
+    kw = _site(tmp_path)
+    (tmp_path / "data" / "S" / "raw" / "vexcel_ortho.jpg").unlink()
+    seen = {}
+    c = FakeClient(200)
+    monkeypatch.setattr(A.probe, "client", lambda: c, raising=False)
+    monkeypatch.setattr(A.probe.mp_client, "client", lambda: c)
+    r = A.build("S", {}, **kw)
+    wkt = c.sent[0]["json"]["wkt"]
+    nums = [float(n) for n in re.findall(r"-?\d+\.\d+", wkt)]
+    span_m = (max(nums[1::2]) - min(nums[1::2])) * 111_320
+    assert span_m == pytest.approx(2 * A.ORTHO_HALF_M, abs=0.5)
+    assert A.px_to_latlon.__defaults__[0] == A.ORTHO_HALF_M
+    assert "60 m" in r.prov["arrival.image"].ref
+    assert r.arrival.entrance_side == "unknown" and "the main entrance" in r.arrival.driver_message
