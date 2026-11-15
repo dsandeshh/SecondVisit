@@ -15,6 +15,7 @@ type Deps = { synth?: Synth | null; Utterance?: typeof SpeechSynthesisUtterance;
   doc?: Document };
 
 export const MAX_CHUNK = 160;
+export const RATE_MIN = 0.8, RATE_MAX = 1.6;
 const HISTORY = 5;
 
 /** Split at sentence ends into chunks of at most 160 characters (Chrome cuts long utterances). */
@@ -92,7 +93,7 @@ export class Speech {
     if (o === "screenreader") this.synth?.cancel();
   }
 
-  setRate(r: number): void { this.rate = Math.max(0.5, Math.min(2.5, Math.round(r * 100) / 100)); }
+  setRate(r: number): void { this.rate = Math.max(RATE_MIN, Math.min(RATE_MAX, Math.round(r * 100) / 100)); }
 
   /** First speak inside the Start gesture (iOS); app voice only. */
   prime(text: string): void {

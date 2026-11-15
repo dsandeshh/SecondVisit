@@ -64,6 +64,13 @@ const sentences = (t: string): string[] => t.replace(/\s+/g, " ").trim().match(/
 const race = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
   new Promise(res => { const t = setTimeout(() => res(null), ms); p.then(v => { clearTimeout(t); res(v); }, () => { clearTimeout(t); res(null); }); });
 
+/** Ids of the lines this route will say first (instructions, names, intro prompts), so they are fetched before the rest. */
+export function routeLineIds(texts: string[], store: Pick<ClipStore, "has">): string[] {
+  const out: string[] = [];
+  for (const t of texts) { const id = lineId(t); if (store.has(id)) out.push(id); else sentences(t).forEach(s => { const i = lineId(s); if (store.has(i)) out.push(i); }); }
+  return [...new Set(out)];
+}
+
 export type Part = { text: string; id: string; at?: Vec2 };
 
 /** The clips that make up one cue: the prefix word (centred), then the line (from `at`), as sentences if all have clips. */
@@ -112,7 +119,7 @@ export class VoiceOut {
       if (this.token !== seq) return;
       if (!buf) { if (i === 0) fallback(); else void play(i + 1); return; }
       if (i === 0) this.speech.clipStarted(seq, pri);
-      const h = this.audio.playBuf(buf, { bus: "voice", at: p.at, pri: 2, announce: false, label: p.text, onEnd: () => { void play(i + 1); } });
+      const h = this.audio.playBuf(buf, { bus: "voice", at: p.at, pri: 2, rate: this.speech.rate, announce: false, label: p.text, onEnd: () => { void play(i + 1); } });
       if (!h) { if (i === 0) fallback(); return; }
       this.active = h;
     };

@@ -3,6 +3,7 @@ import { ARRIVE_M, STEP_M } from "../config";
 import type { Landmark, PointResult, QuizEntry, Route, RunEvent, RunLog, RunLogKind, RunPlan, Vec2 } from "../types";
 import { dist } from "../world";
 import type { Priority } from "../audio/speech";
+import { LOST_HELP } from "./guide";
 import { possiblyOpts, spokenLower } from "../names";
 
 export type RunSpeech = { say(text: string, pri?: Priority, opts?: { at?: Vec2; prefix?: string }): void; readonly speaking: boolean };
@@ -11,6 +12,7 @@ export type Pose = { pos: Vec2; heading: number };
 export const ADVANCE_M = 0.8;
 export const OFF_ROUTE_M = 2.0;
 export const HESITATE_MS = 5000;
+const LOST_MS = 20_000, PROGRESS_M = 0.5;
 export const PLAIN_PLAN: RunPlan = { start_segment: 0, repeat_segment: null, extra_cues: false, speech_rate: 1 };
 
 type Deps = {
@@ -50,6 +52,8 @@ export class RehearsalRun {
   private off = false;
   private idleMs = 0;
   private hesitated = false;
+  private lostMs = 0;
+  private best = Infinity;
   private cued = new Set<string>();
   private lastPos: Vec2 = [0, 0];
   private now: () => number;
@@ -85,10 +89,12 @@ export class RehearsalRun {
     const from = this.log.events.length;
     this.lastPos = p.pos;
     this.idleMs = 0; this.hesitated = false;
+    const dEnd = dist(p.pos, this.segment.end);
+    if (dEnd < this.best - PROGRESS_M) { this.best = dEnd; this.lostMs = 0; }
     const last = this.route.segments.length - 1;
     if (this.arrived(p.pos)) this.arrive(p.pos);
     while (!this.done && this.current < last && dist(p.pos, this.segment.end) <= ADVANCE_M) {
-      this.current++;
+      this.current++; this.best = Infinity; this.lostMs = 0;
       this.push("advance", p.pos);
       this.enter(this.current);
     }
@@ -104,7 +110,12 @@ export class RehearsalRun {
 
   /** Advance the hesitation clock by dtMs. Counts only while nothing is speaking and audio runs. */
   tick(dtMs: number): void {
-    if (this.done || this.hesitated) return;
+    if (this.done) return;
+    if (!this.speech.speaking && (!this.deps.audioRunning || this.deps.audioRunning())) {
+      this.lostMs += dtMs;
+      if (this.lostMs >= LOST_MS) { this.lostMs = 0; this.speech.say(LOST_HELP, 1); }
+    }
+    if (this.hesitated) return;
     if (this.speech.speaking || (this.deps.audioRunning && !this.deps.audioRunning())) { this.idleMs = 0; return; }
     this.idleMs += dtMs;
     if (this.idleMs >= HESITATE_MS) {

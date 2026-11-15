@@ -36,6 +36,7 @@ export class FakeAudioContext {
   onstatechange: (() => void) | null = null;
   constructor(public opts?: unknown) { FakeAudioContext.instances.push(this); }
   resume() { this.state = "running"; return Promise.resolve(); }
+  suspend() { this.state = "suspended"; return Promise.resolve(); }
   createBuffer(ch: number, len: number, sr: number) {
     const data = Array.from({ length: ch }, () => new Float32Array(len));
     return { numberOfChannels: ch, length: len, sampleRate: sr, duration: len / sr,

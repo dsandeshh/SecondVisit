@@ -126,3 +126,20 @@ describe("haptics", () => {
     if (had) nav.vibrate = old; else delete nav.vibrate;
   });
 });
+
+describe("AudioEngine.hold (P)", () => {
+  it("suspends the context so a clip stops mid line, and resumes it from the same point, without the paused alarm", async () => {
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    const { e } = engine();
+    await e.start("app", 0);
+    const c = e.ctx as any;
+    const alarms = vi.fn(); e.onPause = alarms;
+    e.hold(true);
+    expect(c.state).toBe("suspended");
+    c.onstatechange?.();                 // the browser reports the state change
+    expect(alarms).not.toHaveBeenCalled();
+    e.hold(false);
+    expect(c.state).toBe("running");
+    vi.unstubAllGlobals();
+  });
+});

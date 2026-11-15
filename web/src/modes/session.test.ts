@@ -66,7 +66,7 @@ describe("Session flow", () => {
     s.step(1); // walking is off while pointing
     s.turn(-5 * 4 / 1); // -20 -> -6.67 steps of 5: 
     s.repeat(); // confirm
-    expect(said.at(-1)).toMatch(/degrees off\. The reception desk is at \d+ o'clock from here\./);
+    expect(said.at(-1)).toMatch(/degrees off\. [A-Za-z' ]+\. The reception desk is at \d+ o'clock from here\./);
     expect(s.run!.log.point.length).toBe(1);
     expect(sent.some(m => m.t === "point")).toBe(true);
     s.enter();

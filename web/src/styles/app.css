@@ -221,3 +221,21 @@ body[data-phase]:not(.is-phone) main { max-width: 112rem; padding: var(--sp-4) v
   padding: var(--sp-2); background: var(--c-paper); z-index: calc(var(--z-sticky) + 1); }
 .phone__places .btn { min-height: var(--target-primary); justify-content: flex-start; }
 .panel.is-flash { outline: 4px solid var(--d-route); outline-offset: 2px; }
+
+/* Top bar: the source chips get their own row so they never run over the meta line (1280 to 1920 wide). */
+body:not(.is-phone) .topline { flex-wrap: wrap; row-gap: var(--sp-1); }
+body:not(.is-phone) .topline__id { flex: 1 1 24rem; }
+body:not(.is-phone) .topline__meta { flex-wrap: wrap; white-space: normal; row-gap: 0; }
+body:not(.is-phone) .topline__tags { order: 3; flex: 1 1 100%; margin-left: 0; padding-left: 0; flex-wrap: wrap; }
+body:not(.is-phone) .topline .steps { margin-left: auto; flex: 0 0 auto; }
+
+/* One clear next action (bottom strip) and the guided intro prompt (over the 3D view). */
+.next-action { grid-column: 1 / -1; margin: 0; font-size: var(--fs-h3); font-weight: var(--fw-heavy); line-height: 1.2; }
+body.is-phone .next-action { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-caption); background: var(--c-surface);
+  border-top: var(--bw-control) solid var(--c-ink); padding: var(--sp-3) var(--gutter); font-size: var(--fs-body); }
+.intro-prompt { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); z-index: 5; margin: 0; max-width: 80%;
+  padding: var(--sp-5) var(--sp-7, 2rem); text-align: center; font-size: clamp(2rem, 4.2vw, 3.5rem); font-weight: var(--fw-heavy); line-height: 1.15;
+  background: var(--c-surface); color: var(--c-ink); border: var(--bw-strong, 4px) solid var(--c-ink); border-radius: var(--r-primary, 12px);
+  box-shadow: 0 0.5rem 2rem rgb(0 0 0 / 0.25); transition: opacity 0.35s ease; pointer-events: none; }
+.intro-prompt[hidden] { display: block; opacity: 0; visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .intro-prompt { transition: none; } }

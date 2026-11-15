@@ -37,6 +37,27 @@ FIXED_UI_LINES = [
     "Motion not available, use the arrow keys.",
     # quiz answer options
     "On your left", "On your right", "No wall to follow", "Turn left", "Turn right", "No turn",
+    # step 5 (guided intro, pause, rate, pointing)
+    "Press Up to take a step.",
+    "Press Left or Right to turn.",
+    "Press Q to hear what is around you.",
+    "You're ready. Press Enter to start the rehearsal.",
+    "Intro skipped. Press Enter to start the rehearsal.",
+    "Try turning left or right, then step.",
+    "Press Space to hear the instruction again, or W for where you are.",
+    "Left the rehearsal. Press Enter on Explore to come back.",
+    "Back in the rehearsal.",
+    "Top bar.",
+    "Rehearsal.",
+    "Keys.",
+    "Agent and data.",
+    "Paused. Press P to resume.",
+    "Fastest.",
+    "Slowest.",
+    "That's close.",
+    "Not far off.",
+    "Quite a way off.",
+    "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. P: pause. Plus and minus: speech speed. F6: move between parts of the page.",
 ]
 _SOUND = ["Sound on.", "Sound did not start. Press Space or tap to try again."]
 _MOTION = ["Motion on. Hold the phone flat, top edge forward. Turn your body to turn.",

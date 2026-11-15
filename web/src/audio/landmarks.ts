@@ -45,7 +45,7 @@ export class LandmarkSounds {
 
   /** Three chirps from a point (key B destination hint), on the cue bus. */
   chirps(at: Vec2): void {
-    for (let i = 0; i < 3; i++) setTimeout(() => this.blip(at, "chirp", 1), i * 250);
+    for (let i = 0; i < 3; i++) { if (i === 0) this.blip(at, "chirp", 1); else setTimeout(() => this.blip(at, "chirp", 1), i * 250); }   // the first one answers the key at once
   }
 
   private startVoice(l: Landmark): Voice {

@@ -52,6 +52,6 @@ describe("pointing", () => {
     t.turn(-30);
     const r = t.confirm(1000);
     const line = pointFeedback(r, 90, "reception desk");
-    expect(line).toMatch(/You were \d+ degrees off\. The reception desk is at (\d+|12) o'clock from here\./);
+    expect(line).toMatch(/You were \d+ degrees off\. [A-Za-z' ]+\. The reception desk is at (\d+|12) o'clock from here\./);
   });
 });
