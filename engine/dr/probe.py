@@ -90,6 +90,35 @@ def missing_files(raw: Path) -> list[str]:
     return [f for f in expected_files(raw) if not (raw / f).exists()]
 
 
+class VexcelCoverageError(RuntimeError):
+    """Vexcel answered 403: the point is outside the key's coverage (Houston and Los Angeles only)."""
+
+
+def vexcel_ortho_body(lat: float, lon: float, half_m: float = 30.0, px: int = 1400) -> dict:
+    """Request body for a square ortho clip. WKT is lon lat order."""
+    dla, dlo = half_m / 111_320, half_m / (111_320 * math.cos(math.radians(lat)))
+    ring = [(lon - dlo, lat - dla), (lon + dlo, lat - dla), (lon + dlo, lat + dla), (lon - dlo, lat + dla),
+            (lon - dlo, lat - dla)]
+    return {"wkt": "POLYGON((" + ",".join(f"{x:.7f} {y:.7f}" for x, y in ring) + "))", "srid": 4326,
+            "layer": "urban,urban-r,wide-area,urban-g", "crop": "bounding_box", "image-format": "jpeg",
+            "destination-dimensions": f"{px},{px}"}
+
+
+def vexcel_ortho(lat: float, lon: float, half_m: float = 30.0, px: int = 1400, client=None) -> bytes:
+    """Ortho jpeg around a point (APIS section 3). Raises VexcelCoverageError on 403."""
+    mp_client.load_env()
+    key = os.environ.get("VEXCEL_API_KEY")
+    if not key:
+        raise RuntimeError("VEXCEL_API_KEY not set")
+    send = (client or mp_client.client())._send
+    r = send("POST", VEXCEL_ORTHO, json=vexcel_ortho_body(lat, lon, half_m, px), headers={"X-API-KEY": key})
+    if r.status_code == 403:
+        raise VexcelCoverageError("Vexcel 403: outside coverage")
+    if r.status_code != 200 or r.content[:2] != b"\xff\xd8":
+        raise RuntimeError(f"Vexcel HTTP {r.status_code}")
+    return r.content
+
+
 class Puller:
     def __init__(self, sid: str, raw: Path, client: MPClient | None):
         self.sid, self.raw = sid, raw
@@ -224,21 +253,13 @@ class Puller:
         if not geo.get("lat"):
             return "missing (no geolocation)"
         lat, lon = float(geo["lat"]), float(geo["long"])
-        h = 30.0  # half side, metres: a 60 m square
-        dla, dlo = h / 111_320, h / (111_320 * math.cos(math.radians(lat)))
-        ring = [(lon - dlo, lat - dla), (lon + dlo, lat - dla), (lon + dlo, lat + dla), (lon - dlo, lat + dla),
-                (lon - dlo, lat - dla)]
-        body = {"wkt": "POLYGON((" + ",".join(f"{x:.7f} {y:.7f}" for x, y in ring) + "))", "srid": 4326,
-                "layer": "urban,urban-r,wide-area,urban-g", "crop": "bounding_box", "image-format": "jpeg",
-                "destination-dimensions": "1400,1400"}
-        mp_client.load_env()
-        key = os.environ.get("VEXCEL_API_KEY")
-        if not key:
-            return "missing (VEXCEL_API_KEY not set)"
-        r = self.client._send("POST", VEXCEL_ORTHO, json=body, headers={"X-API-KEY": key})
-        if r.status_code != 200 or r.content[:2] != b"\xff\xd8":
-            return f"failed (Vexcel HTTP {r.status_code})"
-        (self.raw / "vexcel_ortho.jpg").write_bytes(r.content)
+        try:
+            img = vexcel_ortho(lat, lon, client=self.client)
+        except VexcelCoverageError:
+            return "failed (Vexcel HTTP 403, outside coverage)"
+        except RuntimeError as e:
+            return f"failed ({e})"
+        (self.raw / "vexcel_ortho.jpg").write_bytes(img)
         return "pulled"
 
     def step_index_row(self) -> str:
