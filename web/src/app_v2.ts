@@ -222,6 +222,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     if (session.phase === "summary" && session.runNo === 1) session.enter();
     else { try { window.location.hash = "#/home"; } catch { /* */ } window.location.reload(); }
   });
+  $("to-explore").addEventListener("click", () => { session.explore(); stage.focus(); });
   $("go").addEventListener("click", () => stage.focus());
   doc.addEventListener("keydown", e => { if (e.key === "Escape" && app.router?.page === "about") { e.preventDefault(); app.router.go(pageOfPhase(session.phase)); } });
   if (op) {

@@ -151,6 +151,8 @@ describe("Tab, Enter, Escape in Explore: the beacon's target", () => {
     expect(cues.some(c => c.kind === "pick" && c.id === "desk")).toBe(true);
     expect(said.at(-1)).toMatch(/^Reception desk, \d+ o'clock, (\d+ steps?|within reach)\.$/);
     s.pick(1);
+    expect(ex.fx.picked).toBe("ent_w");                    // then the entrance (route destinations, then entrances)
+    s.pick(1);
     expect(ex.fx.picked).toBe("lift");
     s.enter();
     expect(s.phase).toBe("explore");                       // Enter set the target, it did not start the rehearsal

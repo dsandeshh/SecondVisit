@@ -350,6 +350,19 @@ export class Session implements KeyActions {
   /** Start the guided intro (first visit only unless forced). */
   startIntro(force = false): boolean { const on = this.intro.start(force); this.refreshNext(); return on; }
   keys(): void { this.say(KEYS_LINE, 2); this.deps.onKeys?.(); }
+  /** X (and the summary's Back to Explore button): leave Rehearse, pointing, the quiz or the summary for Explore where
+   *  the walker stands. The Explore beacon choice (B) comes back as it was; Enter there starts run 1 again. */
+  explore(): void {
+    if (this.blocked()) return;
+    if (this.phase === "explore") { this.say("Already in Explore.", 2); return; }
+    this.run = null; this.point = null; this.quiz = null; this.reader = null;
+    this.runStarted = false; this.pointed = false; this.runNo = 1;
+    this.ex.rehearse = false; this.ex.locked = false;
+    this.ex.fx.escapeQuiet();
+    this.deps.onQuestion?.(null);
+    this.setPhase("explore");
+    this.say("Back to Explore.", 2);
+  }
   private get live(): boolean { return this.phase === "explore" || this.phase === "rehearse"; }
   rate(d: number): void { this.ex.rate(d); }
   /** Any key interrupts speech (CLAUDE.md rule 7), then resumes a paused AudioContext. */

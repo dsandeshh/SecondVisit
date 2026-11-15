@@ -65,7 +65,7 @@ FIXED_UI_LINES = [
     "That's close.",
     "Not far off.",
     "Quite a way off.",
-    "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. V: photo view, the listing's own photos. P: pause. Plus and minus: speech speed. F6: move between parts of the page.",
+    "Arrows walk and turn. Tab: choose a place. Enter: go there. B: beacon on or off, in Rehearse a hint. X: back to Explore. Q: around me. E: ahead. W: where am I. Space: repeat. V: photo view. P: pause. K: these keys again.",
     # Showcase photo view fallback (web/src/showcase/load.ts FALLBACK_LINE)
     "Photo view needs internet; showing the scan.",
     # V toggles the photo view (web/src/app_v2.ts PHOTO_ON_LINE, PHOTO_OFF_LINE)
@@ -79,6 +79,8 @@ FIXED_UI_LINES = [
     "Choose one of the buildings below.",
     # continuous beacon (stream D, audio redesign): B toggles it, Escape clears a chosen target
     "Beacon on.", "Target cleared.",
+    # three leg demo (stream D): X or the summary button goes back to Explore (web session.ts explore())
+    "Back to Explore.", "Already in Explore.",
 ]
 NO_INDOOR_LINE = "No indoor scan yet for this building."
 NOT_AVAILABLE_LINE = "This building is not available yet."
@@ -144,6 +146,7 @@ def collect(pkg: BuildingPackage) -> set[str]:
         sp = lm.spoken or names.spoken_name(lm.label, lm.kind)
         out.add(sp)
         out.add(f"Target set, {sp}.")                      # web interact.ts setTarget (Tab, then Enter)
+        out.add(f"You have reached the {sp.lower()}.")     # web interact.ts arrivedLine (Explore arrival at a target)
     for r in pkg.rooms:
         if r.label:
             out.add(r.label)
@@ -154,6 +157,8 @@ def collect(pkg: BuildingPackage) -> set[str]:
                 out.add(f"{r.label}, about {_round(l)} by {_round(w)} metres.")
     for e in pkg.entrances:
         out.add(e.label)
+        out.add(f"Target set, {e.label}.")                 # the entrance is a Tab target too (web interact.ts places)
+        out.add(f"You have reached the {e.label.lower()}.")
     spoken = {lm.id: (lm.spoken or names.spoken_name(lm.label, lm.kind)) for lm in pkg.landmarks}
     for rt in pkg.routes:
         n = len(rt.segments)

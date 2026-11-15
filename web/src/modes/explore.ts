@@ -75,7 +75,7 @@ export class Explore implements KeyActions {
     const page = () => globalThis.document?.body?.dataset.page;
     this.cont = new ContinuousSounds(audio, world, {
       pose: () => this.traveller,
-      target: () => this.fx.beaconTarget?.at ?? null,
+      target: () => this.fx.beaconAim(),
       live: () => this.active && !this.locked && (page() === undefined || page() === "inside"),
       rehearse: () => this._rehearse,
       onPulse: at => speech.bus.publish({ kind: "pulse", at, id: this.fx.beaconTarget?.id }),

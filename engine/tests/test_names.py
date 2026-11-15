@@ -73,6 +73,10 @@ def test_voice_lines_contents_hash_unique():
     assert "wide doorway" in texts
     for lm in pkg.landmarks:
         assert lm.spoken in texts
+        assert f"You have reached the {lm.spoken.lower()}." in texts     # Explore arrival at any Tab target
+    for e in pkg.entrances:
+        assert f"You have reached the {e.label.lower()}." in texts and f"Target set, {e.label}." in texts
+    assert "Back to Explore." in texts
     for t in voice_lines.FIXED_UI_LINES:
         assert t in texts
     ids = [v.id for v in pkg.voice_lines]

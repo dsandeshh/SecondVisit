@@ -1,13 +1,12 @@
 // The Top 8 interactions (review/agent5_interaction.md section 3): around me, bump, place picker and beacon, where am I,
 // room entry, ahead cone, approach callouts and doorway cues. Every one speaks through Speech and plays through
 // AudioEngine, and publishes one `cue` on the event bus so the 3D view and the observer never need their own logic.
-import { ARRIVE_M } from "../config";
 import { pulse, PULSE } from "../audio/haptics";
 import { clockHour } from "../clock";
 import type { Cue } from "../events";
 import type { Door, Room, Vec2 } from "../types";
 import { dist, type World } from "../world";
-import { nextPick, targetOrder } from "./beacon";
+import { findPath, nextPick, targetOrder, walkPoint } from "./beacon";
 import { BumpGate, bumpOf } from "./bump";
 import type { Explore } from "./explore";
 import { ApproachTracker, crossesDoor, echoSeconds, RoomTracker, roomLine, roomSize } from "./rooms";
@@ -17,7 +16,11 @@ type Pub = Omit<Cue, "v" | "t" | "ts">;
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const mid = (d: Door): Vec2 => [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2];
-export const KEYS_LINE = "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. V: photo view, the listing's own photos. P: pause. Plus and minus: speech speed. F6: move between parts of the page.";
+export const KEYS_LINE = "Arrows walk and turn. Tab: choose a place. Enter: go there. B: beacon on or off, in Rehearse a hint. X: back to Explore. Q: around me. E: ahead. W: where am I. Space: repeat. V: photo view. P: pause. K: these keys again.";
+
+/** Explore's arrival radius for a beacon target, metres from the walker to the place's position. */
+export const TARGET_ARRIVE_M = 1.0;
+export const arrivedLine = (name: string): string => `You have reached the ${name.toLowerCase()}.`;
 
 export class Interact {
   readonly items: Item[];
@@ -82,10 +85,21 @@ export class Interact {
   }
 
   // ---- Tab: place picker (landmarks and the destination) -------------------------------------------------------
-  /** The places Tab cycles: this building's landmarks, today's destination first, then by distance. */
+  /** The ids Tab offers first, from the package: every route destination in route order, then the entrances. */
+  get leadIds(): string[] {
+    const pkg = this.world.pkg, ids = new Set(pkg.landmarks.map(l => l.id));
+    const out: string[] = [];
+    for (const r of pkg.routes) if (ids.has(r.to) && !out.includes(r.to)) out.push(r.to);
+    for (const e of pkg.entrances) if (!out.includes(e.id)) out.push(e.id);
+    return out;
+  }
+
+  /** The places Tab cycles: this building's landmarks and entrances; the route destinations, then the entrances, first,
+   *  then the rest by distance. */
   places(): Item[] {
-    const ids = new Set(this.world.pkg.landmarks.map(l => l.id));
-    return targetOrder(this.items.filter(i => ids.has(i.id)), this.t.pos, this.ex.destination?.id);
+    const pkg = this.world.pkg;
+    const ids = new Set([...pkg.landmarks.map(l => l.id), ...pkg.entrances.map(e => e.id)]);
+    return targetOrder(this.items.filter(i => ids.has(i.id)), this.t.pos, this.leadIds);
   }
 
   /** "<name>, <clock> o'clock, <N> steps." in one line, said from the place. */
@@ -94,9 +108,9 @@ export class Interact {
   pick(dir: 1 | -1): void {
     if (this.ex.locked) return;
     this.cancel();
-    const it = nextPick(this.places(), this.picked, dir);
+    const it = nextPick(this.places(), this.picked ?? this.cursor, dir);
     if (!it) { this.speech.say("No places in this building.", 2); return; }
-    this.picked = it.id; this.lastItem = it;
+    this.picked = it.id; this.lastItem = it; this.cursor = null;
     this.pub({ kind: "pick", id: it.id, at: it.at, label: it.name });
     this.speech.say(this.placeLine(it), 1, this.nameOpts(it));
   }
@@ -112,12 +126,32 @@ export class Interact {
   // ---- the continuous beacon's target ----------------------------------------------------------------------------
   /** Chosen with Tab then Enter; null means the route destination. */
   target: Item | null = null;
-  private arrived = false;
+  /** True once the current target is reached (Explore): the beacon stops until the next target is set. */
+  arrived = false;
+  /** After an arrival: Tab continues from the place reached, so the next leg's target is one press away. */
+  private cursor: string | null = null;
   get destItem(): Item | null { return this.byId(this.ex.destination?.id ?? null); }
-  /** What the beacon points at now. */
-  get beaconTarget(): Item | null { return this.target ?? this.destItem; }
+  /** What the beacon is aimed at (the chosen target, else the route destination), reached or not. */
+  get aimed(): Item | null { return this.target ?? this.destItem; }
+  /** What the beacon points at now: nothing once the target is reached. */
+  get beaconTarget(): Item | null { return this.arrived ? null : this.aimed; }
+  private aimCache: { key: string; path: Vec2[] | null } | null = null;
+  /** Where the Explore beacon sounds from: the furthest corner of the walkable path to the target still in line of sight
+   *  in a straight walkable line (so following it leads round walls, furniture and through doors), else the target itself. Null once reached. */
+  beaconAim(): Vec2 | null {
+    const tg = this.beaconTarget;
+    if (!tg) return null;
+    const p = this.t.pos, key = `${tg.id}|${p[0].toFixed(2)}|${p[1].toFixed(2)}`;
+    if (this.aimCache?.key !== key) this.aimCache = { key, path: findPath(this.world, p, tg.at) };
+    const path = this.aimCache.path;
+    return path && path.length ? walkPoint(path, p, this.world) : tg.at;
+  }
   /** The persistent on screen line. */
-  targetText(): string { const b = this.beaconTarget; return b ? `Target: ${b.name}${this.target ? "" : " (destination)"}` : "Target: none"; }
+  targetText(): string {
+    const b = this.aimed;
+    if (!b) return "Target: none";
+    return this.arrived ? `Reached: ${b.name}` : `Target: ${b.name}${this.target ? "" : " (destination)"}`;
+  }
   showTarget(): void {
     const el = globalThis.document?.getElementById("target-line");
     if (el) el.textContent = this.targetText();
@@ -125,7 +159,7 @@ export class Interact {
 
   setTarget(it: Item): void {
     this.target = it.id === this.ex.destination?.id ? null : it;
-    this.picked = null; this.arrived = false; this.lastItem = it;
+    this.picked = null; this.cursor = null; this.arrived = false; this.lastItem = it;
     this.pub({ kind: "pick", id: it.id, at: it.at, label: it.name, ids: ["go"] });
     this.showTarget();
     this.speech.say(`Target set, ${it.name}.`, 2, { at: it.at });
@@ -143,6 +177,9 @@ export class Interact {
   get busy(): boolean { return !!this.target || !!this.picked || this.sweeping; }
   get beaconOn(): boolean { return !!this.target; }
 
+  /** Back to Explore: no chosen target, nothing highlighted, nothing reached; nothing said. */
+  escapeQuiet(): void { this.cancel(); this.picked = null; this.cursor = null; this.target = null; this.arrived = false; this.showTarget(); }
+
   /** Esc: back to the route destination, forget the highlighted place, cut a sweep. */
   escape(): void {
     const had = !!this.target;
@@ -157,19 +194,20 @@ export class Interact {
     this.speech.say(d ? `Target cleared. Heading to ${d.name}.` : "Target cleared.", 2);
   }
 
-  /** Within ARRIVE_M of a chosen target: the chime and the arrival line, once (the destination's arrival is the run's). */
+  /** Explore: within TARGET_ARRIVE_M of the target (the chosen one, else the destination): the chime and "You have reached
+   *  the <name>." once, and the beacon stops. It stays reached until the next target is set (Tab, Enter) or Escape.
+   *  Rehearse has its own arrival. */
   private checkArrive(): void {
-    const tg = this.target;
-    if (!tg) return;
-    const d = dist(this.t.pos, tg.at);
-    if (d > ARRIVE_M + 1) this.arrived = false;
-    if (this.arrived || d > ARRIVE_M) return;
+    if (this.ex.rehearse || this.arrived) return;
+    const tg = this.aimed;
+    if (!tg || dist(this.t.pos, tg.at) > TARGET_ARRIVE_M) return;
     this.arrived = true;
+    this.cursor = tg.id;
+    this.ex.cont?.silenceBeacon();
     this.audio.cue("chime", { bus: "cue", pri: 1 });
     this.pub({ kind: "arrive", at: tg.at, id: tg.id, label: tg.name });
-    const place = tg.name.charAt(0).toLowerCase() + tg.name.slice(1);
-    const near = d < 0.7 ? "within reach" : stepsWords(d);
-    this.speech.say(`You're at the ${place}, at ${this.clock(tg.at)} o'clock, ${near}.`, 2);
+    this.showTarget();
+    this.speech.say(arrivedLine(tg.name), 2, { at: tg.at });
   }
 
   // ---- bump -----------------------------------------------------------------------------------------------------

@@ -19,9 +19,11 @@ export function beaconPoint(path: Vec2[], pos: Vec2, target: Vec2, world: World)
   return path[0] ?? target;
 }
 
-/** Tab order: today's destination, exits and doors, desk, restroom, elevator, then by distance (recomputed per press). */
-export function targetOrder(items: Item[], pos: Vec2, destinationId?: string): Item[] {
-  const rank = (i: Item): number => i.id === destinationId ? 0
+/** Tab order: the ids in `first` in that order (route destinations, then entrances), then exits and doors, desk,
+ *  restroom, elevator, then by distance (recomputed per press). A single id is today's destination. */
+export function targetOrder(items: Item[], pos: Vec2, first?: string | string[]): Item[] {
+  const lead = typeof first === "string" ? [first] : first ?? [];
+  const rank = (i: Item): number => lead.includes(i.id) ? -100 + lead.indexOf(i.id)
     : i.kind === "entrance" || i.kind === "door" || i.kind === "glass_door" ? 1
     : i.kind === "desk" ? 2 : i.kind === "restroom" ? 3 : i.kind === "elevator" ? 4 : 5;
   return [...items].sort((a, b) => rank(a) - rank(b) || dist(pos, a.at) - dist(pos, b.at));
@@ -35,11 +37,19 @@ export function nextPick(order: Item[], current: string | null, dir: 1 | -1): It
   return order[(i + dir + order.length) % order.length];
 }
 
-const clear = (world: World, p: Vec2, q: Vec2): boolean => {
+/** True when every cell on the straight line from p to q is free (walls, obstacles and glass all block). */
+export const clearLine = (world: World, p: Vec2, q: Vec2): boolean => clear(world, p, q);
+/** The furthest path corner the walker can walk to in a straight line, else the first one. */
+export function walkPoint(path: Vec2[], pos: Vec2, world: World): Vec2 {
+  for (let i = path.length - 1; i >= 0; i--) if (clear(world, pos, path[i])) return path[i];
+  return path[0];
+}
+
+function clear(world: World, p: Vec2, q: Vec2): boolean {
   const n = Math.ceil(dist(p, q) / 0.1);
   for (let i = 1; i < n; i++) { const t = i / n; if (world.cellAt([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]) !== 0) return false; }
   return true;
-};
+}
 
 /** A* on the grid (8 connected, coarse first) from pos to the target, then string pulled to corners. null: no path. */
 export function findPath(world: World, from: Vec2, to: Vec2): Vec2[] | null {

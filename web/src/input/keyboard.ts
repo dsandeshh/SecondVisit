@@ -37,6 +37,8 @@ export interface KeyActions {
   pause?(): void;
   /** K: the keys, spoken and shown. */
   keys?(): void;
+  /** X: back to Explore (from Rehearse, pointing, the quiz or the summary). */
+  explore?(): void;
   /** Every handled key, first (cuts speech, resumes a paused AudioContext). `key` is the lower cased key. */
   any(key?: string): void;
 }
@@ -81,6 +83,7 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
       case "Tab": handled(); a.pick?.(e.shiftKey ? -1 : 1); return;
       case "Escape": handled(); a.escape?.(); return;
       case "k": handled(); a.keys?.(); return;
+      case "x": handled(); a.explore?.(); return;
       case "p": handled(); a.pause?.(); return;
       case "1": case "2": case "3": case "4": case "5": case "6": case "7": case "8": case "9":
         handled(); a.digit?.(Number(k)); return;
