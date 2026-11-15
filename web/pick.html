@@ -4,11 +4,84 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SecondVisit pick</title>
+    <style>
+      main { padding: var(--gutter); display: grid; gap: var(--sp-5); }
+      .row { display: flex; flex-wrap: wrap; gap: var(--target-gap); align-items: end; }
+      label { display: grid; gap: var(--sp-1); font-size: var(--fs-small); }
+      input, select, button { font: inherit; font-size: var(--fs-small); min-height: var(--target-min);
+        border: var(--bw-control) solid var(--c-rule); border-radius: var(--r-control); background: var(--c-surface);
+        color: var(--c-ink); padding: 0 var(--sp-3); }
+      input[type="number"] { width: 8ch; }
+      input[type="checkbox"] { min-height: auto; width: 1.5rem; height: 1.5rem; }
+      button { cursor: pointer; }
+      button.primary { background: var(--c-accent); color: var(--c-on-accent); border-color: var(--c-accent); }
+      #plan { width: 100%; height: auto; background: var(--c-surface); border: var(--bw-hair) solid var(--c-rule-soft);
+        cursor: crosshair; touch-action: none; }
+      .faces { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2); }
+      .faces figure { margin: 0; }
+      .faces img { width: 100%; display: block; cursor: crosshair; border: var(--bw-control) solid transparent; }
+      .faces img.picked { border-color: var(--c-accent); }
+      .faces figcaption { font-size: var(--fs-small); }
+      table { border-collapse: collapse; font-size: var(--fs-small); }
+      th, td { text-align: left; padding: var(--sp-1) var(--sp-3); border-bottom: var(--bw-hair) solid var(--c-rule-soft); }
+      .chip { display: inline-block; padding: 0 var(--sp-2); border-radius: var(--r-chip); background: var(--c-mark);
+        color: var(--c-on-mark); font-weight: var(--fw-bold); }
+      #status { color: var(--c-ink-2); }
+    </style>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <main id="main">
       <h1>Pick points</h1>
+      <p id="status" role="status" aria-live="polite">Loading.</p>
+
+      <section aria-labelledby="h-point">
+        <h2 id="h-point">Point</h2>
+        <p>Click the plan to fill x and y. Click and drag to set a heading too. Or type them.</p>
+        <div class="row">
+          <label>x (m) <input id="px" type="number" step="0.01" /></label>
+          <label>y (m) <input id="py" type="number" step="0.01" /></label>
+          <label>Heading (deg) <input id="ph" type="number" step="1" min="0" max="359" /></label>
+          <label>Label <input id="plabel" type="text" value="Reception desk" /></label>
+          <label>Kind <select id="pkind">
+            <option>desk</option><option>door</option><option>glass_door</option><option>elevator</option>
+            <option>stairs</option><option>seating</option><option>restroom</option><option>sign</option>
+            <option>pillar</option><option>water</option><option>other</option></select></label>
+        </div>
+        <div class="row">
+          <button id="b-entrance" type="button">Set entrance</button>
+          <button id="b-destination" type="button">Set destination</button>
+          <button id="b-landmark" type="button">Add landmark</button>
+        </div>
+      </section>
+
+      <canvas id="plan" aria-label="Floor plan with walls, panoramas and pins. Click to pick a point."></canvas>
+
+      <section aria-labelledby="h-cal">
+        <h2 id="h-cal">Face calibration</h2>
+        <p>Choose a panorama, click the reception desk in one face, then calibrate against the destination.</p>
+        <div class="row">
+          <label>Panorama <select id="pano"></select></label>
+          <label>face_yaw0_deg <input id="yaw0" type="number" step="0.1" value="0" /></label>
+          <label><span>Faces run clockwise</span> <input id="cw" type="checkbox" checked /></label>
+          <button id="b-cal" type="button">Calibrate from face click</button>
+        </div>
+        <p id="facepick">No face click yet.</p>
+        <div class="faces" id="faces"></div>
+      </section>
+
+      <section aria-labelledby="h-pins">
+        <h2 id="h-pins">Pins <span class="chip">HAND</span></h2>
+        <table>
+          <caption class="sr-only">Pins for overrides.json</caption>
+          <thead><tr><th scope="col">Pin</th><th scope="col">Kind</th><th scope="col">Label</th><th scope="col">x, y</th><th scope="col">Heading</th><th scope="col">Action</th></tr></thead>
+          <tbody id="pins"></tbody>
+        </table>
+        <div class="row">
+          <label>Deleted landmark ids (comma separated) <input id="deleted" type="text" size="30" /></label>
+          <button id="b-export" type="button" class="primary">Export overrides.json</button>
+        </div>
+      </section>
     </main>
     <script type="module" src="/src/pick/pick.ts"></script>
   </body>

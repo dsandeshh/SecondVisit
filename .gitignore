@@ -245,3 +245,7 @@ traces/
 *.ply
 *.zip
 data/*/grid_preview.png
+
+# Annotator output (Task 3): derived from sponsor panoramas
+data/*/landmarks.json
+data/*/landmarks.md
