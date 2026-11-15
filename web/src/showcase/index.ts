@@ -1,0 +1,171 @@
+// First person Matterport Showcase view (stream 1, web). Localhost only (CLAUDE.md): never from a tunnel.
+//
+// MOUNT CONTRACT (stream 2 calls this from the #/inside page):
+//   const h = await mountShowcase({ host, pkg, world, bus, say, onReady, onFail });
+//   host   HTMLElement, position relative, sized by the page. We append a `pointer-events:none` iframe (tabindex -1,
+//          aria-hidden) and a HUD canvas. Keyboard focus stays on the page's stage; keys never reach the iframe.
+//   pkg    BuildingPackage (model_id picks the tour, routes[0] drives the HUD arrows).
+//   world  World (OccGrid; line of sight for the sweep chooser).
+//   bus    CueBus (the HUD sound compass reads cues; we publish nothing, captions are the page's).
+//   say    optional (text) => void; called once with FALLBACK_LINE if the photo view cannot start.
+//   onReady optional () => void, once the SDK is connected, calibrated and the first sweep is shown.
+//   onFail  optional (reason: string) => void, within 8 s if the SDK is not ready or we are offline. The page then
+//           shows Overview (the GLB scan) and the line "Photo view needs internet; showing the scan.".
+//   Optional extras: sdkKey (default import.meta.env.VITE_MATTERPORT_SDK_KEY), panos (default fetched from
+//   /buildings/<id>/panos.json), route, safeBottom, safeTop (px kept clear of the page's buttons).
+// Returns ShowcaseHandle:
+//   setPose(planPos: [x, y], headingDeg: number)  call on every walker move or turn; the picture follows the walker.
+//   enterAtEntrance(): Promise<{ pos: Vec2; heading: number }>   outdoor flow: show the entrance sweep facing into the
+//          building; the page then places the walker at the returned pos/heading.
+//   stop()  tear down iframe, HUD and subscriptions.   calibration: Calibration | null   ready: boolean
+// If mountShowcase rejects or calls onFail, the handle is not usable; the page falls back to Overview.
+import type { CueBus } from "../events";
+import type { BuildingPackage, Route, Vec2 } from "../types";
+import type { World } from "../world";
+import { fitCalibration, headingToYaw, planToSdk, sdkToPlan, type Calibration, type PlanPoint } from "./calibrate";
+import { chooseSweep, SweepFollower, type PlanSweep } from "./follow";
+import { Hud, type CamPose } from "./hud";
+import { FALLBACK_LINE, SDK_TIMEOUT_MS, loadSdkScript, withTimeout } from "./load";
+
+export { FALLBACK_LINE } from "./load";
+export type { Calibration } from "./calibrate";
+
+export interface ShowcaseHandle {
+  setPose(planPos: Vec2, headingDeg: number): void;
+  enterAtEntrance(): Promise<{ pos: Vec2; heading: number }>;
+  stop(): void;
+  calibration: Calibration | null;
+  ready: boolean;
+  /** Diagnostics for the dev page: sweep moves done and the last move's duration in ms. */
+  stats: { moves: number; lastMoveMs: number; sweeps: number };
+  /** Dev only: the last SDK camera pose. */
+  pose(): CamPose | null;
+  _sdk?: any;
+}
+
+export interface MountOptions {
+  host: HTMLElement; pkg: BuildingPackage; world: World; bus: CueBus;
+  say?: (text: string) => void; onReady?: () => void; onFail?: (reason: string) => void;
+  sdkKey?: string; panos?: PlanPoint[]; route?: Route | null; safeBottom?: number; safeTop?: number;
+}
+
+const PITCH_DOWN = -10;
+const MOVE_MS = 500;
+export const EMBED_PARAMS = "play=1&qs=1&help=0&hl=0&title=0";
+
+async function loadPanos(pkg: BuildingPackage): Promise<PlanPoint[]> {
+  const r = await fetch(`/buildings/${pkg.id}/panos.json`);
+  if (!r.ok) throw new Error("panos.json missing");
+  const j = (await r.json()) as { id: string; position: { x: number; y: number } }[];
+  return j.map(p => ({ id: p.id, x: p.position.x, y: p.position.y }));
+}
+
+export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
+  const fail = (reason: string): never => {
+    try { o.say?.(FALLBACK_LINE); } catch { /* the page still switches */ }
+    o.onFail?.(reason);
+    throw new Error(reason);
+  };
+  const key = o.sdkKey ?? (import.meta as any).env?.VITE_MATTERPORT_SDK_KEY;
+  if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return fail("Showcase SDK is allowed on localhost only");
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return fail("offline");
+  if (!key) return fail("no SDK key");
+  const sid = o.pkg.model_id;
+  if (!sid) return fail("package has no Matterport model");
+
+  const iframe = document.createElement("iframe");
+  iframe.src = `https://my.matterport.com/show/?m=${sid}&${EMBED_PARAMS}&applicationKey=${encodeURIComponent(key)}`;
+  iframe.tabIndex = -1; iframe.setAttribute("aria-hidden", "true"); iframe.allow = "fullscreen; xr-spatial-tracking";
+  Object.assign(iframe.style, { position: "absolute", inset: "0", width: "100%", height: "100%", border: "0", pointerEvents: "none" });
+  o.host.prepend(iframe);
+
+  let sdk: any;
+  let hud: Hud | null = null;
+  let stopped = false;
+  const subs: { cancel(): void }[] = [];
+  const stop = (): void => { stopped = true; subs.forEach(s => { try { s.cancel(); } catch { /* */ } }); hud?.destroy(); iframe.remove(); };
+
+  try {
+    sdk = await withTimeout((async () => {
+      await loadSdkScript();
+      return (window as any).MP_SDK.connect(iframe, key, "3.10");
+    })(), SDK_TIMEOUT_MS, "Showcase SDK not ready within 8 s");
+    const sweepMap = new Map<string, { position: { x: number; y: number; z: number }; enabled: boolean }>();
+    await withTimeout(new Promise<void>(res => {
+      subs.push(sdk.Sweep.data.subscribe({
+        onCollectionUpdated(col: Record<string, any>) {
+          sweepMap.clear();
+          for (const k of Object.keys(col)) sweepMap.set(col[k].id ?? k, { position: col[k].position, enabled: col[k].enabled !== false });
+          if (sweepMap.size) res();
+        },
+      }));
+    }), SDK_TIMEOUT_MS, "Showcase sweeps not ready within 8 s");
+
+    const panos = o.panos ?? await loadPanos(o.pkg);
+    const cal = fitCalibration([...sweepMap].map(([id, s]) => ({ id, x: s.position.x, z: s.position.z })), panos);
+    if (!cal || cal.meanErr > 0.1) throw new Error(`calibration failed (${cal ? (cal.meanErr * 100).toFixed(1) + " cm" : "no fit"})`);
+    console.info("[showcase] calibration", { ...cal, rotDeg: +cal.rotDeg.toFixed(2), tx: +cal.tx.toFixed(3), ty: +cal.ty.toFixed(3),
+      meanErrCm: +(cal.meanErr * 100).toFixed(2), maxErrCm: +(cal.maxErr * 100).toFixed(2) });
+
+    const planSweeps = (): PlanSweep[] => [...sweepMap].map(([id, s]) => ({ id, enabled: s.enabled, plan: sdkToPlan(cal, s.position.x, s.position.z) }));
+    const cached = planSweeps();
+    let pose: CamPose | null = null;
+    subs.push(sdk.Camera.pose.subscribe((p: CamPose) => { pose = p; hud?.setPose(p); }));
+
+    const handle: ShowcaseHandle = {
+      calibration: cal, ready: false, stats: { moves: 0, lastMoveMs: 0, sweeps: sweepMap.size },
+      pose: () => pose, _sdk: sdk, setPose: () => undefined, enterAtEntrance: async () => ({ pos: [0, 0], heading: 0 }), stop,
+    };
+    const follower = new SweepFollower(o.world, () => cached, async (id, h) => {
+      await sdk.Sweep.moveTo(id, { rotation: { x: PITCH_DOWN, y: headingToYaw(cal, h) }, transition: sdk.Sweep.Transition.FLY, transitionTime: MOVE_MS });
+      // turns made during the flight: settle on the walker's current heading
+      void Promise.resolve(sdk.Camera.setRotation({ x: PITCH_DOWN, y: headingToYaw(cal, heading) }, { speed: 220 })).catch(() => undefined);
+    });
+    hud = new Hud({ host: o.host, pkg: o.pkg, world: o.world, bus: o.bus, route: o.route,
+      toSdk: p => planToSdk(cal, p), safeBottom: o.safeBottom, safeTop: o.safeTop });
+    if (pose) hud.setPose(pose);
+
+    let pos: Vec2 = o.pkg.entrances[0]?.pos ?? [0, 0], heading = o.pkg.entrances[0]?.heading_deg ?? 0;
+    let lastRot = 0, lastHeading = NaN;
+    const follow = async (): Promise<void> => {
+      if (stopped) return;
+      const moved = await follower.update(pos, heading);
+      handle.stats.moves = follower.moves; handle.stats.lastMoveMs = follower.lastMoveMs;
+      if (moved && !stopped) void follow(); // catch up once, never queued: update() drops calls while busy
+    };
+    handle.setPose = (p, h) => {
+      pos = p; heading = h; hud?.setWalker(p, h);
+      void follow();
+      const now = performance.now();
+      if (!follower.busy && h !== lastHeading && now - lastRot > 90) {
+        lastRot = now; lastHeading = h;
+        void Promise.resolve(sdk.Camera.setRotation({ x: PITCH_DOWN, y: headingToYaw(cal, h) }, { speed: 220 })).catch(() => undefined);
+      }
+    };
+    handle.enterAtEntrance = async () => {
+      const ent = o.pkg.entrances[0];
+      if (!ent) throw new Error("no entrance");
+      // a few metres inside, along the entrance heading, so the sweep is indoors and looks into the building
+      const inside: Vec2 = [ent.pos[0] + Math.sin(ent.heading_deg * Math.PI / 180) * 1.0, ent.pos[1] + Math.cos(ent.heading_deg * Math.PI / 180) * 1.0];
+      if (!chooseSweep(o.world, cached, inside, null)) throw new Error("no sweep near the entrance");
+      // The SDK ignores a move while its opening transition is active: retry until the sweep is shown.
+      for (let i = 0; i < 20 && follower.current === null; i++) {
+        heading = ent.heading_deg;
+        await follower.update(inside, ent.heading_deg);
+        if (follower.current === null) await new Promise(r => setTimeout(r, 350));
+      }
+      if (follower.current === null) throw new Error("entrance sweep not shown");
+      pos = ent.pos; heading = ent.heading_deg; hud?.setWalker(pos, heading);
+      return { pos: ent.pos, heading: ent.heading_deg };
+    };
+
+    // first picture: the entrance sweep, facing in
+    await withTimeout(handle.enterAtEntrance(), SDK_TIMEOUT_MS, "Showcase first sweep not shown within 8 s");
+    handle.ready = true;
+    o.onReady?.();
+    return handle;
+  } catch (e) {
+    stop();
+    return fail(e instanceof Error ? e.message : String(e));
+  }
+}

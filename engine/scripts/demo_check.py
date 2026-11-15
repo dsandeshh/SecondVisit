@@ -165,6 +165,16 @@ def main() -> int:
             assert (d / f).exists(), f
         return "html entries present"
 
+    def showcase_fallback():
+        """Photo view needs internet: offline the SDK cannot load, so the page must be able to fall back to the scan."""
+        d = ROOT / "web" / "src" / "showcase"
+        load, idx = (d / "load.ts").read_text(), (d / "index.ts").read_text()
+        assert "Photo view needs internet; showing the scan." in load, "fallback line missing"
+        assert "SDK_TIMEOUT_MS = 8000" in load, "8 s timeout missing"
+        assert "navigator.onLine === false" in idx and "onFail" in idx, "offline path does not call onFail"
+        assert "static.matterport.com" in load and "my.matterport.com" in idx, "expected remote Showcase hosts (these are what fail offline)"
+        return "offline -> onFail within 8 s, line: Photo view needs internet; showing the scan."
+
     check("GET /api/health reports modes (offline)", health)
     check("GET /api/agent/replay[s] plays both recordings", replays)
     check("POST /api/agent scripted visitor (fixture)", lambda: scripted("appointment at the front desk", "fixture", "rehearsal"))
@@ -175,6 +185,7 @@ def main() -> int:
     check("WS /ws/obs relay", relay)
     check("clear 4xx errors on bad input", errors)
     check("web entry pages present", web_assets)
+    check("Showcase photo view falls back offline", showcase_fallback)
 
     for f in (set(traces.glob("*.jsonl")) - before) if traces.is_dir() else ():
         f.unlink()  # traces written by this check's own runs
