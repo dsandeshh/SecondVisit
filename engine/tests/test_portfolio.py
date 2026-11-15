@@ -132,3 +132,24 @@ def test_unreachable_side_room_counted_not_hidden(root):
     out = navigability(pkg, plan=plan, segment=lambda p, g, l: p,
                        score_route=lambda s, g, l: {"total": 60.0, "parts": {"wall_share": 0.5, "decisions": 1}})
     assert out["parts"]["routes_skipped"] == 1.0 and out["parts"]["routes"] == 1.0
+
+
+def test_overrides_entrance_and_destination_used_and_labelled_hand(root):
+    (root / "good1" / "overrides.json").write_text(json.dumps({
+        "entrance": {"id": "ent_main", "label": "Main entrance", "pos": [2.0, 2.0], "heading_deg": 90},
+        "destination": {"pos": [8.0, 3.0], "label": "Reception desk"}}))
+    pkg = build_light("good1", root)
+    assert pkg.entrances[0].id == "ent_main"
+    assert not any("assumed" in n for n in pkg.notes)
+    assert pkg.prov["portfolio.destination"].src == "hand"
+    seen = []
+    navigability(pkg, plan=lambda g, a, b, lms: seen.append(b) or [a, b], segment=lambda p, g, l: p,
+                 score_route=lambda s, g, l: {"total": 1.0, "parts": {"wall_share": 0.5, "decisions": 1}})
+    assert seen[0] == pytest.approx((8.0, 3.0), abs=0.2)
+
+
+def test_costar_codes_get_names(monkeypatch):
+    monkeypatch.setattr(portfolio.resolver, "costar_lookup",
+                        lambda pid, sid=None: ({"property": {"propertyType": 6, "buildingClass": 2}}, None))
+    p = portfolio._costar("1")["property"]
+    assert p["propertyTypeName"] == "General retail" and p["buildingClassName"] == "B"

@@ -21,7 +21,7 @@ from shapely.geometry import Polygon
 
 from dr import probe, resolver
 from dr.grid import OccGrid
-from dr.mp_import import build_from_matterport
+from dr.mp_import import build_from_matterport, load_overrides
 from dr.package import BuildingPackage, Entrance, PortfolioRow, Room
 from dr.prov import ProvBuilder
 
@@ -130,11 +130,20 @@ def build_light(sid: str, data_root: Path = probe.DATA, client=None) -> Building
         raise PortfolioSkip(f"import failed ({type(e).__name__}: {str(e)[:100]})") from e
     if not pkg.rooms:
         raise PortfolioSkip("no usable room polygons")
-    dest = pick_destination(pkg.rooms)
     grid = OccGrid.from_b64(pkg.grid.cells_b64, pkg.grid.width, pkg.grid.height, pkg.grid.res, pkg.grid.origin)
-    dpos = snap_free(grid, room_centroid(dest))
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     pb = ProvBuilder(now)
+    hand = load_overrides(sid, data_root).destination_landmark()
+    if hand is not None:  # a human pinned the destination (overrides.json): use it, label it HAND
+        pkg.landmarks.append(hand)
+        dest_label, dpos = hand.label, snap_free(grid, hand.pos)
+        pkg.prov["portfolio.destination"] = pb.add("portfolio.destination", "hand", "overrides.json destination")
+        pkg.notes.append(f"destination: {dest_label} (hand) {dpos[0]:.2f},{dpos[1]:.2f}")
+    else:
+        dest = pick_destination(pkg.rooms)
+        dpos = snap_free(grid, room_centroid(dest))
+        pkg.notes.append(f"destination: {dest.label} room {dest.id} centroid {dpos[0]:.2f},{dpos[1]:.2f}")
+        pkg.prov["portfolio.destination"] = pb.add("portfolio.destination", "calc", f"room:{dest.id}", inputs=[f"room:{dest.id}"])
     if not pkg.entrances:
         a = assumed_entrance_pano(raw)
         if a is None:
@@ -144,8 +153,6 @@ def build_light(sid: str, data_root: Path = probe.DATA, client=None) -> Building
         pkg.entrances.append(Entrance(id="assumed", label="Entrance (assumed)", pos=pos, heading_deg=round(heading, 1)))
         pkg.prov["entrance:assumed"] = pb.add("entrance:assumed", "calc", f"assumed: pano:{pid} (lowest numeric label)", confidence=0.3)
         pkg.notes.append("assumed entrance: the pano with the lowest numeric label")
-    pkg.notes.append(f"destination: {dest.label} room {dest.id} centroid {dpos[0]:.2f},{dpos[1]:.2f}")
-    pkg.prov["portfolio.destination"] = pb.add("portfolio.destination", "calc", f"room:{dest.id}", inputs=[f"room:{dest.id}"])
     return pkg
 
 
@@ -183,8 +190,10 @@ def navigability(pkg: BuildingPackage, build_s: float = 0.0, plan=None, segment=
         from dr.score import score_route
     grid = OccGrid.from_b64(pkg.grid.cells_b64, pkg.grid.width, pkg.grid.height, pkg.grid.res, pkg.grid.origin)
     start = tuple(pkg.entrances[0].pos)
+    hand = next((l for l in pkg.landmarks if l.id == "dest"), None) if (
+        pkg.prov.get("portfolio.destination") and pkg.prov["portfolio.destination"].src == "hand") else None
     dest = pick_destination(pkg.rooms)
-    goal = snap_free(grid, room_centroid(dest))
+    goal = snap_free(grid, hand.pos if hand else room_centroid(dest))
 
     def run(g):
         path = plan(grid, start, g, pkg.landmarks)
@@ -194,7 +203,7 @@ def navigability(pkg: BuildingPackage, build_s: float = 0.0, plan=None, segment=
     try:
         main = run(goal)
     except no_route as e:
-        raise PortfolioSkip(f"no route from the entrance to the {dest.label} room ({type(e).__name__})") from e
+        raise PortfolioSkip(f"no route from the entrance to the {hand.label if hand else dest.label + ' room'} ({type(e).__name__})") from e
     ws, dec = [_get(main["parts"], "wall_share")], [_get(main["parts"], "decisions")]
     skipped = 0
     for r in pkg.rooms:
@@ -221,6 +230,13 @@ def navigability(pkg: BuildingPackage, build_s: float = 0.0, plan=None, segment=
 _costar_warned: list[int] = []
 
 
+# CoStar kit schemas/enums.json: PropertyType and BuildingClass (numeric code -> name)
+PROPERTY_TYPES = {0: "Unknown", 1: "Hospitality", 2: "Industrial", 3: "Land", 5: "Office", 6: "General retail",
+                  7: "Flex", 8: "Sports and entertainment", 9: "Mixed use", 10: "Specialty", 11: "Multifamily",
+                  13: "Healthcare", 14: "Unknown", 15: "Residential", 16: "Homes"}
+BUILDING_CLASSES = {0: "Unknown", 1: "A", 2: "B", 3: "C", 4: "F"}
+
+
 def _costar(pid: str, sid: str | None = None) -> dict:
     try:
         rec, why = resolver.costar_lookup(pid, sid)
@@ -232,6 +248,11 @@ def _costar(pid: str, sid: str | None = None) -> dict:
     if not rec:
         return {}
     prop = {k: v for k, v in (rec.get("property") or {}).items() if isinstance(v, (str, int, float, bool))}
+    for code, names, out in (("propertyType", PROPERTY_TYPES, "propertyTypeName"),
+                             ("buildingClass", BUILDING_CLASSES, "buildingClassName")):
+        n = names.get(prop.get(code)) if isinstance(prop.get(code), int) else None
+        if n and n != "Unknown":
+            prop[out] = n
     return {"property": prop, "tenant_count": len(rec.get("tenants") or [])}
 
 
