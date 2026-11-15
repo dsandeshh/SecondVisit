@@ -46,6 +46,8 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
   let lastStep = -Infinity, lastTurn = -Infinity;
   const down = (e: KeyboardEvent) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // The 3D view buttons live inside the stage: they keep Tab, Space and Enter (F6 reaches them); Escape goes back to the stage.
+    if ((e.target as Element | null)?.closest?.(".room3d-bar")) { if (e.key === "Escape") { e.preventDefault(); stage.focus(); } return; }
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k.startsWith("Arrow") || k === " " || k === "Tab") e.preventDefault(); // only while the stage has focus (the listener is on it)
     if (e.repeat && !REPEATABLE.has(k)) return;

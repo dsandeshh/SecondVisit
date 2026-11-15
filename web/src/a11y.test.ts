@@ -57,10 +57,30 @@ describe("index.html stage", () => {
     wireRegions(document, stage, speech, {} as never);
     stage.focus();
     const f6 = (shiftKey = false) => document.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", shiftKey, bubbles: true }));
+    f6(); expect(document.activeElement).toBe(document.querySelector(".room3d-bar button:not(:disabled)[aria-pressed=true]"));   // the 3D view buttons
     f6(); expect(document.activeElement).toBe(document.querySelector(".objects__scroll"));
     f6(); expect(document.activeElement).toBe(document.querySelector("#keys-panel > summary"));
     f6(); expect(document.activeElement).toBe(document.querySelector("#data-panel > summary"));
     f6(true); expect(document.activeElement).toBe(document.querySelector("#keys-panel > summary"));
-    f6(true); f6(true); expect(document.activeElement).toBe(stage);
+    f6(true); f6(true); f6(true); expect(document.activeElement).toBe(stage);
+  });
+});
+
+describe("3D view buttons inside the stage", () => {
+  it("keep Tab and Space (the stage keys ignore them) and Escape returns to the stage", async () => {
+    page("index.html");
+    const { attachKeys } = await import("./input/keyboard");
+    const stage = document.getElementById("stage")!;
+    const any = vi.fn(), enter = vi.fn(), escape = vi.fn();
+    attachKeys(stage, { any, enter, escape } as never);
+    const btn = document.querySelector<HTMLButtonElement>('[data-view="top"]')!;
+    btn.focus();
+    const fire = (key: string) => { const e = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }); btn.dispatchEvent(e); return e; };
+    expect(fire("Tab").defaultPrevented).toBe(false);
+    expect(fire(" ").defaultPrevented).toBe(false);
+    fire("Enter");
+    expect(any).not.toHaveBeenCalled(); expect(enter).not.toHaveBeenCalled();
+    fire("Escape");
+    expect(document.activeElement).toBe(stage); expect(escape).not.toHaveBeenCalled();
   });
 });

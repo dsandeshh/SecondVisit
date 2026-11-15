@@ -128,7 +128,9 @@ export class Room3D {
     cap.position.y = 0.65; cap.castShadow = true;
     const nose = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.28, 16), new THREE.MeshStandardMaterial({ color: this.ink }));
     nose.rotation.x = -Math.PI / 2; nose.position.set(0, 0.95, -0.28);
-    this.walker.add(cap, nose);
+    const halo = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.9, 6, 16), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.BackSide }));
+    halo.position.y = 0.65; halo.scale.set(1.35, 1.08, 1.35);
+    this.walker.add(halo, cap, nose);
     this.scene.add(this.walker);
     this.buildRing();
     const fan = (deg: number, r: number, color: string, op: number) => {
@@ -177,7 +179,11 @@ export class Room3D {
         const m = o as THREE.Mesh; if (!m.isMesh) return;
         m.castShadow = false; m.receiveShadow = false;
         for (const mat of ([] as THREE.Material[]).concat(m.material)) {
-          mat.side = THREE.DoubleSide; mat.clippingPlanes = [plane]; mat.needsUpdate = true;
+          mat.side = THREE.DoubleSide; mat.clippingPlanes = [plane];
+          // the capture is dark under the Light Apple UI: lift it with the texture itself so overlays have a calmer ground
+          const sm = mat as THREE.MeshStandardMaterial;
+          if (sm.map) { sm.emissiveMap = sm.map; sm.emissive = new THREE.Color(0x9a9a9a); }
+          mat.needsUpdate = true;
           this.disposables.push(mat);
           (mat as THREE.MeshStandardMaterial).map && this.disposables.push((mat as THREE.MeshStandardMaterial).map!);
         }
@@ -201,8 +207,12 @@ export class Room3D {
     this.planObjs.forEach(o => { o.visible = !scan; });
     // overlays ignore depth in scan mode so the route ribbon, rings and cane are never buried in the mesh floor
     const over = [...this.routeMeshes, this.hi, this.ringGrp, this.wedgeM, this.coneM, this.rayM, this.cane];
-    over.forEach(o => o.traverse(x => { const mm = x as THREE.Mesh; if (!mm.isMesh) return; (mm.material as THREE.Material).depthTest = !scan; mm.renderOrder = scan ? 5 : 0; }));
-    this.pins.forEach(p => p.grp.traverse(x => { const mm = x as THREE.Mesh; if (mm.isMesh && !(x as THREE.Sprite).isSprite) { (mm.material as THREE.Material).depthTest = !scan; mm.renderOrder = scan ? 6 : 0; } }));
+    over.forEach(o => o.traverse(x => { const mm = x as THREE.Mesh; if (!mm.isMesh) return; (mm.material as THREE.Material).depthTest = !scan; mm.renderOrder = scan ? (mm.userData.casing ? 4 : 5) : 0; }));
+    // the walker is the one thing the eye must find: never buried in the mesh, always outlined
+    this.walker.traverse(x => { const mm = x as THREE.Mesh; if (!mm.isMesh) return; const mt = mm.material as THREE.Material; mt.depthTest = !scan; mt.transparent = scan; mt.needsUpdate = true; mm.renderOrder = scan ? (mm === this.walker.children[0] ? 8 : 9) : 0; });
+    (this.cane.material as THREE.MeshBasicMaterial).color.set(scan ? "#FFFFFF" : this.ink);
+    this.cane.scale.x = scan ? 3 : 1;
+    this.pins.forEach(p => p.grp.traverse(x => { const mm = x as THREE.Mesh; if (mm.isMesh && !(x as THREE.Sprite).isSprite) { (mm.material as THREE.Material).depthTest = !scan; mm.renderOrder = scan ? (mm.userData.halo ? 6 : 7) : 0; } }));
   }
 
   /** Bounding box (three coordinates) of the walls, obstacles and the entrance: what the top view must frame. */
@@ -314,14 +324,18 @@ export class Room3D {
     stem.position.y = dest ? 0.95 : 0.75;
     const head = new THREE.Mesh(new THREE.SphereGeometry(dest ? 0.2 : 0.14, 20, 14), new THREE.MeshBasicMaterial({ color: col }));
     head.position.y = dest ? 1.95 : 1.55;
+    const hr = dest ? 0.2 : 0.14, hh = new THREE.Mesh(new THREE.SphereGeometry(hr * 1.3, 20, 14), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    hh.position.y = head.position.y; hh.userData.halo = true;
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 40), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
     const label = labelSprite(shownName(l) + (dest ? " (destination)" : ""), this.ink);
     label.position.y = dest ? 2.45 : 2.0;
-    full.add(stem, head, ring, label);
+    full.add(hh, stem, head, ring, label);
     // quiet state: one small dot at head height, no stem, no label
     const dot = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 8), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8 }));
     dot.position.y = 0.9;
+    const dh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 }));
+    dh.userData.halo = true; dot.add(dh);
     grp.add(full, dot);
     const [x, , z] = toThree(l.pos);
     grp.position.set(x, 0, z);
@@ -362,6 +376,9 @@ export class Room3D {
       const mid: Vec2 = [(s.start[0] + s.end[0]) / 2, (s.start[1] + s.end[1]) / 2];
       const [x, , z] = toThree(mid);
       m.position.set(x, 0.03, z);
+      // white casing: keeps the blue ribbon readable over a busy photographic floor
+      const edge = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.02, Math.max(0.05, len) + 0.12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 }));
+      edge.position.y = -0.005; edge.userData.casing = true; m.add(edge);
       m.rotation.y = headingToYaw(Math.atan2(s.end[0] - s.start[0], s.end[1] - s.start[1]) * 180 / Math.PI);
       this.scene.add(m); this.routeMeshes.push(m);
     }

@@ -216,10 +216,17 @@ export class Cockpit {
       this.fitStage();
       this.doc.querySelectorAll("[data-view]").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
     }));
-    // [ ] and \ are free keys; the stage keeps every other binding
+    // [ ] and \ switch views, / toggles Real scan and Plan; the stage keeps every other binding. F6 also reaches the buttons.
     this.doc.addEventListener("keydown", e => {
+      if (e.ctrlKey || e.metaKey || e.altKey || (e.target as Element | null)?.closest?.("input, textarea, select")) return;
+      if (e.key === "/") {
+        e.preventDefault();
+        const to = this.room?.sceneMode === "scan" ? "plan" : "scan";
+        this.doc.querySelector<HTMLButtonElement>(`[data-scene="${to}"]`)?.click();
+        return;
+      }
       const v = ({ "[": "behind", "]": "top", "\\": "orbit" } as Record<string, ViewMode>)[e.key];
-      if (!v || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!v) return;
       this.doc.querySelector<HTMLButtonElement>(`[data-view="${v}"]`)?.click();
     });
   }

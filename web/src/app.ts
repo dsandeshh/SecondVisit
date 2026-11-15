@@ -302,6 +302,7 @@ export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, s
   }
   const regions: [string, () => HTMLElement | null][] = [
     ["Top bar.", () => tab ?? null], ["Rehearsal.", () => stage],
+    ["3D view. Space picks a button. Escape returns.", () => doc.querySelector<HTMLElement>(".room3d-bar button:not(:disabled)[aria-pressed=true]") ?? doc.querySelector<HTMLElement>(".room3d-bar button:not(:disabled)")],
     ["", () => doc.querySelector<HTMLElement>(".objects__scroll")],                           // objects list and the add form
     ["Keys.", () => doc.querySelector<HTMLElement>("#keys-panel > summary")],
     ["Agent and data.", () => doc.querySelector<HTMLElement>("#data-panel > summary")],
@@ -309,8 +310,11 @@ export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, s
   doc.addEventListener("keydown", e => {
     if (e.key !== "F6") return;
     e.preventDefault();
-    const at = regions.findIndex(([, f]) => { const el = f(); return !!el && (el === doc.activeElement || el.contains(doc.activeElement)); });
-    const n = regions.length, i = ((at < 0 ? 0 : at + (e.shiftKey ? -1 : 1)) + n) % n;
+    const inside = regions.map(([, f]) => { const el = f(); return !!el && (el === doc.activeElement || el.contains(doc.activeElement)); });
+    const at = inside.lastIndexOf(true);   // the 3D bar sits inside the stage: the most specific (last) region wins
+    const n = regions.length, dir = e.shiftKey ? -1 : 1;
+    let i = ((at < 0 ? 0 : at + dir) + n) % n;
+    for (let k = 0; k < n && !regions[i][1](); k++) i = (i + dir + n) % n;   // skip a region this page does not have (the 3D bar on a phone)
     const [name, f] = regions[i];
     f()?.focus();
     speech.stop();
