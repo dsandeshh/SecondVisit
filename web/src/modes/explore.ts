@@ -5,12 +5,13 @@ import { AUTO_SWEEP_MS, autoSweep, sweepContact, TapGate } from "../audio/cane";
 import { ContinuousSounds } from "../audio/continuous";
 import type { AudioEngine } from "../audio/engine";
 import { pulse, PULSE } from "../audio/haptics";
+import { HeadingSmoother } from "../audio/heading_smooth";
 import { LandmarkSounds } from "../audio/landmarks";
 import { RATE_MAX, RATE_MIN, type Speech } from "../audio/speech";
 import type { KeyActions } from "../input/keyboard";
 import { spokenOf } from "../names";
 import type { Entrance, Landmark, Vec2 } from "../types";
-import { bearing, dist, Traveller, wrap180, type World } from "../world";
+import { bearing, dist, Traveller, wrap180, wrap360, type World } from "../world";
 import { HesitationTimer } from "./hesitation";
 import { Interact } from "./interact";
 import { echoSeconds } from "./rooms";
@@ -59,6 +60,14 @@ export class Explore implements KeyActions {
   private sounds: LandmarkSounds | null = null;
   /** The two continuous sounds: the target beacon and the obstacle proximity tick. */
   readonly cont: ContinuousSounds;
+  /** The ear's heading: glides to each stepped turn over 150 ms (the logical heading stays stepped). */
+  readonly earTurn = new HeadingSmoother();
+  /** The walker's position with the smoothed ear heading (what the beacon and the audio listener follow). */
+  ear(): { pos: Vec2; heading: number } {
+    const h = this.traveller.heading;
+    if (this.earTurn.target !== wrap360(h)) this.earTurn.snap(h);   // the heading was set some other way: no glide
+    return { pos: this.traveller.pos, heading: this.earTurn.at(this.now()) };
+  }
   private now: () => number;
   clock(): number { return this.now(); }
   logHint(): void { this.hooks.onHint?.(this.traveller); }
@@ -75,7 +84,9 @@ export class Explore implements KeyActions {
     const page = () => globalThis.document?.body?.dataset.page;
     this.cont = new ContinuousSounds(audio, world, {
       pose: () => this.traveller,
+      ear: () => this.ear(),
       target: () => this.fx.beaconAim(),
+      range: () => { const b = this.fx.beaconTarget; return b ? dist(this.traveller.pos, b.at) : Infinity; },
       live: () => this.active && !this.locked && (page() === undefined || page() === "inside"),
       rehearse: () => this._rehearse,
       onPulse: at => speech.bus.publish({ kind: "pulse", at, id: this.fx.beaconTarget?.id }),
@@ -115,6 +126,7 @@ export class Explore implements KeyActions {
   place(pos: Vec2, heading: number): void {
     this.traveller.pos = [pos[0], pos[1]];
     this.traveller.setHeading(heading);
+    this.earTurn.snap(this.traveller.heading);
     this.traveller.setCane(0);
     this.heard.clear();
     this.fx.reset();
@@ -151,6 +163,7 @@ export class Explore implements KeyActions {
 
   turn(deg: number): void {
     this.traveller.turn(deg);
+    this.earTurn.set(this.traveller.heading, this.now());
     this.moved(false);
     if (!this.probe(this.traveller.caneDeg, this.traveller.caneDeg)) this.audio.play("floor", { gain: 0.25, pan: deg < 0 ? -0.4 : 0.4 });   // a soft tick: the turn was heard even with nothing in reach
   }
@@ -158,6 +171,7 @@ export class Explore implements KeyActions {
   /** Absolute heading (phone body yaw). */
   face(h: number): void {
     this.traveller.setHeading(h);
+    this.earTurn.snap(this.traveller.heading);
     this.audio.listen(this.traveller.pos, this.traveller.heading);
   }
 
@@ -229,7 +243,7 @@ export class Explore implements KeyActions {
 
   private moved(announce = true): void {
     const t = this.traveller;
-    this.audio.listen(t.pos, t.heading);
+    this.audio.listen(t.pos, t.heading, this.ear().heading);
     const room = this.world.roomAt(t.pos);
     if (room) this.audio.echo?.setArea(room.area_m2);
     else if (this.room === null) this.audio.echo?.setArea(this.world.areaAt(t.pos)); // doorway keeps the last room

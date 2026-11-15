@@ -3,6 +3,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { HeadingSmoother } from "../audio/heading_smooth";
 import { CANE_M } from "../config";
 import { ringPoint } from "../events";
 import { spokenOf, isLowConfidence } from "../names";
@@ -96,6 +97,8 @@ export class Room3D {
   private cane: THREE.Mesh;
   private pos: Vec2 = [0, 0];
   private heading = 0;
+  /** The camera and walker turn glide over 150 ms per turn press, as the ear does (snapped with reduced motion). */
+  private turnS = new HeadingSmoother();
   private caneDeg = 0;
   private routeMeshes: THREE.Mesh[] = [];
   private seg = 0;
@@ -525,8 +528,16 @@ export class Room3D {
 
   setPose(pos: Vec2, headingDeg: number, caneDeg: number): void {
     const moved = pos[0] !== this.pos[0] || pos[1] !== this.pos[1];
-    this.pos = pos; this.heading = headingDeg; this.caneDeg = caneDeg;
+    this.pos = pos; this.caneDeg = caneDeg;
+    if (this.reduced) this.turnS.snap(headingDeg); else this.turnS.set(headingDeg, performance.now());
     if (moved) this.refreshPins();
+    this.poseHeading(this.turnS.at(performance.now()));
+  }
+
+  /** Walker, ring and cane at the (smoothed) heading; called by setPose and every frame while a turn glides. */
+  private poseHeading(headingDeg: number): void {
+    const pos = this.pos, caneDeg = this.caneDeg;
+    this.heading = headingDeg;
     const [x, , z] = toThree(pos);
     this.walker.position.set(x, 0, z);
     this.walker.rotation.y = headingToYaw(headingDeg);
@@ -730,6 +741,8 @@ export class Room3D {
     const dt = Math.min(0.1, (now - (this.last || now)) / 1000);
     this.last = now;
     if (this.view === "orbit" && !this.reduced) this.orbitA += dt * 0.25;
+    const h = this.turnS.at(performance.now());
+    if (h !== this.heading) this.poseHeading(h);
     const t = this.target();
     const k = this.reduced ? 1 : 1 - Math.exp(-dt * 4);
     this.camera.position.lerp(t.cam, k);

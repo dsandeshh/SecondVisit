@@ -240,10 +240,20 @@ export class AudioEngine {
     s.start();
   }
 
-  listen(pos: Vec2, heading: number): void {
+  /** The walker's pose (captions, ring, one shots read the stepped heading); `ear` is where the audio listener faces
+   *  (the smoothed heading mid turn), the stepped heading by default. */
+  listen(pos: Vec2, heading: number, ear = heading): void {
     if (!Number.isFinite(pos[0]) || !Number.isFinite(pos[1]) || !Number.isFinite(heading)) return;
     this.pose = { pos: [pos[0], pos[1]], heading };
     this.bus.listener = this.pose;
+    this.ear(pos, ear);
+  }
+
+  /** Only the audio listener (every animation frame while turning): the stepped pose is left alone. */
+  ear(pos: Vec2, heading: number): void {
+    if (!Number.isFinite(pos[0]) || !Number.isFinite(pos[1]) || !Number.isFinite(heading)) return;
+    this.earPose = { pos: [pos[0], pos[1]], heading };
     if (this.ctx) placeListener(this.ctx.listener, pos, heading);
   }
+  earPose: { pos: Vec2; heading: number } = { pos: [0, 0], heading: 0 };
 }
