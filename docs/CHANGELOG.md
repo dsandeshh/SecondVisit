@@ -3,6 +3,11 @@
 Contract and plan changes, newest first. Rule 2 in CLAUDE.md: any change to BuildingPackage, RunLog,
 RunPlan or PointResult is logged here in the same commit as the code.
 
+## 2026-11-14 (Sat, about 22:40): tokens copy
+
+- `web_tokens.css` (root, source) copied to `web/src/styles/tokens.css`. CLAUDE.md rule 13: copy again in
+  the same commit whenever the root file changes; `test_tokens_copy_matches_root` fails if they differ.
+
 ## 2026-11-14 (Sat, about 22:30): Apple clean layer
 
 - `docs/UI_DESIGN.md` 1.4: visitor screens (`index.html`) get no transparency or blur; the clean feel

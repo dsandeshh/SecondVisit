@@ -17,3 +17,9 @@ def test_constants_match_web():
         m = re.search(rf"export const {name}\s*=\s*([0-9.]+)", ts)
         assert m, f"{name} missing from web/src/config.ts"
         assert float(m.group(1)) == getattr(config, name), name
+
+
+def test_tokens_copy_matches_root():
+    root = Path(__file__).resolve().parents[2]
+    assert (root / "web/src/styles/tokens.css").read_bytes() == (root / "web_tokens.css").read_bytes(), (
+        "web/src/styles/tokens.css is stale: cp web_tokens.css web/src/styles/tokens.css")

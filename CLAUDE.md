@@ -59,7 +59,9 @@ another task owns, code against that task's **Interfaces** block; do not build i
     plan, stop, commit what works behind a flag, and report.
 13. **All UI follows docs/UI_DESIGN.md and web/src/styles/tokens.css; its accessibility rules and rule 7
     win over any skill's taste.** `web_tokens.css` at the repo root is the source of truth for the tokens;
-    `web/src/styles/tokens.css` is its copy, imported first in every entry file.
+    `web/src/styles/tokens.css` is its copy, imported first in every entry file. Whenever the root file
+    changes, copy it again in the same commit (`cp web_tokens.css web/src/styles/tokens.css`); the engine
+    smoke test fails if the two differ.
 
 ## Repo layout
 

@@ -1,0 +1,380 @@
+/*
+ * SecondVisit design tokens (web_tokens.css)
+ * Direction: wayfinding signage meets clinical record.
+ * Spec and reasons: docs/UI_DESIGN.md. Copy this file to web/src/styles/tokens.css
+ * and import it first from every entry (main.ts, observer.ts, venue.ts, pick.ts).
+ *
+ * Font loading (pick ONE, A is the default because the demo must not depend on venue wifi):
+ *   A. Self hosted, offline safe (Fontsource packages the Google Fonts files, OFL 1.1):
+ *        npm i @fontsource-variable/atkinson-hyperlegible-next @fontsource-variable/atkinson-hyperlegible-mono
+ *        // first lines of every entry .ts file:
+ *        import "@fontsource-variable/atkinson-hyperlegible-next/wght.css"; // upright only, 200..800
+ *        import "@fontsource-variable/atkinson-hyperlegible-mono/wght.css"; // trace panel and operator panel only
+ *        import "./styles/tokens.css";
+ *   B. Google Fonts CDN, in the <head> of each html file:
+ *        <link rel="preconnect" href="https://fonts.googleapis.com">
+ *        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ *        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400..600&family=Atkinson+Hyperlegible+Next:wght@200..800&display=swap">
+ *
+ * Contrast values in comments are WCAG 2 ratios computed for these exact hex values.
+ * Every text pair is 7:1 or better (AAA) unless the comment says otherwise.
+ */
+
+@layer tokens, base;
+
+@layer tokens {
+  :root {
+    color-scheme: light;
+
+    /* ---------- Type families ---------- */
+    --font-sans: "Atkinson Hyperlegible Next Variable", "Atkinson Hyperlegible Next",
+      "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --font-mono: "Atkinson Hyperlegible Mono Variable", "Atkinson Hyperlegible Mono",
+      ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    /* ---------- Weights (variable axis 200..800) ---------- */
+    --fw-body: 430;       /* a touch heavier than 400 for low vision, still reads as regular */
+    --fw-medium: 560;
+    --fw-bold: 720;
+    --fw-heavy: 800;      /* sign panel line and the Step label only */
+
+    /* ---------- Type scale: app screens (phone to laptop) ----------
+       Fluid only between 360 and 720 CSS px, fixed at the max above 720.
+       So a laptop at 200% browser zoom (720 CSS px wide) still gets exactly 2x text (WCAG 1.4.4).
+       Body 22px at laptop size is about 16.5 pt: RNIB "large print" starts at 16 pt. */
+    --fs-small: 1.125rem;                                            /* 18px, the floor for any text in the app */
+    --fs-body: clamp(1.25rem, 1.125rem + 0.556vw, 1.375rem);          /* 20 to 22px */
+    --fs-lead: clamp(1.375rem, 1.125rem + 1.111vw, 1.625rem);         /* 22 to 26px */
+    --fs-h3: 1.5rem;                                                  /* 24px */
+    --fs-h2: clamp(1.625rem, 1.125rem + 2.222vw, 2.125rem);           /* 26 to 34px */
+    --fs-h1: clamp(2rem, 1rem + 4.444vw, 3rem);                       /* 32 to 48px */
+    --fs-display: clamp(2.25rem, 0.5rem + 7.778vw, 4rem);             /* 36 to 64px, sign panel line */
+    --fs-step: clamp(3rem, 1rem + 8.889vw, 5rem);                     /* 48 to 80px, phone Step label */
+    --fs-caption: clamp(1.5rem, 0.75rem + 3.333vw, 2.25rem);          /* 24 to 36px, current spoken line */
+
+    /* ---------- Type scale: projector (observer view, read from 5 m) ----------
+       Sized in vh because the observer always fills a 16:9 screen; max() keeps a rem floor so zoom still works.
+       At 1080p: min text 32px, body 39px, caption 56px, big numbers 108px. */
+    --fs-proj-min: max(1.5rem, 3vh);
+    --fs-proj-body: max(1.75rem, 3.6vh);
+    --fs-proj-h: max(2rem, 4.4vh);
+    --fs-proj-caption: max(2.5rem, 5.2vh);
+    --fs-proj-number: max(4rem, 10vh);
+
+    --lh-body: 1.5;       /* WCAG 1.4.12 friendly; do not go below */
+    --lh-tight: 1.15;     /* headings */
+    --lh-display: 1.05;
+    --measure: 46ch;      /* APH large print guidance is 39 to 43 characters; 46ch at 22px is close */
+    --measure-wide: 64ch;
+    --tracking-body: 0.005em;
+    --tracking-display: -0.01em;
+
+    /* ---------- Space (4px base) ---------- */
+    --sp-1: 0.25rem;  /* 4 */
+    --sp-2: 0.5rem;   /* 8 */
+    --sp-3: 0.75rem;  /* 12 */
+    --sp-4: 1rem;     /* 16 */
+    --sp-5: 1.5rem;   /* 24 */
+    --sp-6: 2rem;     /* 32 */
+    --sp-7: 3rem;     /* 48 */
+    --sp-8: 4rem;     /* 64 */
+    --sp-9: 6rem;     /* 96 */
+    --gutter: clamp(1rem, 0.25rem + 3.333vw, 2rem);
+
+    /* ---------- Targets ---------- */
+    --target-min: 3rem;        /* 48px: Android 48dp, above Apple 44pt and WCAG 2.5.5 (44px) */
+    --target-comfort: 3.5rem;  /* 56px: secondary controls in rehearsal */
+    --target-primary: 4rem;    /* 64px: Start, quiz options, phone Repeat / Where am I / Recentre */
+    --target-gap: 0.5rem;      /* 8px minimum between targets (Android guidance 8dp) */
+
+    /* ---------- Shape ---------- */
+    --r-none: 0;
+    --r-chip: 2px;
+    --r-control: 6px;
+    --r-dot: 50%;
+    --bw-hair: 1px;
+    --bw-control: 2px;
+    --bw-strong: 3px;
+
+    /* ---------- Colour: light theme "paper" (default, laptop and projector) ---------- */
+    --c-paper: #F7F8F6;        /* page; cool off white, less glare than #FFF, not cream */
+    --c-surface: #FFFFFF;      /* inputs, tables, plan canvas */
+    --c-surface-2: #E9EDF0;    /* selected row, pressed secondary button */
+    --c-ink: #0F1C2A;          /* text 16.2:1 on paper, 17.2:1 on surface */
+    --c-ink-2: #434E5A;        /* secondary text 8.0:1 on paper, 7.2:1 on surface-2 */
+    --c-rule: #7C8792;         /* control borders, essential lines 3.4:1 on paper (non text, 1.4.11) */
+    --c-rule-soft: #C9D0D6;    /* decorative hairlines only, never the only boundary of a control */
+    --c-sign: #0B4F8A;         /* sign panel and primary action; white on it 8.4:1 */
+    --c-sign-strong: #083A66;  /* pressed primary; white on it 11.6:1 */
+    --c-on-sign: #FFFFFF;
+    --c-mark: #FFC629;         /* detectable warning yellow: "a person / you are here / focus". Never text on paper (1.5:1) */
+    --c-on-mark: #0F1C2A;      /* ink on mark 11.0:1 */
+    --c-good: #1B6B3A;         /* 6.1:1 on paper; always with a check shape and the word */
+    --c-bad: #B3261E;          /* 6.1:1 on paper; always with a cross shape and the word */
+    --c-caution: #8C5300;      /* 5.9:1 on paper; "possibly", low confidence notes, bold only */
+    --c-hatch: rgb(15 28 42 / 0.14);   /* simulated hatch lines */
+    --c-scrim: rgb(15 28 42 / 0.6);
+
+    /* Focus: two rings so it shows on paper AND on sign blue / navy. Inner yellow, outer ink. */
+    --focus-inner: #FFC629;
+    --focus-outer: #0F1C2A;
+    --focus-width: 3px;
+
+    /* ---------- Data colours (canvas and charts), validated with the dataviz validator ----------
+       Categorical, light surface #FFFFFF, all pairs: CVD dE >= 13, normal dE >= 15.8, contrast >= 3:1. */
+    --d-route: #2160A8;        /* route and "with changes"; 6.4:1 on white */
+    --d-glass: #008A7E;        /* glass walls and glass doors; always drawn as a double line */
+    --d-obstacle: #C45A00;     /* fixed obstacles (fill + outline), movable (dashed outline only) */
+    --d-before: #434E5A;       /* "now" / run 1: neutral graphite, the accent is kept for "after" */
+    --d-wall: #0F1C2A;
+    --d-stairs-a: #FFC629;     /* hazard hatch: yellow and ink stripes, like a real step edge marking */
+    --d-stairs-b: #0F1C2A;
+    --d-traveller: #FFC629;
+    --d-traveller-ring: #0F1C2A;
+    --d-cane-free: rgb(15 28 42 / 0.7);
+    --d-route-casing: #FFFFFF;
+    --d-plan-image-opacity: 0.35;   /* Matterport floorplan.jpg sits under the data, never competes */
+    /* Lost heatmap: one hue sequential, 4 bins, validated ordinal (monotone L, light end 2.2:1 on white).
+       Zero lost = no fill. Never a rainbow. */
+    --heat-1: #E9A04F;
+    --heat-2: #CF7426;
+    --heat-3: #A0500F;
+    --heat-4: #642A06;
+    --heat-alpha: 0.85;
+
+    /* ---------- Visitor screens: the Apple clean layer (docs/UI_DESIGN.md 1.4) ----------
+       No transparency or blur on visitor screens. The feel comes from bigger, heavier titles and space. */
+    --fs-title-visitor: clamp(2.5rem, 1.5rem + 4.444vw, 3.5rem);    /* 40 to 56px, screen titles */
+    --fw-title-visitor: 800;
+    --lh-title-visitor: 1.05;
+    --tracking-title-visitor: -0.015em;
+    --sp-section: clamp(3rem, 1rem + 8.889vw, 5rem);                 /* 48 to 80px between blocks */
+
+    /* ---------- Glass: judge screens only (observer.html, venue.html), top bar and agent trace panel ----------
+       Default is SOLID. The @supports block below turns glass on; reduced transparency, more contrast and
+       forced colours turn it off again. Tint alpha 0.94 keeps every text pair at 7:1 or better over ANY
+       backdrop (worst case: white under the blue bar, black under the white panel):
+         light bar   white on rgb(11 79 138 / 0.94)    7.24:1 over white
+         light panel ink-2 on rgb(255 255 255 / 0.94)  7.42:1 over black
+         dark bar    on-sign on rgb(232 237 241 / 0.94) 12.43:1 over black
+         dark panel  ink-2 on rgb(16 42 68 / 0.94)      7.83:1 over white
+       Do not lower the alpha: 0.92 already drops the light bar to 6.9:1. */
+    --glass-alpha: 0.94;
+    --glass-blur: 16px;
+    --glass-bar-solid: var(--c-sign);
+    --glass-bar-tint: rgb(11 79 138 / 0.94);
+    --glass-bar-text: var(--c-on-sign);
+    --glass-panel-solid: var(--c-surface);
+    --glass-panel-tint: rgb(255 255 255 / 0.94);
+    --glass-panel-text: var(--c-ink);
+    --glass-border: var(--c-rule-soft);   /* 1px hairline under the bar, above the panel edge */
+    --glass-filter: none;                 /* fallback: no blur */
+    --glass-bar-bg: var(--glass-bar-solid);
+    --glass-panel-bg: var(--glass-panel-solid);
+
+    /* ---------- Motion ---------- */
+    --dur-instant: 80ms;
+    --dur-fast: 140ms;
+    --dur-base: 220ms;
+    --dur-tap: 300ms;          /* observer tap ring lifetime, matches the ObserverState prune */
+    --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+    --motion-scale: 1;         /* JS multiplies canvas animation by this; 0 under reduced motion */
+
+    /* ---------- Layers ---------- */
+    --z-base: 0;
+    --z-canvas-overlay: 10;
+    --z-sticky: 20;
+    --z-caption: 30;
+    --z-popover: 40;
+    --z-toast: 50;
+    --z-dialog: 60;
+    --z-operator: 70;
+    --z-skip: 100;
+  }
+
+  /* ---------- Dark theme "panel": the sign reversed. For light sensitive users and the phone. ----------
+     Applied by system preference unless the page pins data-theme="light" (the observer does). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --c-paper: #0A1F33;
+      --c-surface: #102A44;
+      --c-surface-2: #18385A;
+      --c-ink: #FFFFFF;          /* 16.7:1 on paper, 14.6:1 on surface, 12.0:1 on surface-2 */
+      --c-ink-2: #C5D0DA;        /* 10.7:1 on paper, 9.3:1 on surface */
+      --c-rule: #7D8B98;         /* 4.8:1 on paper */
+      --c-rule-soft: #2C4A68;
+      --c-sign: #E8EDF1;         /* primary action is a light plate on dark */
+      --c-sign-strong: #FFFFFF;
+      --c-on-sign: #0A1F33;      /* 14.2:1 */
+      --c-mark: #FFC629;         /* 10.6:1 on paper */
+      --c-on-mark: #0F1C2A;
+      --c-good: #6FCF97;         /* 8.8:1 */
+      --c-bad: #FF9E94;          /* 8.4:1 */
+      --c-caution: #F2B866;      /* 9.4:1 */
+      --c-hatch: rgb(255 255 255 / 0.16);
+      --focus-inner: #0A1F33;
+      --focus-outer: #FFC629;
+      /* dark categorical, surface #0A1F33, all pairs pass */
+      --d-route: #5A8FE0;
+      --d-glass: #12A08A;
+      --d-obstacle: #D8701F;
+      --d-before: #A9B5C0;
+      --d-wall: #FFFFFF;
+      --d-stairs-b: #0A1F33;
+      --d-traveller-ring: #0A1F33;
+      --d-cane-free: rgb(255 255 255 / 0.75);
+      --d-route-casing: #0A1F33;
+      --glass-bar-tint: rgb(232 237 241 / 0.94);   /* dark sign is a light plate */
+      --glass-panel-tint: rgb(16 42 68 / 0.94);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --c-paper: #0A1F33;
+    --c-surface: #102A44;
+    --c-surface-2: #18385A;
+    --c-ink: #FFFFFF;
+    --c-ink-2: #C5D0DA;
+    --c-rule: #7D8B98;
+    --c-rule-soft: #2C4A68;
+    --c-sign: #E8EDF1;
+    --c-sign-strong: #FFFFFF;
+    --c-on-sign: #0A1F33;
+    --c-mark: #FFC629;
+    --c-on-mark: #0F1C2A;
+    --c-good: #6FCF97;
+    --c-bad: #FF9E94;
+    --c-caution: #F2B866;
+    --c-hatch: rgb(255 255 255 / 0.16);
+    --focus-inner: #0A1F33;
+    --focus-outer: #FFC629;
+    --d-route: #5A8FE0;
+    --d-glass: #12A08A;
+    --d-obstacle: #D8701F;
+    --d-before: #A9B5C0;
+    --d-wall: #FFFFFF;
+    --d-stairs-b: #0A1F33;
+    --d-traveller-ring: #0A1F33;
+    --d-cane-free: rgb(255 255 255 / 0.75);
+    --d-route-casing: #0A1F33;
+    --glass-bar-tint: rgb(232 237 241 / 0.94);
+    --glass-panel-tint: rgb(16 42 68 / 0.94);
+  }
+
+  /* ---------- Glass on: only where the browser can blur ---------- */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root {
+      --glass-filter: blur(var(--glass-blur));
+      --glass-bar-bg: var(--glass-bar-tint);
+      --glass-panel-bg: var(--glass-panel-tint);
+    }
+  }
+
+  /* ---------- Glass off again: reduced transparency (macOS Reduce transparency) ---------- */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --glass-filter: none;
+      --glass-bar-bg: var(--glass-bar-solid);
+      --glass-panel-bg: var(--glass-panel-solid);
+    }
+  }
+
+  /* ---------- More contrast (macOS Increase Contrast, Windows contrast themes report "more") ---------- */
+  @media (prefers-contrast: more) {
+    :root {
+      --c-ink-2: var(--c-ink);
+      --c-rule: var(--c-ink);
+      --c-rule-soft: var(--c-rule);
+      --bw-control: 3px;
+      --fw-body: 480;
+      --focus-width: 4px;
+      --d-plan-image-opacity: 0.2;
+      --glass-filter: none;              /* glass off: solid fills only */
+      --glass-bar-bg: var(--glass-bar-solid);
+      --glass-panel-bg: var(--glass-panel-solid);
+    }
+  }
+
+  /* ---------- Reduced motion ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --dur-instant: 0ms;
+      --dur-fast: 0ms;
+      --dur-base: 0ms;
+      --motion-scale: 0;   /* canvas: tap rings drawn static for --dur-tap, no growth, no trail easing */
+    }
+  }
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html {
+    font-family: var(--font-sans);
+    font-size: 100%;                 /* never override the user's default size */
+    font-weight: var(--fw-body);
+    line-height: var(--lh-body);
+    letter-spacing: var(--tracking-body);
+    font-variant-numeric: tabular-nums;   /* Atkinson Hyperlegible Next has tnum: numbers line up everywhere */
+    color: var(--c-ink);
+    background: var(--c-paper);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body { margin: 0; font-size: var(--fs-body); }
+
+  h1, h2, h3 { line-height: var(--lh-tight); font-weight: var(--fw-bold); margin: 0 0 var(--sp-4); }
+  h1 { font-size: var(--fs-h1); }
+  h2 { font-size: var(--fs-h2); }
+  h3 { font-size: var(--fs-h3); }
+  p, li { max-width: var(--measure); }
+  em, i { font-style: normal; font-weight: var(--fw-bold); }   /* no italics (APH): emphasis is weight */
+  a { color: inherit; text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
+
+  /* One focus style for everything. Two rings: visible on paper, on sign blue and on navy. */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: var(--focus-width) solid var(--focus-outer);
+    outline-offset: var(--focus-width);
+    box-shadow: 0 0 0 var(--focus-width) var(--focus-inner);
+  }
+  /* The rehearsal stage keeps a focus ring too: a blind user's sighted helper needs to see it. */
+  [role="application"]:focus-visible { outline-offset: calc(-1 * var(--focus-width) * 2); }
+
+  /* Glass: judge screens only. Use exactly these two classes; never add backdrop-filter elsewhere. */
+  .glass-bar, .glass-panel {
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+  .glass-bar { background: var(--glass-bar-bg); color: var(--glass-bar-text); border-bottom: var(--bw-hair) solid var(--glass-border); }
+  .glass-panel { background: var(--glass-panel-bg); color: var(--glass-panel-text); border: var(--bw-hair) solid var(--glass-border); }
+
+  /* Visually hidden but read by screen readers */
+  .sr-only {
+    position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+  }
+  .skip-link {
+    position: absolute; left: var(--sp-4); top: -100px; z-index: var(--z-skip);
+    background: var(--c-mark); color: var(--c-on-mark); padding: var(--sp-3) var(--sp-4);
+    font-weight: var(--fw-bold); border-radius: var(--r-control);
+  }
+  .skip-link:focus { top: var(--sp-4); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+    }
+  }
+
+  /* Windows High Contrast / forced colours: let the system palette win, keep shapes and borders. */
+  @media (forced-colors: active) {
+    :focus-visible { outline: 3px solid Highlight; box-shadow: none; }
+    .chip, .tag, .btn, .quiz-option, .step-button { border: 2px solid ButtonText; forced-color-adjust: auto; }
+    .tag--simulated { background: none; border-style: double; }
+    canvas { forced-color-adjust: none; }
+    .glass-bar, .glass-panel { -webkit-backdrop-filter: none; backdrop-filter: none; background: Canvas; color: CanvasText; }   /* the plan keeps its validated palette; legend text still adapts */
+  }
+}
