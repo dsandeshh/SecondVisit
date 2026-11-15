@@ -302,6 +302,7 @@ export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, s
   }
   const regions: [string, () => HTMLElement | null][] = [
     ["Top bar.", () => tab ?? null], ["Rehearsal.", () => stage],
+    ["", () => doc.querySelector<HTMLElement>(".objects__scroll")],                           // objects list and the add form
     ["Keys.", () => doc.querySelector<HTMLElement>("#keys-panel > summary")],
     ["Agent and data.", () => doc.querySelector<HTMLElement>("#data-panel > summary")],
   ];
@@ -313,7 +314,7 @@ export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, s
     const [name, f] = regions[i];
     f()?.focus();
     speech.stop();
-    speech.say(name, 2);
+    if (name) speech.say(name, 2);
   });
   void session;
 }
