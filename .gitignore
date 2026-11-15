@@ -244,3 +244,4 @@ traces/
 *.obj
 *.ply
 *.zip
+data/*/grid_preview.png

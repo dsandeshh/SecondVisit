@@ -1,0 +1,38 @@
+{
+  "_note": "Invented fixture in the Matterport rooms.json shape: 6 m x 4 m room, four 0.16 m walls, 1.0 m gap in the south wall (x 2.5 to 3.5), one pano at (3, 2).",
+  "model": {
+    "floors": [
+      {
+        "id": "f1",
+        "label": "Floor 1",
+        "sequence": 0,
+        "vertices": [
+          {"id": "v0", "position": {"x": 0.0, "y": 0.0}},
+          {"id": "v1", "position": {"x": 2.5, "y": 0.0}},
+          {"id": "v2", "position": {"x": 3.5, "y": 0.0}},
+          {"id": "v3", "position": {"x": 6.0, "y": 0.0}},
+          {"id": "v4", "position": {"x": 6.0, "y": 4.0}},
+          {"id": "v5", "position": {"x": 0.0, "y": 4.0}}
+        ],
+        "edges": [
+          {"id": "e_s1", "type": "wall", "thickness": 0.16, "vertices": [{"id": "v0"}, {"id": "v1"}]},
+          {"id": "e_s2", "type": "wall", "thickness": 0.16, "vertices": [{"id": "v2"}, {"id": "v3"}]},
+          {"id": "e_e", "type": "wall", "thickness": 0.16, "vertices": [{"id": "v3"}, {"id": "v4"}]},
+          {"id": "e_n", "type": "wall", "thickness": 0.16, "vertices": [{"id": "v4"}, {"id": "v5"}]},
+          {"id": "e_w", "type": "wall", "thickness": 0.16, "vertices": [{"id": "v5"}, {"id": "v0"}]}
+        ]
+      }
+    ],
+    "rooms": [
+      {
+        "id": "room_a",
+        "floor": {"id": "f1"},
+        "classifications": [{"label": "Other", "confidence": 1.0}],
+        "boundary": {"edges": [{"id": "e_s1"}, {"id": "e_s2"}, {"id": "e_e"}, {"id": "e_n"}, {"id": "e_w"}]}
+      }
+    ],
+    "panoLocations": [
+      {"id": "p0", "label": "0", "position": {"x": 3.0, "y": 2.0, "z": 1.3}}
+    ]
+  }
+}
