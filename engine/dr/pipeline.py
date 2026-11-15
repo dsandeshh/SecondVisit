@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 from scipy.ndimage import label
 
-from dr import instructions
+from dr import instructions, names, voice_lines
 from dr.grid import OccGrid
 from dr.mp_import import DATA, build_from_matterport, load_overrides, second_destination
 from dr.mp_client import ROOT
@@ -87,6 +87,7 @@ def merge_landmarks(pkg: BuildingPackage, sid: str, data_root: Path = DATA) -> N
             lms[lid].label = label
             pkg.prov[f"landmark:{lid}.label"] = Prov(src="hand", ref="overrides.json label_overrides", at=now)
     pkg.landmarks = list(lms.values())
+    names.fill_spoken(pkg.landmarks)
 
 
 def add_route(pkg: BuildingPackage, from_id: str | None = None, to_id: str | None = None,
@@ -207,6 +208,7 @@ def build_package(sid: str, from_id: str | None = None, to_id: str | None = None
     missing = copy_floorplan(sid, web_root, data_root)
     if len(missing) < 2:
         pkg.notes.append("floor plan files missing: viewers show 'Floor plan not available'")
+    voice_lines.add_voice_lines(pkg)
     return pkg
 
 

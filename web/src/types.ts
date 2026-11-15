@@ -21,6 +21,7 @@ export type LandmarkKind = "desk" | "elevator" | "stairs" | "door" | "glass_door
 
 export interface Landmark {
   id: string; kind: LandmarkKind; label: string; pos: Vec2; confidence: number; fixed: boolean;
+  spoken?: string | null; // short spoken name, 1 to 4 words; label stays the full text
 }
 
 export interface Entrance { id: string; label: string; pos: Vec2; heading_deg: number; }
@@ -85,6 +86,8 @@ export interface Frames {
   geo_anchor: GeoAnchor | null;
 }
 
+export interface VoiceLine { text: string; id: string; } // id = sha1 of text trimmed with single spaces, first 12 hex chars
+
 export interface BuildingPackage {
   version: 1;
   id: string;
@@ -105,6 +108,7 @@ export interface BuildingPackage {
   prov: Record<string, Prov>;
   frames: Frames;
   map_date: string;
+  voice_lines?: VoiceLine[]; // sorted unique lines to pre-render (engine/dr/voice_lines.py)
   costar?: Record<string, unknown>; // R9: CoStar summary (property scalars, names, frontage[]), {} if absent
 }
 

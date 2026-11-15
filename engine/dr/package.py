@@ -42,6 +42,7 @@ class Landmark(BaseModel):
     pos: Vec2
     confidence: float
     fixed: bool
+    spoken: str | None = None  # short spoken name (1 to 4 words), derived by code from label; see dr/names.py
 
 
 class Entrance(BaseModel):
@@ -170,6 +171,11 @@ class Frames(BaseModel):
     geo_anchor: GeoAnchor | None = None
 
 
+class VoiceLine(BaseModel):
+    text: str
+    id: str  # sha1(" ".join(text.split()).encode())[:12]
+
+
 class BuildingPackage(BaseModel):
     version: Literal[1] = 1
     id: str
@@ -190,6 +196,7 @@ class BuildingPackage(BaseModel):
     prov: dict[str, Prov] = Field(default_factory=dict)
     frames: Frames = Field(default_factory=Frames)
     map_date: str = ""
+    voice_lines: list[VoiceLine] = Field(default_factory=list)  # every line known at build time, for pre-rendering
     costar: dict = Field(default_factory=dict)  # R9: {"property": {...scalars, names, frontage[]}, "tenant_count": n}; empty if no cache
 
 

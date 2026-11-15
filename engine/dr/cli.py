@@ -14,6 +14,9 @@ def _build(a: argparse.Namespace) -> int:
         pipeline.add_route(pkg, a.from_id, a.to_id, a.clearance, a.drop_specks)
         if a.sim:
             pipeline.run_sim(pkg, a.sim)
+        from dr import names, voice_lines
+        names.fill_spoken(pkg.landmarks)
+        voice_lines.add_voice_lines(pkg)
     else:
         if not a.model:
             raise SystemExit("--model SID is required for --source matterport")
