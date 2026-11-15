@@ -154,7 +154,7 @@ def build_light(sid: str, data_root: Path = probe.DATA, client=None) -> Building
 def _no_route_errors() -> tuple[type[Exception], ...]:
     try:
         from dr.planner import NoRouteError as E
-        return (E,)
+        return (E, NoRouteError)
     except ImportError:  # Task 4 not landed: only the local marker is recognised
         return (NoRouteError,)
 
