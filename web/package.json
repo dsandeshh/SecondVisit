@@ -18,6 +18,7 @@
     "vitest": "2.1.5"
   },
   "dependencies": {
+    "kokoro-js": "1.2.1",
     "three": "0.170.0"
   }
 }
