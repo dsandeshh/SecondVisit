@@ -76,3 +76,4 @@ CoStar kit is a local zip and the join to property 5615020 works. A second model
   rule 9 says sponsor data and anything derived from it never goes into git, a public demo or a public
   link. The Showcase SDK runs on localhost only (note under Commands).
 - DESIGN.md data table: room labels come from the annotator; defurnished view only when present.
+- Task 5: segments (Douglas Peucker, wall side, landmarks) and score_route landed.
