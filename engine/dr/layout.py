@@ -126,7 +126,8 @@ def _stub_sim(grid: OccGrid, route: Route, runs: int = RUNS, seed: int = 0) -> S
 
 def _defaults():
     try:
-        from dr.segments import score_route, segment
+        from dr.score import score_route
+        from dr.segments import segment
         seg_fn = segment
         score_fn = score_route
     except ImportError:
@@ -159,6 +160,7 @@ def evaluate(grid: OccGrid, entrances: list[Entrance], desk: Vec2, fixes: list[F
     Returns {score, arrival_rate, arrival_label, desk, route (the first entrance's Route),
     routes, open_m, turns}. A route that cannot be planned counts as score 0, arrival 0."""
     d_seg, d_score, d_sim, label = _defaults()
+    write = segment_fn is None and d_seg is not None   # default segmenter: write instructions like pipeline
     segment_fn, score_fn, sim_fn = segment_fn or d_seg, score_fn or d_score, sim_fn or d_sim
     if sim_fn is not d_sim:
         label = "simulated"
@@ -176,6 +178,9 @@ def evaluate(grid: OccGrid, entrances: list[Entrance], desk: Vec2, fixes: list[F
             continue
         if segment_fn and score_fn:
             segs = segment_fn(path, g, lms)
+            if write:  # the simulator's count error depends on "N steps" in the text, as in the CLI build
+                from dr import instructions
+                segs = instructions.write(segs, lms, entrances, dest="desk")
             sc = score_fn(segs, g, lms)
             score = Score(total=sc["total"], parts=ScoreParts(**sc["parts"]))
         else:

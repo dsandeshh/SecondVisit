@@ -64,3 +64,15 @@ def test_fixes_change_grid_and_plan():
     strip = layout.fix_between((1.0, 6.0), (18.0, 6.0), "tactile_strip")
     ev = layout.evaluate(g, ents, (18.5, 10.8), [strip], landmarks=[], sim_fn=_fake_sim)
     assert ev["route"].path
+
+
+def test_defaults_use_real_segmenter_scorer_and_simulator():
+    # regression: score_route was imported from dr.segments (it lives in dr.score), the ImportError was
+    # swallowed, routes had no segments and the simulator reported 0.0 arrival for every desk
+    seg_fn, score_fn, sim_fn, label = layout._defaults()
+    assert seg_fn and score_fn and label == "simulated"
+    g, ents, lms = lobby_fixture()
+    ev = layout.evaluate(g, ents, (10.0, 9.0), [], runs=100)
+    assert ev["route"].segments
+    assert ev["route"].segments[0].instruction
+    assert ev["arrival_rate"] > 0.0
