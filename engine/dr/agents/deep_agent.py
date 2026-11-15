@@ -249,7 +249,7 @@ def _hotspots(lost_b64: str, pkg, route: dict, k: int = 3) -> list[dict]:
         seg_i = min(range(len(route["segments"])),
                     key=lambda i: _dist_to_seg(p, route["segments"][i]["start"], route["segments"][i]["end"]))
         lm = min(pkg.landmarks, key=lambda l: math.dist(p, l.pos)) if pkg.landmarks else None
-        out.append({"pos": [round(p[0], 1), round(p[1], 1)], "segment": seg_i,
+        out.append({"pos": [round(float(p[0]), 1), round(float(p[1]), 1)], "segment": seg_i,
                     "near": lm.id if lm else None, "share": round(float(lost[max(0, r-5):r+6, max(0, c-5):c+6].sum() / lost.sum()), 2)})
         smooth[max(0, r-10):r+11, max(0, c-10):c+11] = 0
     return out
