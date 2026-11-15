@@ -17,6 +17,7 @@ import { floorPlanAvailable, renderSummary } from "./modes/summary";
 import type { BuildingPackage } from "./types";
 import { Cockpit } from "./ui/cockpit";
 import { World } from "./world";
+import { fullFlow, loadOutdoorHook, runFlow } from "./flow";
 
 export type App = { voice?: VoiceOut; captions?: Captions; cockpit?: Cockpit | null; audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
 
@@ -65,12 +66,12 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
     const first = [...INTRO.map(s => s.text), INTRO_READY, INTRO_SKIPPED, ...pkg.routes.flatMap(r => r.segments.map(s => s.instruction)),
       ...pkg.landmarks.map(l => spokenOf(l))];
     void store.init().then(() => store.preload([...routeLineIds(first, store), ...store.ids])).catch(() => undefined);
-    void started.then(r => enter(app, doc, r, op, store));
+    void started.then(r => enter(app, doc, r, op, store, fullFlow(params)));
   });
   return app;
 }
 
-function enter(app: App, doc: Document, r: StartReport, op: boolean, store: ClipStore): void {
+function enter(app: App, doc: Document, r: StartReport, op: boolean, store: ClipStore, full = false): void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => doc.getElementById(id) as T;
   const { audio, speech } = app;
   const pkg = app.pkg!;
@@ -91,7 +92,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     onNext: t => { $("next-action").textContent = t; },
     onIntro: t => showIntro(doc, t),
     onHold: on => { audio.hold(on); try { on ? globalThis.speechSynthesis?.pause() : globalThis.speechSynthesis?.resume(); } catch { /* none */ } },
-    onLeave: () => { const tab = doc.querySelector<HTMLElement>("#steps-list li span"); tab?.focus(); },
+    onLeave: () => { const tab = doc.querySelector<HTMLElement>("#steps-list li:not([data-arrive]) span"); tab?.focus(); },
     chime: () => { audio.cue("chime", { bus: "cue", gain: 1, announce: true, label: "chime" }); },
     introSeen: () => new URLSearchParams(doc.location?.search).get("intro") === "1" ? false : storedSeen(),
     introRemember: storeSeen,
@@ -100,6 +101,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   app.session = session;
 
   if (!phone) app.cockpit = new Cockpit(doc, pkg, ex, session, hooks);
+  if (full) addArriveTab(doc);
   $("home").hidden = true;
   $("rehearsal").hidden = false;
   $("topline").hidden = false;
@@ -115,7 +117,8 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   }
 
   const stage = $("stage");
-  attachKeys(stage, session);
+  const attach = () => attachKeys(stage, session);   // in the full flow the interior keys start when the walker is inside
+  if (!full) attach();
   wireRegions(doc, stage, speech, session);
   stage.addEventListener("mousemove", (e: MouseEvent) => {
     const b = stage.getBoundingClientRect();
@@ -169,13 +172,38 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
 
   $("go").addEventListener("click", () => session.enter());
   $("go").hidden = !session.hasRoute;
-  showPhase(doc, session, "explore");
-  ex.begin();
-  // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
-  if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
-  else speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
-  audio.play(1, { pan: -1, send: 0 });
-  setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
+  const beginInterior = () => {
+    if (full) { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; stage.focus(); }
+    showPhase(doc, session, "explore");
+    ex.begin();
+    // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
+    if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
+    else speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
+    audio.play(1, { pan: -1, send: 0 });
+    setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
+  };
+  if (!full) { beginInterior(); return; }
+  // ?flow=full: Home, fly in, curb walk (outdoor hook), then the interior at pkg.entrances[0] (see flow.ts for the contract).
+  void loadOutdoorHook().then(hook => runFlow({
+    hook, pkg, stage, say: (t, p) => speech.say(t, p ?? 2), bus: speech.bus, begin: beginInterior,
+    onOutdoor: on => { doc.body.dataset.flow = on ? "arrive" : "inside"; $("room3d").hidden = on; setArriveTab(doc, on); },
+  }));
+}
+
+/** "Arrive" before Explore in the mode tabs (full flow only). */
+function addArriveTab(doc: Document): void {
+  const list = doc.getElementById("steps-list");
+  if (!list || list.querySelector("[data-arrive]")) return;
+  const li = doc.createElement("li"), span = doc.createElement("span");
+  li.dataset.arrive = "1"; span.textContent = "Arrive";
+  li.append(span); list.prepend(li);
+  doc.body.dataset.flow = "arrive";
+}
+function setArriveTab(doc: Document, on: boolean): void {
+  const span = doc.querySelector<HTMLElement>("#steps-list li[data-arrive] span");
+  if (!span) return;
+  if (on) { span.setAttribute("aria-current", "step"); span.classList.add("steps__now"); }
+  else { span.removeAttribute("aria-current"); span.classList.remove("steps__now"); }
 }
 
 const STEP_NAMES: Record<Phase, number> = { explore: 0, rehearse: 1, point: 2, quiz: 2, summary: 3 };
@@ -193,8 +221,10 @@ const GO: Partial<Record<Phase, string>> = {
 function showPhase(doc: Document, s: Session, p: Phase): void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => doc.getElementById(id) as T;
   doc.body.dataset.phase = p;
+  const off = doc.querySelector("#steps-list li[data-arrive]") ? 1 : 0;
   doc.querySelectorAll("#steps-list li").forEach((li, i) => {
-    const on = i === STEP_NAMES[p];
+    if ((li as HTMLElement).dataset.arrive) return;
+    const on = i - off === STEP_NAMES[p];
     const span = li.firstElementChild as HTMLElement;
     if (on) span.setAttribute("aria-current", "step"); else span.removeAttribute("aria-current");
     span.classList.toggle("steps__now", on);
@@ -262,7 +292,7 @@ function showIntro(doc: Document, text: string | null): void {
 
 /** The way out of the stage (WCAG 2.1.2): Escape with nothing running, or F6 / Shift+F6 to cycle regions. */
 export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, session: Session): void {
-  const tab = doc.querySelector<HTMLElement>("#steps-list li span");
+  const tab = doc.querySelector<HTMLElement>("#steps-list li:not([data-arrive]) span");
   if (tab) {
     tab.tabIndex = 0; tab.setAttribute("role", "button");
     tab.setAttribute("aria-label", "Explore. Press Enter to go back to the rehearsal.");

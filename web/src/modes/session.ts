@@ -56,6 +56,7 @@ export class Session implements KeyActions {
   private pointed = false;
   private held = false;
   private introEsc = false;
+  private introDone = false;
   private lastNext = "";
   private bumps = new BumpWatcher();
   readonly intro: Intro;
@@ -92,7 +93,7 @@ export class Session implements KeyActions {
   private pub(m: ObsMsg) { try { this.deps.publish?.(m); } catch { /* */ } }
   private say(t: string, p: Priority = 2) { this.speech.say(t, p); }
 
-  private setPhase(p: Phase) { this.phase = p; this.deps.onPhase?.(p); this.refreshNext(); }
+  private setPhase(p: Phase) { this.phase = p; this.deps.onIntro?.(null); this.deps.onPhase?.(p); this.refreshNext(); }
 
   private get goal(): Landmark | null {
     const r = this.route;
@@ -347,7 +348,8 @@ export class Session implements KeyActions {
   /** Any key interrupts speech (CLAUDE.md rule 7), then resumes a paused AudioContext. */
   any(key?: string): void {
     this.speech.stop();
-    if (key !== undefined && this.intro.active) this.introEsc = this.intro.key(key) === "skip";
+    if (key !== undefined && this.intro.active) { this.introEsc = this.intro.key(key) === "skip"; if (!this.intro.active) this.introDone = true; }
+    else if (this.introDone) { this.introDone = false; this.deps.onIntro?.(null); }   // the closing prompt stays until the next key
     queueMicrotask(() => this.refreshNext());
     if (key !== undefined && !key.startsWith("Arrow")) this.ex.fx.cancel();   // walking keeps a sweep going
     this.ex.any(key);
