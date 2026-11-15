@@ -201,7 +201,7 @@ describe.skipIf(!hasClinic)("the continuous hum along the lab door -> main entra
     ex.fx.beaconAim = () => (aimed = aimOf() as [number, number] | null);
     ctx.currentTime = 0; c.tick();
     const v = (c as any).beacon;
-    expect(c.humStarts).toBe(8);    // five partials, the noise, the wobble, the on axis click: each started once
+    expect(c.humStarts).toBe(6);    // three partials, the noise, the wobble, the on axis click: each started once
     let restarts = 0;
     for (const n of [...v.srcs, v.lfo, v.click.osc]) n.start = () => { restarts++; };
     const made = oscs - (c as any).prox ? 1 : 0;
@@ -226,8 +226,9 @@ describe.skipIf(!hasClinic)("the continuous hum along the lab door -> main entra
     expect(new Set(ks).size).toBeGreaterThan(1);
     for (let n = 1; n < ks.length; n++) expect(ks[n]).toBeGreaterThanOrEqual(ks[n - 1]);   // never back to one passed
     expect(dist(seen.at(-1)!, ent)).toBeLessThan(1e-6);
-    expect(restarts).toBe(0); expect(c.humStarts).toBe(8);                         // never restarted, never made again
-    expect(oscs).toBeLessThanOrEqual(9);                                             // the hum's 7 plus the obstacle tick's one
+    expect(restarts).toBe(0); expect(c.humStarts).toBe(6);                         // never restarted, never made again
+    expect(oscs).toBeLessThanOrEqual(8);                                             // the hum's 5 plus the obstacle drone's 3
+    expect(c.droneStarts).toBeLessThanOrEqual(3);                                    // the drone, if made, made and started once
     void made; void starts;
     expect((c as any).beacon).toBe(v);
   });

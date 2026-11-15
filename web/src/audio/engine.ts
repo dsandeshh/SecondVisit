@@ -22,7 +22,7 @@ export const BUS_LEVEL: Record<BusName, number> = {
   voice: 1, cue: dbToGain(-6), safety: 1, ambient: dbToGain(-18), footsteps: dbToGain(-8),
 };
 export const BUS_DUCK: Record<BusName, number> = {
-  voice: 1, cue: dbToGain(-10), safety: dbToGain(-4), ambient: dbToGain(-6), footsteps: 1,
+  voice: 1, cue: dbToGain(-12), safety: dbToGain(-4), ambient: dbToGain(-6), footsteps: 1,
 };
 const REVERB_SEND = dbToGain(-10);
 
@@ -153,7 +153,7 @@ export class AudioEngine {
   /** Speech ducks the other buses; safety (cane taps, thud) never goes below -4 dB. */
   duck(on: boolean): void {
     const c = this.ctx, b = this.buses; if (!c || !b) return;
-    (Object.keys(b) as BusName[]).forEach(k => b[k].gain.setTargetAtTime(BUS_LEVEL[k] * (on ? BUS_DUCK[k] : 1), c.currentTime, 0.02));
+    (Object.keys(b) as BusName[]).forEach(k => b[k].gain.setTargetAtTime(BUS_LEVEL[k] * (on ? BUS_DUCK[k] : 1), c.currentTime, 0.08 / 3));
   }
 
   /**

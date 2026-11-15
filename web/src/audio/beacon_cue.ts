@@ -52,19 +52,19 @@ export function pulseRate(d: number): number {
 }
 
 // ---- the continuous hum (human decision 15 Nov 06:30, replaces the pulse in Explore) ----------------------------------
-// One voice started once and kept alive: five detuned partials plus a little band-limited noise, through the HRTF panner
-// at the corner of the path aimed at. Distance is the amplitude wobble rate; aim is brightness (low-pass) and steadiness.
-/** Partials (Hz), their levels and detune (cents). */
+// One voice started once and kept alive: three nearly pure partials (a tonal G3 chord tone) plus a faint band-limited
+// sheen of noise, through the HRTF panner at the corner of the path aimed at. Distance is the amplitude wobble rate;
+// aim is brightness (low-pass) and steadiness.
+/** Partials (Hz), their levels and detune (cents, at most 2: clean, not chorused). */
 export const HUM_PARTIALS: { hz: number; level: number; cents: number }[] = [
-  { hz: 220, level: 1, cents: -4 }, { hz: 440, level: 0.6, cents: 3 }, { hz: 660, level: 0.4, cents: -2 },
-  { hz: 880, level: 0.3, cents: 5 }, { hz: 1320, level: 0.2, cents: -3 },
+  { hz: 196, level: 1, cents: -1 }, { hz: 294, level: 0.35, cents: 1.5 }, { hz: 392, level: 0.18, cents: -1 },
 ];
-/** Band-limited noise: a band-pass at 2.6 kHz, at 20 % of the hum's level. */
-export const HUM_NOISE_HZ = 2600, HUM_NOISE_Q = 2, HUM_NOISE_LEVEL = 0.2;
-/** Brightness: off axis (> 20 deg) 1.2 kHz, on axis 6 kHz (swept log-linearly 20 -> 5 deg), behind 1 kHz. */
-export const HUM_DARK_HZ = 1200, HUM_BRIGHT_HZ = 6000, HUM_BEHIND_HZ = 1000;
-/** Wobble depth (0..1 of the level): 50 % off axis, 15 % at 5 deg, 10 % on axis (nearly steady). */
-export const WOBBLE_DEPTH = 0.5, WOBBLE_NEAR_DEPTH = 0.15, WOBBLE_ON_DEPTH = 0.1;
+/** Band-limited noise: a band-pass centred at 4 kHz (Q 1.5, roughly 3-5 kHz), at 5 % of the hum's level: a faint sheen. */
+export const HUM_NOISE_HZ = 4000, HUM_NOISE_Q = 1.5, HUM_NOISE_LEVEL = 0.05;
+/** Brightness: off axis (> 20 deg) 900 Hz, on axis 7 kHz (swept log-linearly 20 -> 5 deg), behind 1 kHz. */
+export const HUM_DARK_HZ = 900, HUM_BRIGHT_HZ = 7000, HUM_BEHIND_HZ = 1000;
+/** Wobble depth (0..1 of the level): 45 % off axis, 15 % at 5 deg, 10 % on axis (nearly steady). */
+export const WOBBLE_DEPTH = 0.45, WOBBLE_NEAR_DEPTH = 0.15, WOBBLE_ON_DEPTH = 0.1;
 /** Behind: about -4 dB, the wobble 25 % slower. */
 export const HUM_BEHIND_LEVEL = 10 ** (-4 / 20), HUM_BEHIND_RATE = 0.75;
 /** On axis: one faint click per second. */

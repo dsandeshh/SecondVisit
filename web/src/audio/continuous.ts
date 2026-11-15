@@ -1,6 +1,7 @@
 // The two continuous sounds (human decision 15 Nov 04:28; the beacon a continuous hum since 06:30): a hum from the next
 // corner of the walkable path to the target (beacon_cue.humParams: wobble rate = distance, brightness = aim), and
-// an obstacle proximity tick for the nearest solid thing in the 60 degree cone ahead within 3 m. They are the only two
+// an obstacle drone (80 + 160 Hz sines under a 300 Hz low-pass, no transients) from the nearest solid thing in the
+// 60 degree cone ahead within 2.5 m, silent beyond, rising smoothly to clear at 0.5 m, a slow 4 Hz throb inside 1 m. They are the only two
 // sounds that play without a key; each has one persistent HRTF chain (outside the one shot budget) that is moved every
 // animation frame (~60 fps, a 40 ms interval as the fallback) from the walker's pose with the smoothed ear heading, so the
 // sound sweeps while the walker turns and walks. Both sit on the cue bus, so speech ducks them. The beacon's sound model
@@ -17,9 +18,14 @@ import { CLICK_HZ, CLICK_S, cueParams, heard, HUM_CLICK_LEVEL, HUM_CLICK_PER_S, 
 export const BEACON_FAR_M = 10, BEACON_NEAR_M = 2, BEACON_SLOW_HZ = 1, BEACON_FAST_HZ = 4;
 /** The beacon's panner sits this far from the walker, in the target's true direction: a steady level at any range. */
 export const BEACON_R_M = 2;
-export const BEACON_GAIN = 0.16;
-export const PROX_M = 3, PROX_HALF_DEG = 30, PROX_SLOW_HZ = 2, PROX_FAST_HZ = 9;
-export const PROX_GAIN = 0.22;
+/** The beacon: the loudest sound that is not speech. */
+export const BEACON_GAIN = 0.5;
+export const PROX_M = 2.5, PROX_HALF_DEG = 30, PROX_CLEAR_M = 0.5;
+/** The obstacle drone's peak (at 0.5 m and nearer): 6 dB under the beacon. */
+export const PROX_GAIN = BEACON_GAIN * 10 ** (-6 / 20);
+/** The drone: two sines (nothing above 200 Hz), a 300 Hz low-pass; inside 1 m its level throbs at 4 Hz. */
+export const DRONE_HZ = [80, 160], DRONE_LEVELS = [1, 0.5], DRONE_LP_HZ = 300;
+export const THROB_M = 1, THROB_HZ = 4, THROB_DEPTH = 0.5;
 export const TICK_MS = 40;
 /** Rehearse B (human decision 15 Nov): exactly this many beacon pulses from the destination, this far apart, then
  *  silence; another B is ignored until BURST_HOLD_S after the burst began, so mashing B never becomes a beacon. */
@@ -57,16 +63,19 @@ export function nearestAhead(world: World, pos: Vec2, heading: number, maxM = PR
   return best;
 }
 
-/** Proximity ticks per second: 0 (silent) beyond 3 m or with nothing ahead, rising to 9 at the face of it. */
-export function proxRate(d: number | null | undefined): number {
-  if (d === null || d === undefined || !Number.isFinite(d) || d > PROX_M) return 0;
-  return PROX_SLOW_HZ + clamp01(1 - d / PROX_M) * (PROX_FAST_HZ - PROX_SLOW_HZ);
+const smooth = (x: number) => { const k = clamp01(x); return k * k * (3 - 2 * k); };
+const far = (d: number | null | undefined): d is null | undefined => d === null || d === undefined || !Number.isFinite(d) || d > PROX_M;
+
+/** The obstacle drone's level: 0 beyond 2.5 m or with nothing ahead, rising smoothly to PROX_GAIN at 0.5 m and nearer. */
+export function proxGain(d: number | null | undefined): number {
+  if (far(d)) return 0;
+  return PROX_GAIN * smooth((PROX_M - d) / (PROX_M - PROX_CLEAR_M));
 }
 
-/** Proximity tick level: 0 beyond 3 m, a little louder as it gets nearer (still well under speech). */
-export function proxGain(d: number | null | undefined): number {
-  if (proxRate(d) === 0) return 0;
-  return PROX_GAIN * (0.5 + 0.5 * clamp01(1 - (d as number) / PROX_M));
+/** The drone's 4 Hz throb depth (0..1 of the level): 0 at 1 m and beyond, rising to THROB_DEPTH at 0.5 m. */
+export function throbDepth(d: number | null | undefined): number {
+  if (far(d) || d >= THROB_M) return 0;
+  return THROB_DEPTH * smooth((THROB_M - d) / (THROB_M - PROX_CLEAR_M));
 }
 
 export type ContinuousDeps = {
@@ -91,6 +100,10 @@ type Hum = { srcs: (OscillatorNode | AudioBufferSourceNode)[]; nodes: AudioNode[
   am: GainNode; level: GainNode; panner: PannerNode; lp: BiquadFilterNode; click: { osc: OscillatorNode; env: GainNode };
   nextClick: number; phase: number; lastT: number; at: Vec2 | null };
 
+/** The obstacle drone: made and started once, then only its level, throb and position move. */
+type Drone = { srcs: OscillatorNode[]; nodes: AudioNode[]; lfo: OscillatorNode; lfoDepth: GainNode; am: GainNode; level: GainNode;
+  panner: PannerNode; at: Vec2 | null };
+
 type Voice = { osc: OscillatorNode; env: GainNode; panner: PannerNode; lp: BiquadFilterNode; next: number;
   click?: { osc: OscillatorNode; env: GainNode } };
 
@@ -102,12 +115,11 @@ export class ContinuousSounds {
   /** A Rehearse B burst: its own voice, the destination, pulses still to schedule, when it began. */
   private burstV: Voice | null = null;
   private burstState: { at: Vec2; left: number; t0: number; last: number } | null = null;
-  private prox: Voice | null = null;
+  private prox: Drone | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private framing = false;
-  /** Counters for tests and the operator: pulses and ticks scheduled, animation frames run. */
+  /** Counters for tests and the operator: pulses scheduled, animation frames run. */
   pulses = 0;
-  ticks = 0;
   frames = 0;
   /** The cue of the last beacon pulse scheduled (null: none yet), for tests and the observer. */
   lastCue: Cue | null = null;
@@ -115,6 +127,10 @@ export class ContinuousSounds {
   lastHum: (HumParams & { az: number; d: number; at: Vec2 }) | null = null;
   /** Source nodes the hum has created and started (tests: it is made once, never restarted). */
   humStarts = 0;
+  /** Source nodes the obstacle drone has created and started (made once, never restarted). */
+  droneStarts = 0;
+  /** The drone's level, throb depth and source on the last pass (level 0: silent), for tests and the observer. */
+  lastProx: { level: number; throb: number; d: number | null; at: Vec2 | null } = { level: 0, throb: 0, d: null, at: null };
 
   constructor(private audio: AudioEngine, private world: World, private deps: ContinuousDeps) {}
 
@@ -142,13 +158,20 @@ export class ContinuousSounds {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.killHum();
-    for (const v of [this.prox, this.burstV]) this.kill(v);
+    this.killDrone();
+    this.kill(this.burstV);
     this.beacon = this.prox = this.burstV = null;
     this.burstState = null;
   }
 
   private kill(v: Voice | null): void {
     if (v) { try { v.env.gain.cancelScheduledValues?.(0); v.osc.stop(); v.osc.disconnect(); v.env.disconnect(); v.panner.disconnect(); v.lp.disconnect(); v.click?.osc.stop(); v.click?.osc.disconnect(); v.click?.env.disconnect(); } catch { /* gone */ } }
+  }
+
+  private killDrone(): void {
+    const p = this.prox;
+    if (p) { try { for (const n of [...p.srcs, p.lfo]) n.stop(); for (const n of p.nodes) n.disconnect(); } catch { /* gone */ } }
+    this.prox = null;
   }
 
   private killHum(): void {
@@ -189,30 +212,48 @@ export class ContinuousSounds {
     return true;
   }
 
-  private voice(kind: "beacon" | "prox"): Voice | null {
+  /** A Rehearse B burst voice: a sine pulse and the on axis click through one HRTF chain. */
+  private voice(): Voice | null {
     const a = this.audio, c = a.ctx, b = a.buses;
     if (!c || !b) return null;
     const osc = c.createOscillator();
     const env = c.createGain(); env.gain.value = 0;
-    const chain = spatialChain(c, a.pose.pos, a.pose, { panning: a.panning, ref: BEACON_R_M, rolloff: kind === "beacon" ? 0 : 0.6 });
-    if (kind === "beacon") { osc.type = "sine"; osc.frequency.value = 740; osc.connect(env); }
-    else {   // lower and drier: a filtered square, no reverb send
-      osc.type = "square"; osc.frequency.value = 160;
-      const f = c.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 900; f.Q.value = 0.7;
-      osc.connect(f); f.connect(env);
-    }
+    const chain = spatialChain(c, a.pose.pos, a.pose, { panning: a.panning, ref: BEACON_R_M, rolloff: 0 });
+    osc.type = "sine"; osc.frequency.value = 740; osc.connect(env);
     env.connect(chain.input);
     chain.output.connect(b.cue);
     try { osc.start(); } catch { /* fake context */ }
-    let click: Voice["click"];
-    if (kind === "beacon") {   // the on axis click: a short high sine through the same panner
-      const co = c.createOscillator(), ce = c.createGain();
-      co.type = "sine"; co.frequency.value = CLICK_HZ; ce.gain.value = 0;
-      co.connect(ce); ce.connect(chain.input);
-      try { co.start(); } catch { /* fake context */ }
-      click = { osc: co, env: ce };
-    }
-    return { osc, env, panner: chain.panner, lp: chain.output as BiquadFilterNode, next: 0, click };
+    const co = c.createOscillator(), ce = c.createGain();   // the on axis click: a short high sine through the same panner
+    co.type = "sine"; co.frequency.value = CLICK_HZ; ce.gain.value = 0;
+    co.connect(ce); ce.connect(chain.input);
+    try { co.start(); } catch { /* fake context */ }
+    return { osc, env, panner: chain.panner, lp: chain.output as BiquadFilterNode, next: 0, click: { osc: co, env: ce } };
+  }
+
+  /** The obstacle drone, built and started once: 80 + 160 Hz sines -> throb gain (a 4 Hz LFO on it) -> level ->
+   *  300 Hz low-pass -> HRTF panner (no distance roll-off: the level is ours) -> its low-pass -> the cue bus. */
+  private drone(): Drone | null {
+    const a = this.audio, c = a.ctx, b = a.buses;
+    if (!c || !b) return null;
+    const chain = spatialChain(c, a.pose.pos, a.pose, { panning: a.panning, ref: 1, rolloff: 0 });
+    const out = chain.output as BiquadFilterNode;
+    out.frequency.value = DRONE_LP_HZ;
+    const mix = c.createGain(), am = c.createGain(), level = c.createGain(), lp = c.createBiquadFilter();
+    level.gain.value = 0; am.gain.value = 1;
+    lp.type = "lowpass"; lp.frequency.value = DRONE_LP_HZ; lp.Q.value = 0.7;
+    const norm = 1 / DRONE_LEVELS.reduce((s, x) => s + x, 0);
+    const srcs: OscillatorNode[] = [], nodes: AudioNode[] = [mix, am, level, lp, chain.panner, out];
+    DRONE_HZ.forEach((hz, i) => {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = "sine"; o.frequency.value = hz; g.gain.value = DRONE_LEVELS[i] * norm;
+      o.connect(g); g.connect(mix); srcs.push(o); nodes.push(o, g);
+    });
+    const lfo = c.createOscillator(), lfoDepth = c.createGain();
+    lfo.type = "sine"; lfo.frequency.value = THROB_HZ; lfoDepth.gain.value = 0;
+    lfo.connect(lfoDepth); lfoDepth.connect(am.gain); nodes.push(lfo, lfoDepth);
+    mix.connect(am); am.connect(level); level.connect(lp); lp.connect(chain.input); out.connect(b.cue);
+    for (const n of [...srcs, lfo]) { try { n.start(); } catch { /* fake context */ } this.droneStarts++; }
+    return { srcs, nodes, lfo, lfoDepth, am, level, panner: chain.panner, at: null };
   }
 
   /** The hum, built and started once: partials and noise -> AM gain (an LFO on its gain) -> level -> HRTF panner -> low-pass. */
@@ -321,7 +362,7 @@ export class ContinuousSounds {
     const b = this.burstState;
     if (b) {
       if (b.left > 0) {
-        const v = this.burstV ?? (this.burstV = this.voice("beacon"));
+        const v = this.burstV ?? (this.burstV = this.voice());
         if (v) {
           const spot = beaconSpot(pos, b.at), az = beaconAz(pos, ear.heading, b.at);
           this.place(v, spot, az, t, cueParams(az).lpHz);
@@ -337,22 +378,22 @@ export class ContinuousSounds {
       } else if (this.burstV && t > b.last + 0.3) { this.kill(this.burstV); this.burstV = null; }
       if (b.left === 0 && !this.burstV && !this.bursting) this.burstState = null;
     }
-    // ---- proximity
+    // ---- the obstacle drone: one source, only its level, throb and position move (every change ~80 ms)
     const near = live ? nearestAhead(this.world, pos, heading) : null;
-    const rate = proxRate(near?.dist);
-    if (near && rate > 0) {
-      const v = this.prox ?? (this.prox = this.voice("prox"));
-      if (v) {
-        this.place(v, near.at, near.az, t);
-        if (v.next < t) v.next = t + 0.02;
-        const g = proxGain(near.dist);
-        while (v.next < t + LOOKAHEAD_S) {
-          const p = v.env.gain, s = v.next;
-          p.setValueAtTime(0, s); p.linearRampToValueAtTime(g, s + 0.003); p.setTargetAtTime(0, s + 0.006, 0.006);
-          this.ticks++;
-          v.next += 1 / rate;
-        }
+    const level = proxGain(near?.dist), throb = throbDepth(near?.dist);
+    const p = this.prox ?? (level > 0 ? (this.prox = this.drone()) : null);
+    if (p) {
+      if (near && level > 0) {
+        const [x, y, z] = toAudio(near.at), glide = p.at ? HUM_RAMP_TAU : 0.005;
+        p.panner.positionX.setTargetAtTime(x, t, glide);
+        p.panner.positionY.setTargetAtTime(y, t, glide);
+        p.panner.positionZ.setTargetAtTime(z, t, glide);
+        p.at = [near.at[0], near.at[1]];
       }
-    } else if (this.prox) this.prox.next = 0;
+      p.level.gain.setTargetAtTime(level, t, HUM_RAMP_TAU);
+      p.lfoDepth.gain.setTargetAtTime(throb / 2, t, HUM_RAMP_TAU);   // the gain swings 1 - depth .. 1
+      p.am.gain.setTargetAtTime(1 - throb / 2, t, HUM_RAMP_TAU);
+    }
+    this.lastProx = { level, throb, d: near?.dist ?? null, at: near?.at ?? null };
   }
 }
