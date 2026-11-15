@@ -7,6 +7,7 @@ same way to find a pre-rendered clip.
 from __future__ import annotations
 
 import hashlib
+import math
 
 from dr import names
 from dr.package import BuildingPackage, VoiceLine
@@ -27,6 +28,8 @@ FIXED_UI_LINES = [
     "Press Space to hear the instruction again.",
     "Paused. Focus lost.", "Resumed.", "Starting.",
     "Sound paused. Press Space or tap to resume.",
+    "Beacon off.", "Beacon is straight line, walls may be in the way.", "No places in this building.",
+    "Nothing within 8 metres. Try E for ahead.", "door",
     # engine.statusLine pieces and their joins
     "Sound did not start. Press Space or tap to try again.",
     "Motion on. Hold the phone flat, top edge forward. Turn your body to turn.",
@@ -39,6 +42,46 @@ _SOUND = ["Sound on.", "Sound did not start. Press Space or tap to try again."]
 _MOTION = ["Motion on. Hold the phone flat, top edge forward. Turn your body to turn.",
            "Motion not available. Use the Step button and the arrow buttons.",
            "Motion not available, use the arrow keys."]
+
+
+def _hull(pts):
+    p = sorted(set((float(x), float(y)) for x, y in pts))
+    if len(p) < 3:
+        return p
+    def cr(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+    lo, up = [], []
+    for q in p:
+        while len(lo) >= 2 and cr(lo[-2], lo[-1], q) <= 0: lo.pop()
+        lo.append(q)
+    for q in reversed(p):
+        while len(up) >= 2 and cr(up[-2], up[-1], q) <= 0: up.pop()
+        up.append(q)
+    return lo[:-1] + up[:-1]
+
+
+def room_size(polygon) -> tuple[float, float]:
+    """Minimum-area bounding rectangle, long side first; mirrors web/src/modes/rooms.ts roomSize."""
+    h = _hull(polygon)
+    if len(h) < 3:
+        return (0.0, 0.0)
+    best, area = (0.0, 0.0), float("inf")
+    for i, a in enumerate(h):
+        b = h[(i + 1) % len(h)]
+        l = math.hypot(b[0] - a[0], b[1] - a[1])
+        if l == 0:
+            continue
+        ux, uy = (b[0] - a[0]) / l, (b[1] - a[1]) / l
+        us = [(q[0] - a[0]) * ux + (q[1] - a[1]) * uy for q in h]
+        vs = [-(q[0] - a[0]) * uy + (q[1] - a[1]) * ux for q in h]
+        w, d = max(us) - min(us), max(vs) - min(vs)
+        if w * d < area:
+            area, best = w * d, (w, d)
+    return best if best[0] >= best[1] else (best[1], best[0])
+
+
+def _round(x: float) -> int:
+    return math.floor(x + 0.5)  # JS Math.round
 
 
 def normalise(text: str) -> str:
@@ -59,6 +102,10 @@ def collect(pkg: BuildingPackage) -> set[str]:
         if r.label:
             out.add(r.label)
             out.add(f"You are entering the {r.label.lower()}.")
+            l, w = room_size(r.polygon)
+            if l > 0:
+                out.add(f"About {_round(l)} by {_round(w)} metres.")
+                out.add(f"{r.label}, about {_round(l)} by {_round(w)} metres.")
     for e in pkg.entrances:
         out.add(e.label)
     spoken = {lm.id: (lm.spoken or names.spoken_name(lm.label, lm.kind)) for lm in pkg.landmarks}
