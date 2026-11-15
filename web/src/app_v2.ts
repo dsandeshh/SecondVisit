@@ -17,7 +17,7 @@ import { floorPlanAvailable, renderSummary } from "./modes/summary";
 import type { BuildingPackage } from "./types";
 import { Cockpit } from "./ui/cockpit";
 import { mountRing } from "./ui/ring";
-import { createRouter, type Page, type Router } from "./pages/router";
+import { createRouter, pageFromHash, type Page, type Router } from "./pages/router";
 import { PAGE_LINES } from "./pages/lines";
 import { FALLBACK_LINE } from "./showcase/load";
 import { loadShowcase, type ShowcaseHandle } from "./pages/showcase_hook";
@@ -29,6 +29,25 @@ import { loadOutdoorHook, runFlow } from "./flow";
 
 /** v2: the journey starts outside by default; ?flow=interior opens inside. */
 const fullFlow = (params: URLSearchParams): boolean => params.get("flow") !== "interior";
+
+/** Said and shown when something inside the rehearsal fails: the visitor stays on #/inside and keeps the keys. */
+export const OOPS_LINE = "Something went wrong. Press Escape or F6 to move on.";
+
+/** Run one risky step of the rehearsal setup; a failure is logged and handed to `onFail`, never thrown up to the router. */
+export function safely(label: string, f: () => void, onFail?: (e: unknown) => void): boolean {
+  try { f(); return true; } catch (e) { console.error(`SecondVisit: ${label} failed`, e); try { onFail?.(e); } catch { /* the fallback must not throw */ } return false; }
+}
+
+/** The documented safe state inside: #/inside, first person on the mesh, the calm note, and the line said once. */
+export function safeInside(app: App, doc: Document, line = OOPS_LINE): void {
+  const stage = doc.getElementById("stage");
+  if (stage) { stage.dataset.view = "mesh"; }
+  const n = doc.getElementById("photo-note");
+  if (n) { n.textContent = line; n.hidden = false; }
+  if (app.router && app.router.page !== "inside") app.router.go("inside", true);
+  try { app.speech.say(line, 2); } catch { /* */ }
+  (stage as HTMLElement | null)?.focus?.();
+}
 
 export type App = { router?: Router; voice?: VoiceOut; captions?: Captions; cockpit?: Cockpit | null; audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
 
@@ -56,7 +75,10 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
   const op = params.get("op") === "1";
   if (op) $("op").hidden = false;
 
-  // Hash routes: one page at a time. Before Start only Home (and the static About page) can show.
+  // Hash routes: one page at a time. Before Start only Home (and the static About page) can show: the Start press is the
+  // gesture that creates the AudioContext, so a reload on #/inside shows Home first. That reload is remembered, and
+  // Start then goes straight back to #/inside (no fly in again).
+  const resumeInside = ["inside", "check", "summary"].includes(pageFromHash(window.location.hash) ?? "");
   let started = false;
   lockScroll(doc);
   const router = createRouter(window, doc, p => (!started && p !== "home" && p !== "about" ? "home" : p), (p, prev) => onPage(app, doc, p, prev, started));
@@ -96,6 +118,7 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
     const started0 = audio.start(); // synchronous part runs inside this click
     const typed = pick ? "" : $<HTMLInputElement>("addr").value.trim();
     void (async () => {
+      try {
       if (pick && pick !== id && !(await loadId(pick))) return;
       if (typed) {   // an address that names another building loads it first (the list below the box, or the engine resolver)
         const hit = await resolveAddress(typed);
@@ -109,7 +132,13 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
         ...pkg.landmarks.map(l => spokenOf(l))];
       void store.init().then(() => store.preload([...routeLineIds(first, store), ...store.ids])).catch(() => undefined);
       started = true;
-      enter(app, doc, r, op, store, fullFlow(params), cardWanted(params));
+      enter(app, doc, r, op, store, fullFlow(params) && !resumeInside, cardWanted(params));
+     } catch (e) {
+      // Never a silent kick back to Home mid rehearsal: once started, the safe state is #/inside.
+      console.error("SecondVisit: starting the rehearsal failed", e);
+      if (started) safeInside(app, doc);
+      else { const err = $("load-error"); err.hidden = false; err.textContent = "Error: the rehearsal could not start. Reload the page and press Start again."; }
+     }
     })();
   };
   $<HTMLFormElement>("home-form").addEventListener("submit", e => { e.preventDefault(); begin(); });
@@ -145,7 +174,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   });
   app.session = session;
 
-  if (!phone) app.cockpit = new Cockpit(doc, pkg, ex, session, hooks, undefined, { view: "eye" });   // first person on the mesh, never behind
+  if (!phone) safely("the 3D view", () => { app.cockpit = new Cockpit(doc, pkg, ex, session, hooks, undefined, { view: "eye" }); });   // first person on the mesh, never behind
   $("place").textContent = pkg.name;
   $("place-short").textContent = pkg.name;
   $("status").textContent = `Sound: ${r.audio}. Motion: ${r.motion}${audio.mode === "keys" ? ", using keys" : ""}.`;
@@ -182,7 +211,8 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
       // The calm note is always visible (mountShowcase has already spoken it through `say`).
       const n = $("photo-note"); n.textContent = FALLBACK_LINE; n.hidden = false;
     };
-    void loadShowcase().then(mod => {
+    const load = (): Promise<Awaited<ReturnType<typeof loadShowcase>>> => { try { return loadShowcase(); } catch (e) { return Promise.reject(e); } };
+    void load().then(mod => {
       if (!mod) return;
       // The Showcase iframe must be laid out and visible while it connects: hidden (display:none, 0x0) or
       // visibility:hidden, Chrome never renders it and App.state never reaches PLAYING. It loads behind the opaque
@@ -256,16 +286,19 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   $("go").hidden = !session.hasRoute;
   const keycard = mountKeyCard(doc, stage, t => speech.say(t, 1), () => speech.stop());
   const beginInterior = () => {
-    if (full) { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; }
-    mountFirstPerson();
-    showPhase(doc, session, "explore", app.router);
-    ex.begin();
-    // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
-    if (card && r.audio === "running") { keycard.show(true); }   // the key card replaces the guided intro on a first visit
-    else if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
-    else speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
-    audio.play(1, { pan: -1, send: 0 });
-    setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
+    // Each step is guarded: whatever fails, the visitor lands on #/inside with the keys (never back on Home).
+    if (full) safely("interior keys", () => { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; });
+    safely("the photo view", mountFirstPerson, () => { stage.dataset.view = "mesh"; const n = $("photo-note"); n.textContent = FALLBACK_LINE; n.hidden = false; });
+    if (!safely("showing Explore", () => showPhase(doc, session, "explore", app.router))) safeInside(app, doc);
+    if (!safely("starting Explore", () => ex.begin())) { safeInside(app, doc); return; }
+    safely("the intro", () => {
+      // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
+      if (card && r.audio === "running") { keycard.show(true); }   // the key card replaces the guided intro on a first visit
+      else if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
+      else speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
+      audio.play(1, { pan: -1, send: 0 });
+      setTimeout(() => safely("the ear check", () => audio.play(1, { pan: 1, send: 0 })), 500);
+    });
   };
   if (!full) { beginInterior(); return; }
   app.router?.go("arrive", true);

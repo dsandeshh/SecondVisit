@@ -133,6 +133,7 @@ body[data-page="inside"], body[data-page="arrive"] { height: 100vh; height: 100d
 body[data-page="arrive"] .capline { display: none; }
 body[data-page="arrive"] .controls { top: var(--sp-5); bottom: auto; justify-content: flex-end; }
 body[data-page="arrive"] #help { display: none; }
+body[data-page="arrive"] .controls__gap { display: none; }   /* Pause sits top right, clear of the outdoor step count card */
 .strip__bar { display: block; height: 0.5rem; margin: var(--sp-2) 0; background: var(--c-surface-2); border: var(--bw-hair) solid var(--c-rule-soft); }
 .strip__bar > span { display: block; height: 100%; width: 0; background: var(--c-ink); }
 .about__head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: var(--sp-5); }

@@ -14,9 +14,11 @@ const showcaseMock = vi.hoisted(() => ({
   mountShowcase: vi.fn(async (_o: ShowcaseOpts): Promise<ShowcaseHandle> =>
     ({ setPose: () => undefined, stop: () => undefined, ready: true })),
 }));
+const loadMock = vi.hoisted(() => ({ load: vi.fn((): unknown => Promise.resolve(null)) }));
 vi.mock("./showcase_hook", () => ({
-  loadShowcase: async () => ({ mountShowcase: showcaseMock.mountShowcase }),
+  loadShowcase: () => loadMock.load(),
 }));
+loadMock.load.mockImplementation(async () => ({ mountShowcase: showcaseMock.mountShowcase }));
 
 const html = `<html><body data-page="home">${readFileSync(join(dirname(fileURLToPath(import.meta.url)), "shell_v2.html"), "utf8")}</body></html>`;
 
@@ -136,6 +138,61 @@ describe("index.html", () => {
     expect(document.getElementById("stage")!.dataset.view).toBe("mesh"); // still loading: the scan is in front
     expect(seen).toEqual({ hidden: false, display: "block", visibility: "visible" });
     css.remove();
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("#/inside never falls back to #/home on an error", () => {
+  const start = async (q: string, hash = "#/home") => {
+    window.location.hash = hash;
+    await new Promise(r => setTimeout(r, 0));   // let the hashchange land before this boot (earlier apps share the window)
+    load();
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => fixturePkg() })));
+    const app = await boot(document, new URLSearchParams(q));
+    return app;
+  };
+  it("the showcase module loader throwing at once still lands on #/inside, first person on the mesh", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    loadMock.load.mockImplementationOnce(() => { throw new Error("boom: chunk failed"); });
+    await start("b=fixture&flow=interior");
+    document.getElementById("start")!.click();
+    await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
+    await new Promise(r => setTimeout(r, 50));
+    expect(document.body.dataset.page).toBe("inside");
+    expect(window.location.hash).toBe("#/inside");
+    expect(document.getElementById("stage")!.dataset.view).toBe("mesh");
+    expect(document.getElementById("photo-note")!.hidden).toBe(false);
+    expect(err).toHaveBeenCalled();
+    err.mockRestore(); vi.unstubAllGlobals();
+  });
+  it("mountShowcase throwing synchronously is the same calm fallback, never home", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    showcaseMock.mountShowcase.mockImplementationOnce(() => { throw new Error("boom: sdk"); });
+    await start("b=fixture&flow=interior");
+    document.getElementById("start")!.click();
+    await vi.waitFor(() => expect(document.getElementById("photo-note")!.hidden).toBe(false));
+    expect(document.body.dataset.page).toBe("inside");
+    expect(document.getElementById("stage")!.dataset.view).toBe("mesh");
+    err.mockRestore(); vi.unstubAllGlobals();
+  });
+  it("an error starting the session still leaves the visitor on #/inside with a way out", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const app = await start("b=fixture&flow=interior");
+    app.audio.play = (() => { throw new Error("boom: audio"); }) as never;
+    document.getElementById("start")!.click();
+    await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
+    await new Promise(r => setTimeout(r, 50));
+    expect(window.location.hash).toBe("#/inside");
+    err.mockRestore(); vi.unstubAllGlobals();
+  });
+  it("a reload on #/inside shows Home (Start is the audio gesture), then Start goes straight back inside, no fly in", async () => {
+    await start("b=fixture", "#/inside");   // the full flow by default: without the reload it would go to #/arrive
+    expect(document.body.dataset.page).toBe("home");
+    document.getElementById("start")!.click();
+    await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
+    expect(window.location.hash).toBe("#/inside");
+    expect(document.body.dataset.flow).toBeUndefined();   // the outdoor walk never ran
     vi.unstubAllGlobals();
   });
 });

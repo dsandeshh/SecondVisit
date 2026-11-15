@@ -41,15 +41,18 @@ export async function loadOutdoorHook(): Promise<OutdoorModule | null> {
 export async function runFlow(o: { hook: OutdoorModule | null; pkg: BuildingPackage; stage: HTMLElement; say: OutdoorOpts["say"]; bus: CueBus; audio?: unknown; begin: () => void; onOutdoor?: (on: boolean) => void }): Promise<"outdoor" | "interior"> {
   if (!o.hook) { o.begin(); return "interior"; }
   let inside = false;
-  const onInside = () => { if (inside) return; inside = true; o.onOutdoor?.(false); o.begin(); };
+  // begin() is guarded here too: an error starting the interior is logged, never thrown into the outdoor walk.
+  const begin = () => { try { o.begin(); } catch (e) { console.error("SecondVisit: starting the interior failed", e); } };
+  const onInside = () => { if (inside) return; inside = true; o.onOutdoor?.(false); begin(); };
   try {
     o.onOutdoor?.(true);
     const h: any = await o.hook.startOutdoor({ pkg: o.pkg, stage: o.stage, say: o.say, bus: o.bus, audio: o.audio, onInside });
     if (h && typeof h === "object" && "onInside" in h) h.onInside = onInside;
     return "outdoor";
-  } catch {
+  } catch (e) {
+    console.error("SecondVisit: the outdoor walk could not start; going inside", e);
     o.onOutdoor?.(false);
-    if (!inside) { inside = true; o.begin(); }
+    if (!inside) { inside = true; begin(); }
     return "interior";
   }
 }

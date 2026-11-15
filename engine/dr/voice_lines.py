@@ -68,6 +68,8 @@ FIXED_UI_LINES = [
     "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. P: pause. Plus and minus: speech speed. F6: move between parts of the page.",
     # Showcase photo view fallback (web/src/showcase/load.ts FALLBACK_LINE)
     "Photo view needs internet; showing the scan.",
+    # #/inside safe state after a setup error (web/src/app_v2.ts OOPS_LINE)
+    "Something went wrong. Press Escape or F6 to move on.",
 ]
 _SOUND = ["Sound on.", "Sound did not start. Press Space or tap to try again."]
 _MOTION = ["Motion on. Hold the phone flat, top edge forward. Turn your body to turn.",
