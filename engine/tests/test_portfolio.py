@@ -106,3 +106,29 @@ def test_pick_candidates(tmp_path):
     p = tmp_path / "i.csv"
     p.write_text(hdr + "\n".join(rows) + "\n")
     assert [r["sid"] for r in pick_candidates(p, "Houston", 5)] == ["b", "a"]  # medical first
+
+
+def test_interface_mismatch_is_an_error_row_not_a_skip(root):
+    def bad_score(s, g, l):
+        raise KeyError("parts")
+    nav = lambda pkg, build_s=0.0: navigability(pkg, build_s, plan=lambda g, a, b, l: [a, b],
+                                                segment=lambda p, g, l: p, score_route=bad_score)
+    r = run_portfolio([{"sid": "good1", "name": "x"}], build=lambda s: build_light(s, root), nav=nav,
+                      costar=lambda p: {})[0]
+    assert r.error and r.error.startswith("KeyError") and r.skipped is None and r.total is None
+
+
+def test_unreachable_side_room_counted_not_hidden(root):
+    from dr.portfolio import NoRouteError
+    pkg = build_light("good1", root)
+    n = {"i": 0}
+
+    def plan(g, a, b, l):
+        n["i"] += 1
+        if n["i"] == 2:
+            raise NoRouteError("walled off")
+        return [a, b]
+
+    out = navigability(pkg, plan=plan, segment=lambda p, g, l: p,
+                       score_route=lambda s, g, l: {"total": 60.0, "parts": {"wall_share": 0.5, "decisions": 1}})
+    assert out["parts"]["routes_skipped"] == 1.0 and out["parts"]["routes"] == 1.0

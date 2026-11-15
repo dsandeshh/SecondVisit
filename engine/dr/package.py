@@ -163,5 +163,6 @@ class PortfolioRow(BaseModel):
     parts: dict[str, float] = Field(default_factory=dict)
     build_s: float = 0.0
     assumed_entrance: bool = False
-    skipped: str | None = None  # reason, when the model could not be scored
+    skipped: str | None = None  # data reason (no walls, no rooms, no route)
+    error: str | None = None  # "<Type>: <msg>" for an unexpected exception (a bug, not a data problem)
     tour_url: str = ""

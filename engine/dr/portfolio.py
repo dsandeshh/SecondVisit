@@ -11,6 +11,7 @@ import json
 import math
 import sys
 import time
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
@@ -148,8 +149,25 @@ def build_light(sid: str, data_root: Path = probe.DATA, client=None) -> Building
 
 # ---------------------------------------------------------------- navigability
 
-def _get(parts, key: str) -> float:
-    return float(parts[key] if isinstance(parts, dict) else getattr(parts, key))
+def _no_route_errors() -> tuple[type[Exception], ...]:
+    try:
+        from dr.planner import NoRouteError as E
+        return (E,)
+    except ImportError:  # Task 4 not landed: only the local marker is recognised
+        return (NoRouteError,)
+
+
+class NoRouteError(Exception):
+    """Fallback used until dr.planner exists."""
+
+
+def _get(parts, key: str, default: float | None = None) -> float:
+    v = parts.get(key) if isinstance(parts, dict) else getattr(parts, key, None)
+    if v is None:
+        if default is None:
+            raise KeyError(f"score parts has no {key!r}")
+        return default
+    return float(v)
 
 
 def navigability(pkg: BuildingPackage, build_s: float = 0.0, plan=None, segment=None, score_route=None) -> dict:
@@ -170,34 +188,45 @@ def navigability(pkg: BuildingPackage, build_s: float = 0.0, plan=None, segment=
         path = plan(grid, start, g, pkg.landmarks)
         return score_route(segment(path, grid, pkg.landmarks), grid, pkg.landmarks)
 
+    no_route = _no_route_errors()
     try:
         main = run(goal)
-    except Exception as e:
+    except no_route as e:
         raise PortfolioSkip(f"no route from the entrance to the {dest.label} room ({type(e).__name__})") from e
     ws, dec = [_get(main["parts"], "wall_share")], [_get(main["parts"], "decisions")]
+    skipped = 0
     for r in pkg.rooms:
         if r.id == dest.id:
             continue
         try:
             s = run(snap_free(grid, room_centroid(r)))
-        except Exception:
-            continue  # an unreachable side room does not sink the building
+        except no_route:
+            skipped += 1  # an unreachable side room does not sink the building; it is counted
+            continue
         ws.append(_get(s["parts"], "wall_share"))
         dec.append(_get(s["parts"], "decisions"))
-    parts = {k: round(_get(main["parts"], k), 4) for k in
+    parts = {k: round(_get(main["parts"], k, 0.0), 4) for k in
              ("length_m", "wall_share", "open_m", "turns", "decisions", "hazards", "landmarks_per_10m")}
     parts["mean_wall_share"] = round(sum(ws) / len(ws), 4)
     parts["mean_decisions"] = round(sum(dec) / len(dec), 4)
     parts["routes"] = float(len(ws))
+    parts["routes_skipped"] = float(skipped)
     return {"total": round(float(main["total"]), 2), "parts": parts, "build_s": round(build_s, 2)}
 
 
 # ---------------------------------------------------------------- batch
 
+_costar_warned: list[int] = []
+
+
 def _costar(pid: str) -> dict:
     try:
         rec = resolver.costar_record(pid)
-    except Exception:
+    except Exception as e:
+        if not _costar_warned:
+            _costar_warned.append(1)
+            print(f"warning: CoStar lookup failed ({type(e).__name__}: {str(e)[:100]}); rows have no CoStar fields",
+                  file=sys.stderr)
         return {}
     if not rec:
         return {}
@@ -221,14 +250,16 @@ def run_portfolio(cands: list[dict], build: Callable = build_light, nav: Callabl
         except PortfolioSkip as e:
             row.skipped = str(e)
         except Exception as e:  # one bad model never stops the batch
-            row.skipped = f"error: {type(e).__name__}: {str(e)[:120]}"
+            row.error = f"{type(e).__name__}: {str(e)[:200]}"
+            print(f"ERROR {row.sid}:\n{traceback.format_exc()}", file=sys.stderr)
         row.build_s = row.build_s or round(time.perf_counter() - t0, 2)
-        log(f"{row.sid} {row.name[:30]:<30} {row.total if row.skipped is None else 'SKIP ' + row.skipped}")
+        note = f"ERROR {row.error}" if row.error else f"SKIP {row.skipped}" if row.skipped else row.total
+        log(f"{row.sid} {row.name[:30]:<30} {note}")
         rows.append(row)
-    scored = sorted((r for r in rows if r.skipped is None), key=lambda r: (-r.total, r.sid))
+    scored = sorted((r for r in rows if r.skipped is None and r.error is None), key=lambda r: (-r.total, r.sid))
     for i, r in enumerate(scored, 1):
         r.rank = i
-    return scored + [r for r in rows if r.skipped is not None]
+    return scored + [r for r in rows if r.skipped is not None or r.error]
 
 
 def write_portfolio(rows: list[PortfolioRow], city: str, out: Path) -> None:
@@ -244,14 +275,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--city", default="Houston")
     ap.add_argument("--n", type=int, default=20)
     ap.add_argument("--out", default="web/public/portfolio.json")
-    ap.add_argument("--index", default=None)
+    ap.add_argument("--index", default=None, help="candidate list CSV only; per-model pulls still use the vendor index")
     a = ap.parse_args(argv)
     cands = pick_candidates(a.index, a.city, a.n)
     t0 = time.perf_counter()
     rows = run_portfolio(cands, log=print)
     out = Path(a.out)
     write_portfolio(rows, a.city, out if out.is_absolute() else probe.ROOT / out)
-    print(f"{len(rows)} models, {sum(r.skipped is None for r in rows)} scored, {time.perf_counter() - t0:.0f} s")
+    print(f"{len(rows)} models, {sum(r.total is not None for r in rows)} scored, {time.perf_counter() - t0:.0f} s")
     return 0
 
 
