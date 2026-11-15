@@ -80,29 +80,52 @@ def test_resolver_suite_entry():
 
 def test_instruction_prov_keys():
     segs, lms, ents = lobby_segs()
-    check(ins.prov_for(segs, lms))
+    check(ins.prov_for(ins.write(segs, lms, ents)))
 
 
 def _pkg(segs, lms, ents):
+    from dr.package import Route, Score, ScoreParts
     g = lobby_fixture()[0]
     g = Grid(res=g.res, width=g.cells.shape[1], height=g.cells.shape[0], origin=g.origin, cells_b64=g.to_b64())
+    sc = Score(total=1, parts=ScoreParts(length_m=1, wall_share=0, open_m=1, turns=0, decisions=0,
+                                         hazards=0, landmarks_per_10m=0))
+    route = Route(id="r", **{"from": "ent_w"}, to="desk", path=[s.start for s in segs], segments=segs, score=sc)
     return BuildingPackage(id="t", name="t", source="fixture", generated_at="now", grid=g,
-                           landmarks=lms, entrances=ents)
+                           landmarks=lms, entrances=ents, routes=[route])
 
 
-def test_every_spoken_number_has_a_prov_entry():
-    """Task 7 re-runs this on the real build via pipeline.build_package; here a hand built package."""
-    import re
+def _full_pkg():
     segs, lms, ents = lobby_segs()
     out = ins.write(segs, lms, ents)
     pkg = _pkg(out, lms, ents)
-    pkg.prov.update(ins.prov_for(out, lms))
-    for s in out:
-        for m in re.finditer(r"[Ww]alk (\d+) steps?", s.instruction):
-            assert f"segment:{s.id}.steps" in pkg.prov, s.instruction
-            assert int(m.group(1)) == s.steps
-        if re.search(r"\d+ o'clock", s.instruction):
-            assert f"segment:{s.id}.clock" in pkg.prov
-        # no number outside walk-steps and clock hours
-        rest = re.sub(r"[Ww]alk \d+ steps?|\d+ o'clock", "", s.instruction)
-        assert not re.search(r"\d", rest)
+    pkg.prov.update(ins.prov_for(out))
+    return pkg
+
+
+def test_every_spoken_number_has_a_prov_entry():
+    """Task 7 re-runs P.missing_for_spoken on the real pipeline.build_package output."""
+    pkg = _full_pkg()
+    assert pkg.routes[0].segments[0].instruction
+    assert P.missing_for_spoken(pkg) == []
+
+
+def test_clock_prov_only_when_clock_is_spoken():
+    pkg = _full_pkg()
+    for s in pkg.routes[0].segments:
+        assert (f"segment:{s.id}.clock" in pkg.prov) == ("o'clock" in s.instruction)
+
+
+def test_checker_reports_dropped_entry_and_stray_numbers():
+    pkg = _full_pkg()
+    sid = pkg.routes[0].segments[0].id
+    del pkg.prov[f"segment:{sid}.steps"]
+    assert f"segment:{sid}.steps" in P.missing_for_spoken(pkg)
+    pkg = _full_pkg()
+    seg = pkg.routes[0].segments[0]
+    seg.instruction = seg.instruction + " Take 3 elevators."
+    assert any("unmapped spoken number 3" in m for m in P.missing_for_spoken(pkg))
+    pkg = _full_pkg()
+    last = pkg.routes[0].segments[-1]
+    assert "o'clock" in last.instruction
+    del pkg.prov[f"segment:{last.id}.clock"]
+    assert f"segment:{last.id}.clock" in P.missing_for_spoken(pkg)

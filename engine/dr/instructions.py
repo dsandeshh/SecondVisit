@@ -5,6 +5,7 @@ import math
 import re
 
 from dr import llm
+from dr.config import STEP_M
 from dr.grounding import grounded
 from dr.package import Entrance, Landmark, Prov, Segment
 from dr.prov import ProvBuilder
@@ -114,18 +115,18 @@ def write(segments: list[Segment], landmarks: list[Landmark], entrances: list[En
     return out
 
 
-STEP_M = 0.7
 
-
-def prov_for(segments: list[Segment], landmarks: list[Landmark] | None = None,
-             at: str | None = None) -> dict[str, Prov]:
-    """R10: prov for every number the written instructions speak. Step counts are calc from the
-    segment length; clock hours are calc from headings. Task 7 merges these into the package."""
+def prov_for(segments: list[Segment], at: str | None = None) -> dict[str, Prov]:
+    """R10: prov for every number the written instructions speak. `.steps` is calc from the segment
+    length; `.clock` is calc from headings and only emitted when the text speaks an o'clock hour.
+    Task 7 merges these into the package."""
     pb = ProvBuilder(at)
     for seg in segments:
         ins = [f"segment:{seg.id}"] + [f"landmark:{l}" for l in seg.landmarks_passed]
-        pb.add(f"segment:{seg.id}.steps", "calc", f"round(length_m {seg.length_m:.1f} / {STEP_M} m per step)",
-               inputs=ins)
-        pb.add(f"segment:{seg.id}.clock", "calc", "clock hour from heading change or landmark bearing",
-               inputs=ins)
+        if re.search(r"\bWalk \d+ steps?", seg.instruction, re.I):
+            pb.add(f"segment:{seg.id}.steps", "calc",
+                   f"round(length_m {seg.length_m:.1f} / {STEP_M} m per step)", inputs=ins)
+        if "o'clock" in seg.instruction:
+            pb.add(f"segment:{seg.id}.clock", "calc",
+                   "clock hour from heading change or landmark bearing", inputs=ins)
     return pb.entries

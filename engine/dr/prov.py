@@ -54,3 +54,28 @@ class ProvBuilder:
             raise ValueError(f"undocumented prov key {key!r}")
         p = self.entries[key] = make(src, ref, self.at, inputs, confidence)
         return p
+
+
+def missing_for_spoken(pkg) -> list[str]:
+    """Spoken-number check for a BuildingPackage: every number in every route instruction must map to a
+    field that has a prov entry. 'Walk N steps' -> segment:<id>.steps (and N must equal seg.steps);
+    'N o'clock' -> segment:<id>.clock; any other number is reported as unmapped. Returns problems."""
+    import re
+
+    from dr.grounding import numbers_in
+    out: list[str] = []
+    for r in pkg.routes:
+        for seg in r.segments:
+            text, rest = seg.instruction, seg.instruction
+            for m in re.finditer(r"[Ww]alk (\d+) steps?", text):
+                if int(m.group(1)) != seg.steps:
+                    out.append(f"segment:{seg.id}.steps value {m.group(1)} != {seg.steps}")
+                if f"segment:{seg.id}.steps" not in pkg.prov:
+                    out.append(f"segment:{seg.id}.steps")
+            rest = re.sub(r"[Ww]alk \d+ steps?", "", rest)
+            for m in re.finditer(r"(\d+) o'clock", rest):
+                if f"segment:{seg.id}.clock" not in pkg.prov:
+                    out.append(f"segment:{seg.id}.clock")
+            rest = re.sub(r"\d+ o'clock", "", rest)
+            out += [f"segment:{seg.id}: unmapped spoken number {n:g}" for n in numbers_in(rest)]
+    return sorted(set(out))
