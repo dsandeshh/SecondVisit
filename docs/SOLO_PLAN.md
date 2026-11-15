@@ -60,7 +60,7 @@ Inside each stream: P0 first, then P1, then P2, respecting dependencies.
 - [ ] Polish: reset, operator panel, accessibility check (`docs/UI_DESIGN.md` section 6)
 
 ### Stream D: agents and layout
-- [ ] Task 6: instruction writer (P0)
+- [x] Task 6: instruction writer (P0)
 - [ ] Task 3: annotator with room labelling (P0) — checkpoint (b): panorama face calibration
 - [ ] Task 10 engine side: coach rules and deep agent coach (P0)
 - [ ] Task 13: orchestrator on Deep Agents, all five subagents (P0; mounts the router in `api.py`) — checkpoint (d): LangChain gate

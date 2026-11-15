@@ -6,6 +6,9 @@ RunPlan or PointResult is logged here in the same commit as the code.
 ## 2026-11-14 (Sat): solo build, task log
 
 - 22:20 Task 1 done (cf0f9db..ec268b4): BuildingPackage v1 + v2 fields in `engine/dr/package.py` (contract created; `Route.from` via alias), OccGrid, lobby fixture (`ent_w`, `desk`).
+- 22:50 Task 6 done (025d3f2, 409d873): template instruction writer, `grounding.py` (numbers_in, grounded), shared `data/fixtures/clock_cases.json` (half to even), llm wrapper on DR_FAST_MODEL.
+- 22:50 Task 15 code done (bdd9890, 08ad00c, f307d33): Vexcel arrival, pins, curb summary. **Contract change (R6):** Arrival gains `curb_to_door_m` and `dropoff_plan` (package.py; types.ts mirrors in Task 8). Fix pending: fetch path ortho size. Pins wait on the human (checkpoint e).
+- 22:50 Design change (054ad41): Apple minimal, system font; tokens, UI_DESIGN.md and contrast tests rewritten.
 - 22:20 Task 14 done (172c979): resolver, fuzzy name search over the index, CoStar record from the local kit.
 
 ## 2026-11-14 (Sat, about 22:40): tokens copy
