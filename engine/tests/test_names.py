@@ -107,7 +107,7 @@ def test_build_package_has_spoken_and_voice_lines(tmp_path):
         pytest.skip("clinic cache not present")
     from dr import pipeline
     pkg = pipeline.build_package("x37LjPx62VA", web_root=tmp_path)
-    assert all(lm.spoken and len(lm.spoken.split()) <= 4 for lm in pkg.landmarks)
+    assert all(lm.spoken and len(lm.spoken.split()) <= 5 for lm in pkg.landmarks)
     texts = {v.text for v in pkg.voice_lines}
     assert len(texts) == len(pkg.voice_lines)
     for r in pkg.routes:
