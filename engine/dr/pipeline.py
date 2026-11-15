@@ -16,7 +16,7 @@ from scipy.ndimage import label
 
 from dr import instructions
 from dr.grid import OccGrid
-from dr.mp_import import DATA, build_from_matterport, load_overrides
+from dr.mp_import import DATA, build_from_matterport, load_overrides, second_destination
 from dr.mp_client import ROOT
 from dr.package import BuildingPackage, Entrance, Grid, Landmark, Prov, Route, Score
 from dr.planner import NoRouteError, Weights, approach_point, plan_with_ladder
@@ -74,6 +74,10 @@ def merge_landmarks(pkg: BuildingPackage, sid: str, data_root: Path = DATA) -> N
     for lm in ov.extra_landmarks:
         lms[lm.id] = lm
         pkg.prov[f"landmark:{lm.id}"] = Prov(src="hand", ref="overrides.json", at=now)
+    _, dest2 = second_destination(ov)
+    if dest2 is not None:
+        lms[dest2.id] = dest2
+        pkg.prov[f"landmark:{dest2.id}"] = Prov(src="hand", ref="overrides.json second_destination", at=now)
     dest = ov.destination_landmark()
     if dest is not None:
         lms[dest.id] = dest
@@ -86,8 +90,9 @@ def merge_landmarks(pkg: BuildingPackage, sid: str, data_root: Path = DATA) -> N
 
 
 def add_route(pkg: BuildingPackage, from_id: str | None = None, to_id: str | None = None,
-              clearance: float | None = None, drop_specks: float | None = None) -> BuildingPackage:
-    """Plan one route (default: first entrance to the first desk), segment, write, score. Mutates pkg."""
+              clearance: float | None = None, drop_specks: float | None = None, append: bool = False) -> BuildingPackage:
+    """Plan one route (default: first entrance to the first desk), segment, write, score. Mutates pkg.
+    append=True adds a further route after the first (segment ids get an `r<n>_` prefix so prov keys stay unique)."""
     grid = promote_fixed(_grid(pkg), pkg.landmarks)
     by_id: dict[str, tuple[float, float]] = {e.id: e.pos for e in pkg.entrances}
     by_id.update({lm.id: lm.pos for lm in pkg.landmarks})
@@ -117,13 +122,36 @@ def add_route(pkg: BuildingPackage, from_id: str | None = None, to_id: str | Non
                               dest=to_id if any(lm.id == to_id for lm in pkg.landmarks) else None)
     sc = score_route(segs, grid, pkg.landmarks)
     rid = f"{from_id}__{to_id}"
-    pkg.routes = [Route(id=rid, **{"from": from_id}, to=to_id, path=pr.path, segments=segs,
-                        score=Score(total=sc["total"], parts=sc["parts"]))]
+    if append and pkg.routes:
+        segs = [s.model_copy(update={"id": f"r{len(pkg.routes) + 1}_{s.id}"}) for s in segs]
+    route = Route(id=rid, **{"from": from_id}, to=to_id, path=pr.path, segments=segs,
+                  score=Score(total=sc["total"], parts=sc["parts"]))
+    pkg.routes = pkg.routes + [route] if append else [route]
     pkg.prov.update(instructions.prov_for(segs, pkg.generated_at))
     if pr.relaxed:
         pkg.notes.append(f"relaxed: route {rid} needed clearance {pr.weights.clearance_m} m, "
                          f"drop specks {pr.weights.drop_specks_m2} m2")
     return pkg
+
+
+def merge_costar(pkg: BuildingPackage, sid: str, data_root: Path = DATA) -> None:
+    """R9: CoStar summary from the cached raw/costar.json (offline). Empty when no cache."""
+    p = Path(data_root) / sid / "raw" / "costar.json"
+    if not p.exists():
+        return
+    from dr.portfolio import BUILDING_CLASSES, PROPERTY_TYPES
+    rec = json.loads(p.read_text())
+    prop = {k: v for k, v in (rec.get("property") or {}).items() if isinstance(v, (str, int, float, bool))}
+    for code, names, out in (("propertyType", PROPERTY_TYPES, "propertyTypeName"),
+                             ("buildingClass", BUILDING_CLASSES, "buildingClassName")):
+        n = names.get(prop.get(code)) if isinstance(prop.get(code), int) else None
+        if n and n != "Unknown":
+            prop[out] = n
+    fr = (((rec.get("property") or {}).get("propertyRetail") or {}).get("frontage")) or []
+    prop["frontage"] = [{"street": f.get("streetName"), "feet": f.get("frontageInFeet"),
+                         "curb_cuts": f.get("numCurbCuts"), "primary": f.get("isPrimaryFrontage")} for f in fr]
+    pkg.costar = {"property": prop, "tenant_count": len(rec.get("tenants") or [])}
+    pkg.prov["costar"] = Prov(src="costar", ref=f"raw/costar.json property {prop.get('id', '')}", at=pkg.generated_at)
 
 
 def run_sim(pkg: BuildingPackage, n: int) -> None:
@@ -151,7 +179,7 @@ def copy_floorplan(sid: str, web_root: Path | None = None, data_root: Path = DAT
 def build_package(sid: str, from_id: str | None = None, to_id: str | None = None,
                   clearance: float | None = None, drop_specks: float | None = None, sim: int = 0,
                   data_root: Path = DATA, web_root: Path | None = None,
-                  arrival: bool = True) -> BuildingPackage:
+                  arrival: bool = True, also_to: list[str] | None = None) -> BuildingPackage:
     pkg = build_from_matterport(sid, data_root)
     merge_landmarks(pkg, sid, data_root)
     if arrival:
@@ -168,6 +196,12 @@ def build_package(sid: str, from_id: str | None = None, to_id: str | None = None
         except Exception as e:  # offline and optional: the route does not depend on it
             pkg.notes.append(f"arrival skipped: {type(e).__name__}: {str(e)[:80]}")
     add_route(pkg, from_id, to_id, clearance, drop_specks)
+    ov2 = load_overrides(sid, data_root)
+    to2, _ = second_destination(ov2)
+    for extra in ([to2] if to2 else []) + list(also_to or []):
+        if extra != pkg.routes[0].to:
+            add_route(pkg, pkg.routes[0].from_, extra, clearance, drop_specks, append=True)
+    merge_costar(pkg, sid, data_root)
     if sim:
         run_sim(pkg, sim)
     missing = copy_floorplan(sid, web_root, data_root)

@@ -105,6 +105,7 @@ export interface BuildingPackage {
   prov: Record<string, Prov>;
   frames: Frames;
   map_date: string;
+  costar?: Record<string, unknown>; // R9: CoStar summary (property scalars, names, frontage[]), {} if absent
 }
 
 // RunLog, RunPlan, PointResult (ruling R3). Engine mirror: engine/dr/package.py (Task 10 engine side).

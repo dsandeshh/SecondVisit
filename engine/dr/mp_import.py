@@ -493,6 +493,19 @@ class Overrides(BaseModel):
                         confidence=1.0, fixed=True)
 
 
+def second_destination(ov: "Overrides") -> tuple[str | None, Landmark | None]:
+    """(landmark id, landmark to add) for the second demo route; a pos becomes landmark "dest2" (kind other)."""
+    d = ov.second_destination
+    if d is None:
+        return None, None
+    if d.landmark_id:
+        return d.landmark_id, None
+    if d.pos is not None:
+        return "dest2", Landmark(id="dest2", kind="other", label=d.label or "Destination", pos=d.pos,
+                                 confidence=1.0, fixed=True)
+    return None, None
+
+
 def load_overrides(sid: str, data_root: Path = DATA) -> Overrides:
     p = Path(data_root) / sid / "overrides.json"
     if not p.exists():

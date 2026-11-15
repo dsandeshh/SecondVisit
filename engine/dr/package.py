@@ -190,6 +190,7 @@ class BuildingPackage(BaseModel):
     prov: dict[str, Prov] = Field(default_factory=dict)
     frames: Frames = Field(default_factory=Frames)
     map_date: str = ""
+    costar: dict = Field(default_factory=dict)  # R9: {"property": {...scalars, names, frontage[]}, "tenant_count": n}; empty if no cache
 
 
 class PortfolioRow(BaseModel):

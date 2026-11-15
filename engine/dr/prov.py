@@ -20,6 +20,7 @@ KEY_PATTERNS = [re.compile(p) for p in (
     r"arrival\.(curb|door|walk_m|clock|ortho|oblique|edge_type|door_type|crosses_drive_lane|building_outline|building_height_m)",
     r"arrival\.cue\.[\w-]+",
     r"frames\.geo_anchor",
+    r"costar",
     r"grid(\.obstacles)?",
     r"map_date",
     r"portfolio\.destination",

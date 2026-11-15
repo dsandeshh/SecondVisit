@@ -18,12 +18,12 @@ def _build(a: argparse.Namespace) -> int:
         if not a.model:
             raise SystemExit("--model SID is required for --source matterport")
         pkg = pipeline.build_package(a.model, a.from_id, a.to_id, a.clearance, a.drop_specks, a.sim,
-                                     web_root=Path(a.out).resolve().parents[1])
+                                     web_root=Path(a.out).resolve().parents[1], also_to=a.also_to)
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(pkg.model_dump(mode="json", by_alias=True), indent=1) + "\n")
-    r = pkg.routes[0]
-    print(f"wrote {out}: route {r.id}, {len(r.segments)} segments, score {r.score.total:.1f}")
+    for r in pkg.routes:
+        print(f"wrote {out}: route {r.id}, {len(r.segments)} segments, score {r.score.total:.1f}")
     return 0
 
 
@@ -41,6 +41,8 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--out", required=True)
     b.add_argument("--from", dest="from_id")
     b.add_argument("--to", dest="to_id")
+    b.add_argument("--also-to", dest="also_to", action="append", default=[],
+                   help="plan a further route to this landmark id (repeatable); overrides second_destination also adds one")
     b.add_argument("--clearance", type=float, help="min wall distance in m (default 0.35, floor 0.25)")
     b.add_argument("--drop-specks", type=float, help="ignore obstacle blobs under this area in m2")
     b.add_argument("--sim", type=int, default=0)
