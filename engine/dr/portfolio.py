@@ -282,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     t0 = time.perf_counter()
     rows = run_portfolio(cands, log=print)
     out = Path(a.out)
-    write_portfolio(rows, a.city, out if out.is_absolute() else probe.ROOT / out)
+    write_portfolio(rows, a.city, out.resolve())  # relative to the current directory
     print(f"{len(rows)} models, {sum(r.total is not None for r in rows)} scored, {time.perf_counter() - t0:.0f} s")
     return 0
 

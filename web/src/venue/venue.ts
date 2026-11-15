@@ -252,7 +252,7 @@ function renderPortfolio() {
     + `<th scope="col">Entrance</th>` + th("build_s", "Build (s)", "num") + `<th scope="col">Rehearse</th></tr></thead><tbody>`
     + scored.map((r) => `<tr><td class="num">${r.rank ?? ""}</td>`
       + `<th scope="row">${esc(r.name)}<br><span class="note">${esc(r.address)}</span> <a href="${esc(r.tour_url)}">3D tour</a></th>`
-      + `<td>${esc([cs(r, "property_type", "type", "propertyType"), cs(r, "building_class", "class", "buildingClass")].filter(Boolean).join(", "))}</td>`
+      + `<td>${esc([cs(r, "propertyType") && `type code ${cs(r, "propertyType")}`, cs(r, "buildingClass") && `class code ${cs(r, "buildingClass")}`].filter(Boolean).join(", "))}</td>`
       + `<td class="num">${num(r.total ?? undefined, 1)}<span class="bar" style="width:${Math.round(((r.total ?? 0) / max) * 80)}px"></span></td>`
       + `<td class="num">${pct(r.parts.mean_wall_share)}</td><td class="num">${num(r.parts.mean_decisions)}</td>`
       + `<td class="num">${num(r.parts.open_m)}</td>`
