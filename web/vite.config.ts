@@ -1,5 +1,7 @@
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+
+const page = (name: string) => fileURLToPath(new URL(name, import.meta.url));
 
 export default defineConfig({
   server: {
@@ -11,10 +13,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        observer: resolve(__dirname, "observer.html"),
-        venue: resolve(__dirname, "venue.html"),
-        pick: resolve(__dirname, "pick.html"),
+        main: page("index.html"),
+        observer: page("observer.html"),
+        venue: page("venue.html"),
+        pick: page("pick.html"),
       },
     },
   },
