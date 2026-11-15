@@ -31,7 +31,8 @@ def test_relay_drops_oversize_messages():
 
 
 def test_health():
-    assert TestClient(app).get("/api/health").json() == {"ok": True}
+    h = TestClient(app).get("/api/health").json()
+    assert h["ok"] is True and "agent" in h["modes"] and "replays" in h["modes"]
 
 
 def test_invalid_and_binary_not_forwarded_and_other_session_silent():

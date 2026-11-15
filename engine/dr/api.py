@@ -49,9 +49,33 @@ def _load_env() -> None:
 _load_env()
 
 
+def _modes() -> dict:
+    """Which part of the demo runs live, from cache, or from a labelled fallback. No network calls."""
+    from dr import mp_import
+    from dr.agents import api_stream
+    key = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    model = bool(os.environ.get("DR_MODEL")) and key
+    fast = bool(os.environ.get("DR_FAST_MODEL")) and key
+    root = Path(os.environ.get("DR_BUILDINGS", Path(__file__).resolve().parents[2] / "web" / "public" / "buildings"))
+    pkgs = sorted(p.parent.name for p in root.glob("*/package.json")) if root.is_dir() else []
+    cached = sorted(p.parent.parent.name for p in Path(mp_import.DATA).glob("*/raw/basics.json")) if Path(mp_import.DATA).is_dir() else []
+    return {
+        "agent": "live model (falls back to scripted after %ss)" % api_stream.AGENT_TIMEOUT_S if model else "scripted (no model configured)",
+        "coach_line": "model, grounded, template on failure" if fast else "template (no fast model configured)",
+        "replays": {k: (p.name if (p := api_stream.resolve_replay(k)) else None) for k in api_stream.REPLAY_NAMES},
+        "packages": pkgs,
+        "sponsor": "cached only (no live sponsor call during the demo)",
+        "sponsor_cache": cached,
+        "showcase": "optional, localhost only" + (" (SDK key set)" if os.environ.get("MATTERPORT_SDK_KEY") else ""),
+    }
+
+
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True}
+    try:
+        return {"ok": True, "modes": _modes()}
+    except Exception as exc:  # health must never fail the demo
+        return {"ok": True, "modes": {}, "note": f"mode probe failed: {type(exc).__name__}"}
 
 
 # --- Observer relay (Task 17): rehearsal phone -> projector laptop, one way fan-out per session ---
