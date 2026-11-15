@@ -88,3 +88,35 @@ A checkpoint pauses only its own stream; the other streams keep going.
 - **04:30:** integration check (`PROMPTS.md`, "Integration check").
 - **05:00:** feature freeze. Only fixes, then the "Demo freeze" prompt (`docs/DEMO.md`).
 - A task that fails twice is committed behind a flag, noted in `docs/CHANGELOG.md`, and its stream moves on.
+
+## Human decisions, 14 Nov 23:37 (binding, highest priority)
+
+Sources: `review/agent5_interaction.md` (Hearify style interactions, O&M), `review/agent6_arrival.md`
+(curb to door). Two streams, Sonnet implementers, UPDATE block after every task.
+
+### Stream 2 (web), in order (voice model download and audition first, then A1..A9)
+- [ ] A7a Kokoro voice: kokoro-js, onnx-community/Kokoro-82M-v1.0-ONNX, cpu, q8, `web/scripts/voice.mjs`;
+      audition "Reception desk, 2 o'clock, 14 steps." in 5 English voices to `web/public/voice_audition/` — checkpoint (g)
+- [ ] A1 Home: one address box, resolver, fly in from the sky onto the Vexcel ortho, pins, path, arrival line, land at the curb; walk starts at the curb
+- [ ] A2 Always app voice (rule 7); captions visible
+- [ ] A3 3D: outdoor (agent6 4.1.3) plus interior, one continuous curb to interior camera move; cockpit around it; Scanned view only if mesh loads under 5 s
+- [ ] A4 360 sound: HRTF on every positioned sound, name clips from position, headphone tuning, outdoor audio (agent6 4.1.5)
+- [ ] A5 Sound ring around the walker plus captions with direction, one event bus (agent5 section 5 `cue`)
+- [ ] A6 agent5 Top 8 interactions and keymap (Q, bump, Tab/Shift+Tab, Enter beacon Explore only, W, room entry, E, approach callouts, doorway clicks; S source, Shift+S swap)
+- [ ] A7b Pre render every known line and name at build to `web/public/buildings/<sid>/voice/` (gitignored, text hash); live lines via POST /api/tts, cached; browser speech if over 600 ms
+- [ ] A8 UX: 10 s guided intro (Esc skips), one next action visible, 100 ms key response, any key interrupts, +/- rate, P pause, max 2 sounds, ducking, no blank screen, recovery lines, arrival chime then pointing score in words
+- [ ] A9 P1: GPS error circle; day of visit page `?simgps=1` labelled simulated, disclaimer always visible
+- Tests: sound direction equals ring position; caption equals spoken text; clips play from object position; plan to three.js mapping
+
+### Stream 1 (engine), in order
+- [ ] B1 Geo anchor transforms + agent6's 4 tests (incl. curb pin lands outside the building); plan_north_deg by agent6's method, labelled assumed unless verified
+- [ ] B2 Curb script and recovery lines from geometry (agent6 4.1.6)
+- [ ] B3 Annotator on the clinic (done 23:20: 80 cached looks, 47 landmarks after dedupe; room labels still thin) — landmark table to the human
+- [ ] B4 Second demo route 40 to 60 steps to an exam room or restroom with 3+ landmarks; keep reception; merge costar.json into the package (R9)
+- [ ] B5 Vexcel obliques x4 with crosshair on the door pin (data/x37LjPx62VA/raw, gitignored); try elements/detect and property/extract once each — checkpoint (f)
+- [x] B6 Tasks 13, 11, 12 web, 20 live (done before this decision)
+
+### New checkpoints
+| (f) | Vexcel obliques | the 4 images plus agent6's questions: reference bearing for "1 o'clock", drive lane crossing, curb edge type, door type, canopy corners |
+| (g) | voice audition | 5 clips, the human picks one |
+| (c2) | new 3D experience playable | URL and keys |

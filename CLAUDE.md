@@ -36,10 +36,16 @@ another task owns, code against that task's **Interfaces** block; do not build i
    contact. (c) iOS Safari: `navigator.audioSession.type = "playback"` before the AudioContext,
    orientation after a permission tap, no vibration. Orientation needs HTTPS: use a tunnel for phones.
 7. **The app is used by blind people.** Keyboard first, large high contrast text, nothing only visual.
-   Nothing plays before Start; Start asks "app voice" or "my screen reader". App voice: we speak and the
-   transcript is `aria-live="off"`. Screen reader: we never call `speechSynthesis.speak` and write every
-   line to an `aria-live="polite"` region. Phones: full screen Step button plus Repeat, Where am I,
-   Recentre; never swipes. The rehearsal stage is `role="application"`. No destination beacon in Rehearse.
+   Nothing plays before Start. **Always app voice** (human decision 14 Nov 23:37): there is no "app voice /
+   my screen reader" choice; we speak every line (Kokoro clips, browser speech fallback) and captions stay
+   visible, with direction ("Reception desk, 2 o'clock" plus an arrow); the caption region is
+   `aria-live="off"` so screen readers do not double the voice. Speech always equals its caption (clips
+   keyed by text hash). Any key interrupts speech. Phones: full screen Step button plus Repeat, Where am I,
+   Recentre, Around me, Ahead, Places; never swipes. The rehearsal stage is `role="application"`; the 3D
+   view is for sighted judges and companions and is `aria-hidden`. No destination beacon in Rehearse
+   (Enter beacon is Explore only; in Rehearse it is the B hint). One event bus drives audio, sound ring,
+   captions and the observer. Interactions and keys follow `review/agent5_interaction.md` (Top 8, keymap
+   section 6: S = source of line, Shift+S = swap channels); arrival follows `review/agent6_arrival.md`.
 8. **Honest labels everywhere.** Chips `MP`, `VX`, `CS`, `CALC`, `AI` (with confidence, "possibly"
    under 0.6), `HAND` (human confirmed pins in `data/<sid>/overrides.json`). "simulated" on simulated
    numbers, "assumed" on assumed weights and the portfolio's assumed entrance, "scripted" and "replay"
