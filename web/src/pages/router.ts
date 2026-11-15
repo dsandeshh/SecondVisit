@@ -27,8 +27,6 @@ export function show(doc: Document, page: Page): void {
   }
   const cap = doc.getElementById("capline"); if (cap) cap.hidden = !WITH_CAPTION.includes(page);
   const ctl = doc.getElementById("controls"); if (ctl) ctl.hidden = !WITH_CONTROLS.includes(page);
-  const ov = doc.getElementById("overview");
-  if (ov) ov.hidden = page !== "inside";
 }
 
 export type Router = { go(p: Page, replace?: boolean): void; readonly page: Page; destroy(): void };

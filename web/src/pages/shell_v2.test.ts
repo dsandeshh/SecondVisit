@@ -63,6 +63,11 @@ describe("index.html", () => {
     expect(app.audio.ctx).toBeNull();
     vi.unstubAllGlobals();
   });
+  it("#/inside has no Overview toggle: no third person view to choose", () => {
+    load();
+    expect(document.getElementById("overview")).toBeNull();
+    for (const b of Array.from(document.querySelectorAll("button"))) expect((b.textContent ?? "").trim()).not.toBe("Overview");
+  });
   it("the 3D view bar is not keyboard reachable in v2 (hidden and inert, so no tab stop)", () => {
     load();
     const bar = document.querySelector<HTMLElement>(".room3d-bar")!;
@@ -103,9 +108,8 @@ describe("index.html", () => {
     await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
     await vi.waitFor(() => expect(document.getElementById("photo-note")!.hidden).toBe(false));
     expect(document.getElementById("photo-note")!.textContent).toBe(FALLBACK_LINE);
-    expect(document.getElementById("overview")!.hidden).toBe(true); // the single view toggle hides with the mesh fallback
-    expect(document.getElementById("overview")!.dataset.off).toBe("1");
-    expect(document.getElementById("stage")!.dataset.view).toBe("overview"); // never a blank view
+    expect(document.getElementById("overview")).toBeNull(); // no view toggle: the fallback is first person on the mesh
+    expect(document.getElementById("stage")!.dataset.view).toBe("mesh"); // never a blank view
     expect(spoken).toContain(FALLBACK_LINE); // Michael says it; it is not only printed
     vi.unstubAllGlobals();
   });

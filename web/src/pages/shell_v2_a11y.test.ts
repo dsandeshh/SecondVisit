@@ -27,9 +27,8 @@ describe("v2 shell stage", () => {
     stage.focus();
     const f6 = (shiftKey = false) => document.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", shiftKey, bubbles: true }));
     f6(); expect(document.activeElement).toBe(document.getElementById("pause"));
-    f6(); expect(document.activeElement).toBe(document.getElementById("overview"));
-    f6(); expect(document.activeElement).toBe(stage);
-    f6(true); expect(document.activeElement).toBe(document.getElementById("overview"));
+    f6(); expect(document.activeElement).toBe(stage);   // two regions now: the old View region (the Overview toggle) is gone
+    f6(true); expect(document.activeElement).toBe(document.getElementById("pause"));
     off();
   });
   it("F6 on the about page reaches the objects, Keys and Agent and data", () => {

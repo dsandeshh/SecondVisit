@@ -47,7 +47,8 @@ describe("#/inside is a locked page", () => {
   it("the inside page carries only the pieces the brief allows", () => {
     load(); show(document, "inside");
     const visible = (id: string) => { const el = document.getElementById(id)!; return !el.closest("[hidden]"); };
-    for (const id of ["stage", "ring", "miniplan", "capline", "pause", "help", "overview"]) expect(visible(id), id).toBe(true);
+    for (const id of ["stage", "ring", "miniplan", "capline", "pause", "help"]) expect(visible(id), id).toBe(true);
+    expect(document.getElementById("overview")).toBeNull();
     for (const id of ["objects", "agent-run", "keys-panel", "quiz", "summary", "home", "start"]) expect(visible(id), id).toBe(false);
   });
 });

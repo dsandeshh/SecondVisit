@@ -33,13 +33,12 @@
           </div>
         </div>
         <div class="hud hud--inside viz">
-          <button id="overview" class="chipbtn hud__tl" type="button" aria-pressed="false">Overview</button>
           <figure class="miniplan hud__tr" aria-labelledby="mp-cap">
             <figcaption id="mp-cap" class="sr-only">Floor plan</figcaption>
             <canvas id="miniplan" aria-hidden="true"></canvas>
             <p id="plan-note" class="sr-only" hidden></p>
           </figure>
-          <canvas id="ring" class="ring" aria-hidden="true" width="144" height="144"></canvas>
+          <canvas id="ring" class="ring hud__tl" aria-hidden="true" width="144" height="144"></canvas>
         </div>
         <p id="next-action" class="sr-only"></p>
         <p id="status" class="sr-only"></p>

@@ -33,7 +33,7 @@ main { max-width: none; padding: 0; height: 100vh; height: 100dvh; position: rel
 .showcase { z-index: 0; }
 .room3d { z-index: 1; }
 .stage[data-view="first"] .room3d { visibility: hidden; }
-.stage[data-view="overview"] .showcase { visibility: hidden; }
+.stage[data-view="mesh"] .showcase { visibility: hidden; }
 .room3d-bar { display: none; position: absolute; top: var(--sp-3); left: 50%; transform: translateX(-50%); z-index: 3; gap: var(--sp-2); align-items: center; }
 /* v2 has one view control, the Overview toggle. Real scan / Plan / Behind / Top / Orbit stay on the keys ( / [ ] \ ), never on screen. */
 .room3d-bar { display: none !important; }
@@ -49,8 +49,8 @@ body:not([data-page="inside"]) .hud { display: none; }
 .hud__tl { position: absolute; top: var(--sp-5); left: var(--sp-5); }
 .hud__tr { position: absolute; top: var(--sp-5); right: var(--sp-5); margin: 0; }
 .miniplan canvas { width: 11rem; height: 8rem; border: var(--bw-hair) solid var(--c-rule-soft); border-radius: var(--r-control); background: var(--c-surface); }
-/* Sound compass: small, bottom centre, above the caption. Hidden in first person (the showcase draws its own compass and map). */
-.ring { position: absolute; left: 50%; bottom: 6.75rem; transform: translateX(-50%); width: 4.5rem; height: 4.5rem; pointer-events: none; border-radius: 50%; background: rgb(255 255 255 / 0.92); border: var(--bw-hair) solid var(--c-rule-soft); box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
+/* Sound compass: small, top left corner (clear of the view centre, the photo note and the caption). Hidden in the photo view (the showcase draws its own compass and map). */
+.ring { position: absolute; top: var(--sp-5); left: var(--sp-5); width: 4.5rem; height: 4.5rem; pointer-events: none; border-radius: 50%; background: rgb(255 255 255 / 0.92); border: var(--bw-hair) solid var(--c-rule-soft); box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
 body:has(.stage[data-view="first"]) .ring, body:has(.stage[data-view="first"]) .miniplan { display: none; }
 .miniplan canvas { width: 8rem; height: 5.5rem; }
 .room3d, .showcase, .room3d__canvas, .showcase iframe { width: 100%; height: 100%; }

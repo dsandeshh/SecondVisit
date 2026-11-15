@@ -84,7 +84,7 @@ export class Cockpit {
   private coneTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private doc: Document, readonly pkg: BuildingPackage, private ex: Explore, private session: Session,
-    hooks: ExploreHooks, private fetcher: typeof fetch = fetch) {
+    hooks: ExploreHooks, private fetcher: typeof fetch = fetch, private opts: { view?: ViewMode } = {}) {
     this.landmarks = pkg.landmarks.map(l => ({ ...l }));
     this.topBar();
     this.record();
@@ -99,7 +99,7 @@ export class Cockpit {
     const note = this.$("plan-note");
     if ("missing" in this.fp) { note.hidden = false; note.textContent = `Floor plan not available (${this.fp.missing}).`; }
     try {
-      this.room = new Room3D(this.$("room3d"), this.pkg, { floorPlan: "meta" in this.fp ? { meta: this.fp.meta, url: this.fp.url } : null, compact: this.$("room3d").dataset.compact === "1" });
+      this.room = new Room3D(this.$("room3d"), this.pkg, { floorPlan: "meta" in this.fp ? { meta: this.fp.meta, url: this.fp.url } : null, compact: this.$("room3d").dataset.compact === "1", view: this.opts.view });
       const prev = hooks.onTap;
       hooks.onTap = (at, code) => { prev?.(at, code); this.room?.tap(at); };
       this.room.setLandmarks(this.landmarks);
@@ -237,7 +237,7 @@ export class Cockpit {
         return;
       }
       const v = ({ "[": "behind", "]": "top", "\\": "orbit" } as Record<string, ViewMode>)[e.key];
-      if (!v) return;
+      if (!v || this.opts.view === "eye") return;   // v2: first person only, the camera keys do nothing
       this.doc.querySelector<HTMLButtonElement>(`[data-view="${v}"]`)?.click();
     });
   }

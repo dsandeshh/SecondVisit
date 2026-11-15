@@ -10,7 +10,16 @@ import type { BuildingPackage, Landmark, Vec2 } from "../types";
 import { decodeCells } from "../world";
 import { floorPlanPlacement, headingDir3, headingToYaw, roomMask, toThree, wallRects, type FloorPlanMeta, type Rect } from "./mapping";
 
-export type ViewMode = "behind" | "top" | "orbit";
+export type ViewMode = "behind" | "top" | "orbit" | "eye";
+/** Eye height of the first person view on the mesh (metres above the floor), under the 2 m cut. */
+export const EYE_M = 1.5;
+
+/** First person on the mesh: the camera is the walker's eyes (plan position, eye height), looking along the heading,
+ *  a little down so the floor ahead shows. Three coordinates. */
+export function eyePose(pos: Vec2, headingDeg: number): { cam: [number, number, number]; look: [number, number, number] } {
+  const [x, , z] = toThree(pos), d = headingDir3(headingDeg);
+  return { cam: [x, EYE_M, z], look: [x + d[0] * 4, EYE_M - 0.35, z + d[2] * 4] };
+}
 export type SceneMode = "scan" | "plan";
 /** The real scan is cut away above this height so the camera sees in from above (metres above the floor). */
 export const SCAN_CUT_M = 2.0;
@@ -62,7 +71,7 @@ function labelSprite(text0: string, ink: string): THREE.Sprite {
 
 /** compact (the v2 pages): no big sound ring or flashes in the scene (the small compass says it), and only the destination and the
  *  nearest landmark are named, as dark text on a white chip drawn in the page (always 18 px, never "possibly"). */
-export type Room3DOptions = { floorPlan?: { meta: FloorPlanMeta; url: string } | null; reducedMotion?: boolean; compact?: boolean };
+export type Room3DOptions = { floorPlan?: { meta: FloorPlanMeta; url: string } | null; reducedMotion?: boolean; compact?: boolean; view?: ViewMode };
 
 export class Room3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -143,6 +152,7 @@ export class Room3D {
     this.buildRing();
     this.ringGrp.visible = !this.compact;
     if (this.compact) { this.layer = document.createElement("div"); this.layer.className = "room3d__labels"; host.append(this.layer); }
+    if (opts.view) this.setView(opts.view);
     const fan = (deg: number, r: number, color: string, op: number) => {
       const m = new THREE.Mesh(new THREE.CircleGeometry(r, 40, (90 - deg / 2) * Math.PI / 180, deg * Math.PI / 180),
         new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false }));
@@ -581,7 +591,12 @@ export class Room3D {
     this.refreshPins();
   }
 
-  setView(v: ViewMode): void { this.view = v; this.refreshPins(); if (this.reduced) this.snapCamera(); }
+  setView(v: ViewMode): void {
+    this.view = v;
+    this.walker.visible = v !== "eye";   // nothing to see of yourself from your own eyes
+    this.refreshPins(); if (this.reduced) this.snapCamera();
+  }
+  get walkerVisible(): boolean { return this.walker.visible; }
 
   private target(): { cam: THREE.Vector3; look: THREE.Vector3 } {
     const [x, , z] = toThree(this.pos);
@@ -592,6 +607,7 @@ export class Room3D {
       const dist = Math.max(b.d / 2 / t, b.w / 2 / (t * Math.max(0.3, this.camera.aspect))) * 1.03;
       return { cam: new THREE.Vector3(b.cx, dist, b.cz + 0.01), look: new THREE.Vector3(b.cx, 0, b.cz) };
     }
+    if (this.view === "eye") { const e = eyePose(this.pos, this.heading); return { cam: new THREE.Vector3(...e.cam), look: new THREE.Vector3(...e.look) }; }
     if (this.view === "orbit") return { cam: new THREE.Vector3(x + Math.sin(this.orbitA) * 8, 5.5, z + Math.cos(this.orbitA) * 8), look: w.clone().setY(0.8) };
     return { cam: new THREE.Vector3(x - d[0] * 4.2, 6.4, z - d[2] * 4.2), look: new THREE.Vector3(x + d[0] * 3, 0.3, z + d[2] * 3) };
   }

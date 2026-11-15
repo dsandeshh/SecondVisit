@@ -145,7 +145,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   });
   app.session = session;
 
-  if (!phone) app.cockpit = new Cockpit(doc, pkg, ex, session, hooks);
+  if (!phone) app.cockpit = new Cockpit(doc, pkg, ex, session, hooks, undefined, { view: "eye" });   // first person on the mesh, never behind
   $("place").textContent = pkg.name;
   $("place-short").textContent = pkg.name;
   $("status").textContent = `Sound: ${r.audio}. Motion: ${r.motion}${audio.mode === "keys" ? ", using keys" : ""}.`;
@@ -172,23 +172,21 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   const stage = $("stage");
   const attach = () => attachKeys(stage, session);   // in the full flow the interior keys start when the walker is inside
   let showcase: ShowcaseHandle | null = null;
-  const setView = (overview: boolean) => {
-    stage.dataset.view = overview ? "overview" : "first";
-    const t = $("overview"); t.setAttribute("aria-pressed", String(overview));
-  };
-  setView(true);
-  $("overview").addEventListener("click", () => { setView(stage.dataset.view !== "overview"); stage.focus(); });
+  // "first": the photo view (showcase). "mesh": first person on the real scan mesh, the fallback (no third person, no toggle).
+  const setView = (photo: boolean) => { stage.dataset.view = photo ? "first" : "mesh"; };
+  setView(false);
   const mountFirstPerson = () => {
+    const fail = (why?: unknown) => {
+      if (why !== undefined && typeof why !== "string") console.error("photo view failed; first person on the mesh instead", why);
+      showcase = null; setView(false);
+      // The calm note is always visible (mountShowcase has already spoken it through `say`).
+      const n = $("photo-note"); n.textContent = FALLBACK_LINE; n.hidden = false;
+    };
     void loadShowcase().then(mod => {
-      if (!mod) { $("overview").hidden = true; return; }
-      const fail = () => {
-        showcase = null; setView(true); $("overview").dataset.off = "1"; $("overview").hidden = true;
-        // The calm note is always visible (mountShowcase has already spoken it through `say`).
-        const n = $("photo-note"); n.textContent = FALLBACK_LINE; n.hidden = false;
-      };
+      if (!mod) return;
       return mod.mountShowcase({ host: $("showcase"), pkg, world: ex.world, bus: speech.bus, say: (t: string, p?: 1 | 2 | 3) => speech.say(t, p ?? 2),
-        onReady: () => setView(false), onFail: fail, safeTop: 70, safeBottom: 170 }).then(h => { showcase = h; }).catch(fail);
-    }).catch(() => { $("overview").hidden = true; });
+        onReady: () => setView(true), onFail: fail, safeTop: 70, safeBottom: 170 }).then(h => { showcase = h; }).catch(fail);
+    }).catch(fail);
   };
   setInterval(() => { if (showcase?.ready) showcase.setPose(ex.traveller.pos, ex.traveller.heading); }, 100);
   if (!full) attach();
@@ -395,7 +393,6 @@ export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, s
     ["Controls.", () => page() === "home" ? doc.getElementById("start") : page() === "about" ? doc.getElementById("about-back")
       : page() === "check" ? (doc.querySelector<HTMLElement>("#quiz button") ?? doc.getElementById("go"))
       : page() === "summary" ? doc.getElementById("again") : doc.getElementById("pause")],
-    ["View.", () => page() !== "inside" ? null : doc.getElementById("overview")],
     ["", () => page() === "about" ? doc.querySelector<HTMLElement>(".objects__scroll") : null],
     ["Keys.", () => page() === "about" ? doc.querySelector<HTMLElement>("#keys-panel > summary") : null],
     ["Agent and data.", () => page() === "about" ? doc.querySelector<HTMLElement>("#data-panel > summary") : null],
