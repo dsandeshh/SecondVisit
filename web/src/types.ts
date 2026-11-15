@@ -12,7 +12,7 @@ export interface Grid {
   cells_b64: string; // uint8 row major, row 0 = lowest y
 }
 
-export interface Room { id: string; label: string; polygon: Vec2[]; area_m2: number; }
+export interface Room { id: string; label: string; polygon: Vec2[]; area_m2: number; scanned?: boolean; }
 
 export interface Door { id: string; a: Vec2; b: Vec2; rooms: [string, string] | []; }
 

@@ -147,3 +147,38 @@ def test_build_from_fixture(tmp_path):
     assert pkg.prov["room:room_a.label"].src == "matterport"
     assert all(f"door:{d.id}" in pkg.prov for d in pkg.doors)
     assert len(pkg.doors) == 1  # the south gap
+
+
+def test_unscanned_room_gets_doorway_and_blocked_interior():
+    from dr.mp_import import mark_unscanned
+    from dr.planner import NoRouteError, plan
+    rj = two_rooms()
+    rj["model"]["panoLocations"] = rj["model"]["panoLocations"][:1]  # room B has no pano
+    g = rasterize(walls_from_graph(rj, "f1"))
+    rooms = rooms_from_graph(rj, "f1")
+    assert all(r.scanned for r in rooms)
+    g2, rooms2, doors = mark_unscanned(g, rooms, panos_of(rj))
+    by = {r.id: r for r in rooms2}
+    assert by["A"].scanned is True and by["B"].scanned is False
+    assert len(doors) == 1 and (doors[0].rooms == [] or "B" in doors[0].rooms)
+    mid_y = (doors[0].a[1] + doors[0].b[1]) / 2
+    assert at(g2, 5.9, mid_y) == 0  # doorway stays visible on the corridor side
+    assert at(g2, 8, 2) == 1  # interior is not walkable
+    try:
+        plan(g2, (3, 2), (8, 2), [])
+        raise AssertionError("route entered a not scanned room")
+    except NoRouteError:
+        pass
+
+
+def test_drop_diagonal_walls():
+    rj = two_rooms()
+    f = rj["model"]["floors"][0]
+    f["vertices"] += [{"id": "g", "position": {"x": 1, "y": 1}}, {"id": "h", "position": {"x": 3, "y": 3}}]
+    f["edges"].append({"id": "dg", "type": "wall", "thickness": 0.12, "vertices": [{"id": "g"}, {"id": "h"}]})
+    assert len(walls_from_graph(rj, "f1")) == len(walls_from_graph(rj, "f1", drop_diagonal=True)) + 1
+
+
+def test_package_room_scanned_default():
+    from dr.package import Room
+    assert Room(id="a", label="x", polygon=[(0, 0), (1, 0), (1, 1)], area_m2=0.5).scanned is True

@@ -6,6 +6,7 @@ Run `python -m dr.mp_import <sid>` to build and write `data/<sid>/grid_preview.p
 from __future__ import annotations
 
 import json
+import math
 import sys
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -14,7 +15,9 @@ from pathlib import Path
 import numpy as np
 from pydantic import BaseModel, Field
 from scipy.ndimage import label as cc_label
+from scipy.spatial import cKDTree
 from shapely.geometry import LineString, Point, Polygon
+from shapely import contains_xy
 from shapely.ops import nearest_points, polygonize
 
 from dr.config import GRID_RES
@@ -31,6 +34,8 @@ MIN_WALL_M = 0.10
 DOOR_W_M = 0.9  # carved opening width
 NEAR_SHARE_M = 0.4  # boundaries within this distance count as a shared wall
 GAP_MIN_M, GAP_MAX_M = 0.6, 2.5  # wall end gaps in this range are doors
+DIAG_MIN_DEG, DIAG_MAX_DEG = 5.0, 85.0
+DOORWAY_MAX_M = 1.0  # an unscanned room's doorway must be this close to the walkable area
 SOLID = (1, 2, 4, 5)  # not walkable for connectivity checks
 
 
@@ -55,11 +60,19 @@ def _graph(rooms_json: dict, floor_id: str):
 
 # ---------------------------------------------------------------- walls and grid
 
-def walls_from_graph(rooms_json: dict, floor_id: str) -> list[WallSeg]:
+def _is_diagonal(a: Vec2, b: Vec2) -> bool:
+    ang = math.degrees(math.atan2(abs(a[1] - b[1]), abs(a[0] - b[0])))
+    return DIAG_MIN_DEG < ang < DIAG_MAX_DEG
+
+
+def walls_from_graph(rooms_json: dict, floor_id: str, drop_diagonal: bool = False) -> list[WallSeg]:
+    """`drop_diagonal` omits non axis aligned edges (scan artefacts that cut across rooms; the clinic)."""
     V, E = _graph(rooms_json, floor_id)
     out = []
     for e in E.values():
         a, b = (V[x["id"]] for x in e["vertices"])
+        if drop_diagonal and _is_diagonal(a, b):
+            continue
         out.append((a, b, float(e.get("thickness") or MIN_WALL_M), e.get("type") or "wall"))
     return out
 
@@ -282,6 +295,66 @@ def ensure_doors(grid: OccGrid, rooms: list[Room], panos: dict[str, Vec2]) -> tu
     return g, doors
 
 
+def mark_unscanned(grid: OccGrid, rooms: list[Room],
+                   panos: dict[str, Vec2]) -> tuple[OccGrid, list[Room], list[Door]]:
+    """Rooms the walkable area never reaches (no pano inside, no door) are "not scanned": carve a 0.9 m
+    doorway where the room's boundary comes closest to the walkable area, then block the room interior
+    (code 1) so no route can enter. The doorway notch stays visible on the walkable side."""
+    g = OccGrid(grid.cells.copy(), grid.res, grid.origin)
+    lost = disconnected_rooms(g, rooms, panos)
+    ids = {r.id for r in lost}  # plus rooms with no pano inside (dropped wall edges can unseal them)
+    lost += [r for r in rooms if r.id not in ids and not any(_poly(r).contains(Point(p)) for p in panos.values())]
+    if not lost:
+        return g, list(rooms), []
+    lab = _labels(g)
+    comps = [lab[g.world_to_cell(p)] for p in panos.values()]
+    comps = [c for c in comps if c]
+    main = max(set(comps), key=comps.count) if comps else 0
+    rr, cc = np.nonzero(lab == main)
+    tree = cKDTree(np.column_stack([g.origin[0] + (cc + 0.5) * g.res, g.origin[1] + (rr + 0.5) * g.res])) \
+        if len(rr) else None
+    lost_ids = {r.id for r in lost}
+    doors: list[Door] = []
+    for r in lost:
+        poly = _poly(r)
+        ring = poly.exterior
+        if tree is None:
+            continue
+        samples = [ring.interpolate(t) for t in np.arange(0.0, ring.length, g.res)]
+        dist, idx = tree.query([[q.x, q.y] for q in samples])
+        k = int(np.argmin(dist))
+        if dist[k] > DOORWAY_MAX_M:
+            continue
+        q = samples[k]
+        cs = list(ring.coords)
+        p0, p1 = min(zip(cs, cs[1:]), key=lambda s: LineString(s).distance(q))
+        u = np.array(p1) - np.array(p0)
+        u = u / (np.hypot(*u) or 1.0)
+        L = float(np.hypot(p1[0] - p0[0], p1[1] - p0[1]))
+        t = float(np.dot(np.array([q.x, q.y]) - np.array(p0), u))
+        t = L / 2 if L <= DOOR_W_M else min(max(t, DOOR_W_M / 2), L - DOOR_W_M / 2)
+        centre = np.array(p0) + u * t  # keep the doorway on the straight wall, off the corners
+        _carve(g, centre, u, DOOR_W_M, 0.6)
+        a, b = centre - u * DOOR_W_M / 2, centre + u * DOOR_W_M / 2
+        nb = [i for i in _rooms_at(rooms, tuple(tree.data[int(idx[k])])) if i != r.id and i not in lost_ids]
+        doors.append(Door(id=f"door_ns_{len(doors)}",
+                          a=(round(a[0], 3), round(a[1], 3)), b=(round(b[0], 3), round(b[1], 3)),
+                          rooms=sorted([r.id, nb[0]]) if nb else []))
+    h, w = g.cells.shape
+    for r in lost:
+        x0, y0, x1, y1 = _poly(r).bounds
+        r0, c0 = max(g.world_to_cell((x0, y0))[0], 0), max(g.world_to_cell((x0, y0))[1], 0)
+        r1, c1 = min(g.world_to_cell((x1, y1))[0] + 1, h), min(g.world_to_cell((x1, y1))[1] + 1, w)
+        if r0 >= r1 or c0 >= c1:
+            continue
+        ri, ci = np.mgrid[r0:r1, c0:c1]
+        inside = contains_xy(_poly(r), g.origin[0] + (ci + 0.5) * g.res, g.origin[1] + (ri + 0.5) * g.res)
+        sel = inside & np.isin(g.cells[ri, ci], (0, 3))
+        g.cells[ri[sel], ci[sel]] = 1
+    out = [r.model_copy(update={"scanned": False}) if r.id in lost_ids else r for r in rooms]
+    return g, out, doors
+
+
 def disconnected_rooms(grid: OccGrid, rooms: list[Room], panos: dict[str, Vec2]) -> list[Room]:
     """Rooms with no walkable cell in the component holding the most panos."""
     lab = _labels(grid)
@@ -389,6 +462,7 @@ class Overrides(BaseModel):
     face_yaw0_deg: float = 0.0
     faces_clockwise: bool = True
     arrival: ArrivalPins | None = None
+    drop_diagonal_walls: bool = False  # clinic: drop the diagonal scan artefact edges from the wall graph
 
     @property
     def destination_landmark_id(self) -> str | None:
@@ -444,14 +518,19 @@ def build_from_matterport(sid: str, data_root: Path = DATA) -> BuildingPackage:
         notes.append(f"{len(floors)} floors; only the first ({floors[0].get('label')}) is imported")
     panos = load_panos(sid, data_root)
 
-    walls = walls_from_graph(rj, floor_id)
+    ov = load_overrides(sid, data_root)
+    walls = walls_from_graph(rj, floor_id, drop_diagonal=ov.drop_diagonal_walls)
     grid = rasterize(walls)
     rooms = rooms_from_graph(rj, floor_id)
     gap_doors = doors_from_graph(rj, floor_id, rooms)
     grid, carved = ensure_doors(grid, rooms, panos)
+    grid, rooms, ns_doors = mark_unscanned(grid, rooms, panos)
+    notes.append(f"doors carved by ensure_doors: {len(carved)}")
+    carved = carved + ns_doors
+    notes.append(f"rooms not scanned (doorway carved, interior blocked): {sum(not r.scanned for r in rooms)}"
+                 f"; diagonal wall edges dropped: {ov.drop_diagonal_walls}")
     notes.append(f"walls: {len(walls)} edges, {int((grid.cells == 1).sum())} wall cells")
     notes.append(f"doors from the wall graph (gaps or door edges): {len(gap_doors)}")
-    notes.append(f"doors carved by ensure_doors: {len(carved)}")
 
     pb = ProvBuilder(now)
     prov = pb.entries
@@ -465,12 +544,11 @@ def build_from_matterport(sid: str, data_root: Path = DATA) -> BuildingPackage:
     else:
         notes.append("no point cloud sample: no obstacles")
 
-    lost = disconnected_rooms(grid, rooms, panos)
+    lost = disconnected_rooms(grid, [r for r in rooms if r.scanned], panos)
     if lost:
         notes.append("rooms not connected to the main walkable area: "
                      + ", ".join(f"{r.id} ({r.area_m2:.1f} m2)" for r in lost))
 
-    ov = load_overrides(sid, data_root)
     entrances = []
     if ov.entrance:
         e = ov.entrance
@@ -539,7 +617,7 @@ def save_preview(pkg: BuildingPackage, sid: str, data_root: Path = DATA, out: Pa
         c = _poly(r).representative_point()
         d.text(px((c.x, c.y)), f"{r.id[:5]} {r.area_m2:.0f}", fill=(0, 60, 200, 255))
     for dr_ in pkg.doors:
-        col = (0, 200, 0, 255) if dr_.id.startswith("door_calc") else (0, 220, 255, 255)
+        col = (0, 200, 0, 255) if dr_.id.startswith("door_calc") else (255, 160, 0, 255) if dr_.id.startswith("door_ns") else (0, 220, 255, 255)
         d.line([px(dr_.a), px(dr_.b)], fill=col, width=12)
     rj = json.loads((raw / "rooms.json").read_text())
     for l in rj["model"].get("panoLocations") or []:

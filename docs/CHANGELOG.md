@@ -77,3 +77,8 @@ CoStar kit is a local zip and the join to property 5615020 works. A second model
   link. The Showcase SDK runs on localhost only (note under Commands).
 - DESIGN.md data table: room labels come from the annotator; defurnished view only when present.
 - Task 5: segments (Douglas Peucker, wall side, landmarks) and score_route landed.
+- **Contract change: `Room.scanned` (Task 2 follow-up).** `Room` gains `scanned: bool = True` (package.py) and
+  `scanned?: boolean` (types.ts). Rooms with no pano inside or unreachable from the walkable area are
+  "not scanned": `mark_unscanned` carves a 0.9 m doorway (`door_ns_*`, prov `calc`), then blocks the room
+  interior (code 1) so routes never enter. Overrides gain `drop_diagonal_walls` (clinic: true, drops 14
+  diagonal scan edges). Clinic: 15 rooms not scanned.

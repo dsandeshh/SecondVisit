@@ -25,6 +25,7 @@ class Room(BaseModel):
     label: str
     polygon: list[Vec2]
     area_m2: float
+    scanned: bool = True  # False: no pano inside, interior blocked in the grid, never routed through
 
 
 class Door(BaseModel):

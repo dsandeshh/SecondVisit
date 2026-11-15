@@ -5,5 +5,6 @@
   "deleted_landmark_ids": [],
   "face_yaw0_deg": 90,
   "faces_clockwise": true,
-  "arrival": {"door_lat": 29.9665098, "door_lon": -95.5395056, "curb_lat": 29.9664982, "curb_lon": -95.5395821}
+  "arrival": {"door_lat": 29.9665098, "door_lon": -95.5395056, "curb_lat": 29.9664982, "curb_lon": -95.5395821},
+  "drop_diagonal_walls": true
 }
