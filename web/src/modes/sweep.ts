@@ -134,7 +134,14 @@ export function aheadSummary(world: World, pos: Vec2, heading: number, items: It
   }
   const lm = items.filter(i => i.fixed && !["entrance", "door", "glass_door"].includes(i.kind) && inCone(i.at))
     .sort((x, y) => dist(pos, x.at) - dist(pos, y.at))[0];
-  if (lm) best.set("lm", { word: lm.name.charAt(0).toUpperCase() + lm.name.slice(1), az: azOf(pos, heading, lm.at), d: dist(pos, lm.at) });
+  if (lm) {
+    const t = { word: lm.name.charAt(0).toUpperCase() + lm.name.slice(1), az: azOf(pos, heading, lm.at), d: dist(pos, lm.at) };
+    best.set("lm", t);
+    for (const w of ["Obstacle", "Glass"]) {   // the same thing twice: keep its name, drop the bare word
+      const o = best.get(w);
+      if (o && Math.abs(o.d - t.d) < 1.2 && Math.abs(wrap180(o.az - t.az)) < 20) best.delete(w);
+    }
+  }
   const things = [...best.values()].sort((x, y) => x.d - y.d).slice(0, AHEAD_THINGS);
   const text = [head, ...things.map(t => `${t.word} at ${clockHour(t.az)} o'clock, ${metresWords(t.d)}.`)].join(" ");
   return { text, clear_m, things };

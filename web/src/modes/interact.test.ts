@@ -192,3 +192,12 @@ describe("aheadSummary (E line)", () => {
     expect(aheadSummary(open, [15, 3], 0, []).text).toBe("Clear over 12 metres.");
   });
 });
+
+it("E names a landmark once: its obstacle cells are not said again as 'Obstacle'", async () => {
+  const { aheadSummary } = await import("./sweep");
+  const rows = Array(30).fill(".".repeat(30)); rows[30 - 1 - 20] = ".".repeat(15) + "o" + ".".repeat(14);
+  const w = new World(gridPkg(rows));
+  const a = aheadSummary(w, [15.5, 15.5], 0, [{ id: "c", kind: "pillar", at: [15.5, 20.5], name: "Column", possibly: false, fixed: true }]);
+  expect(a.text).toMatch(/Column at 12 o'clock, 5 metres\./);
+  expect(a.text).not.toMatch(/Obstacle/);
+});
