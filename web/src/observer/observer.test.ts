@@ -39,3 +39,28 @@ describe("ObserverState", () => {
     expect(s.summary[1].bumps).toBe(2);
   });
 });
+
+import { validMsg } from "./protocol";
+import { tableRows } from "./observer";
+
+describe("validation", () => {
+  it("rejects malformed messages and leaves state unchanged", () => {
+    const s = new ObserverState();
+    s.apply(hello(1));
+    const bad: unknown[] = [null, 5, { t: "pose" }, { v: 2, t: "say", ts: 1, text: "x", pri: 1 },
+      { v: 1, t: "nope", ts: 1 }, { v: 1, t: "pose", ts: 1, pos: [NaN, 1], heading: 0, cane_deg: 0 },
+      { v: 1, t: "pose", ts: 1, pos: "ab", heading: 0, cane_deg: 0 },
+      { v: 1, t: "tap", ts: 1, at: [1], code: 1 }, { v: 1, t: "say", ts: 1, text: 5, pri: 1 }];
+    for (const m of bad) { expect(validMsg(m)).toBe(false); expect(() => s.apply(m as never)).not.toThrow(); }
+    expect(s.trails[1]).toEqual([]);
+    expect(s.lastSay).toBe("");
+    expect(s.pose).toBeNull();
+  });
+  it("table rows coerce numbers so markup cannot pass through", () => {
+    const s = new ObserverState();
+    s.apply({ v: 1, t: "end", ts: 1, run: 1, arrived: true, time_s: 5, bumps: "<img src=x>" as never, off_route: 0, quiz_correct: 1, quiz_total: 2, point_error_deg: null });
+    expect(s.summary[1]).toBeUndefined();
+    expect(tableRows({ 1: { v: 1, t: "end", ts: 1, run: 1, arrived: true, time_s: 5, bumps: "<b>" as never, off_route: 0, quiz_correct: 1, quiz_total: 2, point_error_deg: null } })
+      .flat().join("|")).not.toContain("<");
+  });
+});

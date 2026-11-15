@@ -1,5 +1,5 @@
 import { fitCanvas, hatch, planPalette, reducedMotion } from "../ui/tokens";
-import type { ObserverState } from "./observer";
+import { tableRows, type ObserverState } from "./observer";
 import type { Bus } from "./bus";
 import type { CellCode, PackageLite, Vec2 } from "./protocol";
 
@@ -19,7 +19,7 @@ export function start(S: new () => ObserverState, openBus: (s: string, o?: { rel
   const $ = (id: string) => document.getElementById(id)!;
   const st = new S();
   let pkg: PackageLite | null = null, cells: Uint8Array | null = null;
-  let img: HTMLImageElement | null = null, imgOrigin: Vec2 = [0, 0], imgRes = 100;
+  let img: HTMLImageElement | null = null, imgOrigin: Vec2 = [0, 0], imgRes = 0;
 
   const bus = openBus(session, { relay: q.get("relay") === "1" });
   bus.subscribe((m) => { st.apply(m); text(); });
@@ -27,22 +27,34 @@ export function start(S: new () => ObserverState, openBus: (s: string, o?: { rel
   fetch(`/buildings/${sid}/package.json`).then((r) => r.json()).then((p: PackageLite) => {
     pkg = p; cells = decode(p.grid.cells_b64); $("title").textContent = p.name;
   }).catch(() => { $("caption").textContent = "No package loaded"; });
-  fetch(`/buildings/${sid}/floorplan.json`).then((r) => r.json()).then((j) => {
-    imgOrigin = [j.origin.x, j.origin.y]; imgRes = j.resolution;
-    const i = new Image(); i.onload = () => { img = i; }; i.src = `/buildings/${sid}/floorplan.jpg`;
-  }).catch(() => { /* no floor plan: walls only */ });
+  const fpNote = (why: string) => { $("fpnote").textContent = `Floor plan not available (${why}).`; };
+  Promise.all([
+    fetch(`/buildings/${sid}/floorplan.json`).then((r) => { if (!r.ok) throw new Error("json"); return r.json(); }),
+    new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("jpg"));
+      i.src = `/buildings/${sid}/floorplan.jpg`;
+    }),
+  ]).then(([j, i]) => {
+    const res = Number(j?.resolution), ox = Number(j?.origin?.x), oy = Number(j?.origin?.y);
+    if (!(res > 0) || !Number.isFinite(ox) || !Number.isFinite(oy)) { fpNote("bad floorplan.json"); return; }
+    imgOrigin = [ox, oy]; imgRes = res; img = i;
+  }).catch((e) => fpNote(e.message === "json" ? "floorplan.json missing" : "floorplan.jpg missing"));
 
   function text() {
     $("caption").textContent = st.lastSay ? `They hear: "${st.lastSay}"` : "";
     const segs = pkg?.routes[0]?.segments.length ?? 0;
     $("runinfo").textContent = `Run ${st.run}${segs ? `  Stretch ${Math.min(st.seg + 1, segs)} of ${segs}` : ""}`;
     $("coach").textContent = st.coach?.line ?? "";
-    const row = (label: string, f: (e: NonNullable<ObserverState["summary"][number]>) => string) =>
-      `<tr><th scope="row">${label}</th><td>${st.summary[1] ? f(st.summary[1]) : ""}</td><td>${st.summary[2] ? f(st.summary[2]) : ""}</td></tr>`;
-    $("table").innerHTML = `<tr><th></th><th>Run 1</th><th>Run 2</th></tr>` +
-      row("Time", (e) => `${Math.round(e.time_s)} s`) + row("Bumps", (e) => String(e.bumps)) +
-      row("Off route", (e) => String(e.off_route)) + row("Quiz", (e) => `${e.quiz_correct} of ${e.quiz_total}`) +
-      row("Pointing error", (e) => (e.point_error_deg == null ? "none" : `${Math.round(e.point_error_deg)}°`));
+    const tb = $("table"); tb.replaceChildren();
+    tableRows(st.summary).forEach((cells, i) => {
+      const tr = document.createElement("tr");
+      cells.forEach((c, j) => {
+        const el = document.createElement(i === 0 || j === 0 ? "th" : "td");
+        if (j === 0 && i > 0) el.scope = "row";
+        el.textContent = c; tr.appendChild(el);
+      });
+      tb.appendChild(tr);
+    });
     $("quiz").textContent = st.quiz.map((x) => (x.correct ? "✓ Correct" : "✗ Not this one")).join("   ");
     $("point").textContent = Object.entries(st.points).map(([r, p]) => `Run ${r}: ${Math.round(p.error_deg)}°`).join("   ");
     cv.setAttribute("aria-label", pkg ? `Traveller on ${pkg.name}, run ${st.run}, stretch ${st.seg + 1}` : "Plan");
@@ -60,7 +72,8 @@ export function start(S: new () => ObserverState, openBus: (s: string, o?: { rel
   }
 
   function draw() {
-    const ctx = fitCanvas(cv), W = cv.clientWidth, H = cv.clientHeight, P = planPalette(), k = H / 1080;
+    const ctx = cv.getContext("2d")!; ctx.setTransform(devicePixelRatio || 1, 0, 0, devicePixelRatio || 1, 0, 0);
+    const W = cv.clientWidth, H = cv.clientHeight, P = planPalette(), k = H / 1080;
     ctx.fillStyle = P.paper; ctx.fillRect(0, 0, W, H);
     if (!pkg || !cells) return;
     const g = pkg.grid, mw = g.width * g.res, mh = g.height * g.res;
@@ -155,6 +168,11 @@ export function start(S: new () => ObserverState, openBus: (s: string, o?: { rel
       ctx.setLineDash([]); ctx.globalAlpha = 1;
     }
   }
-  const loop = () => { draw(); requestAnimationFrame(loop); };
+  fitCanvas(cv);
+  new ResizeObserver(() => fitCanvas(cv)).observe(cv);
+  const loop = () => {
+    requestAnimationFrame(loop);
+    try { draw(); } catch (e) { console.error("observer draw failed", e); }
+  };
   text(); loop();
 }

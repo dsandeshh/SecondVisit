@@ -8,7 +8,7 @@
  * `obs` is built from the page URL: `?obs=<session>` turns publishing on, `&relay=1` adds the WebSocket
  * relay (/ws/obs/<session>). Pose is throttled to 15 Hz inside publish. Nothing here ever throws.
  */
-import type { ObsMsg } from "./protocol";
+import { validMsg, type ObsMsg } from "./protocol";
 
 export interface Bus {
   publish(m: ObsMsg): void;
@@ -21,7 +21,7 @@ const WS_BACKLOG = 65536;
 
 export function openBus(session: string, opts: { relay?: boolean } = {}): Bus {
   const subs = new Set<(m: ObsMsg) => void>();
-  const emit = (m: ObsMsg) => subs.forEach((f) => { try { f(m); } catch { /* subscriber bug must not kill the bus */ } });
+  const emit = (m: ObsMsg) => validMsg(m) && subs.forEach((f) => { try { f(m); } catch { /* subscriber bug must not kill the bus */ } });
 
   let bc: BroadcastChannel | null = null;
   try {

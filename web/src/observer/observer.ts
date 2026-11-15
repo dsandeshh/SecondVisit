@@ -1,5 +1,6 @@
 import "../styles/tokens.css";
 import { openBus } from "./bus";
+import { validMsg } from "./protocol";
 import type { CellCode, EndMsg, ObsMsg, PackageLite, Vec2 } from "./protocol";
 
 const TAP_MS = 300;
@@ -21,6 +22,7 @@ export class ObserverState {
   private latest = -Infinity;
 
   apply(m: ObsMsg): void {
+    if (!validMsg(m)) return;
     if (m.t === "hello") {
       this.hello = { building_id: m.building_id, route_id: m.route_id, mode: m.mode };
       if (m.run !== this.run) { this.run = m.run; this.quiz = []; this.seg = 0; }
@@ -43,6 +45,20 @@ export class ObserverState {
     }
     this.taps = this.taps.filter((t) => t.ts >= this.latest - TAP_MS);
   }
+}
+
+/** Before/after table as plain strings (rendered with textContent, never innerHTML). */
+export function tableRows(summary: Record<number, EndMsg>): string[][] {
+  const n = (v: number) => String(Number(v));
+  const col = (f: (e: EndMsg) => string) => [1, 2].map((r) => (summary[r] ? f(summary[r]) : ""));
+  return [
+    ["", "Run 1", "Run 2"],
+    ["Time", ...col((e) => `${Math.round(Number(e.time_s))} s`)],
+    ["Bumps", ...col((e) => n(e.bumps))],
+    ["Off route", ...col((e) => n(e.off_route))],
+    ["Quiz", ...col((e) => `${n(e.quiz_correct)} of ${n(e.quiz_total)}`)],
+    ["Pointing error", ...col((e) => (e.point_error_deg == null ? "none" : `${Math.round(Number(e.point_error_deg))}\u00b0`))],
+  ];
 }
 
 if (typeof document !== "undefined" && document.getElementById("plan")) {
