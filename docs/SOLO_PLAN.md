@@ -33,7 +33,7 @@ Inside each stream: P0 first, then P1, then P2, respecting dependencies.
 
 ### Stream A: data
 - [x] Task 0: pull and decision (`DEMO_SID=x37LjPx62VA`); human step (entrance and desk) folds into checkpoint (b)
-- [ ] Task 14: resolver, name to model, CoStar record (P1)
+- [x] Task 14: resolver, name to model, CoStar record (P1)
 - [ ] Task 15: arrival from Vexcel (P1) — checkpoint (e): drop off and door pins
 - [ ] Task 17: observer view (P0; relay part touches `api.py`)
 - [ ] Task 20: portfolio ranking (P1, with stream B's performance help)
@@ -42,7 +42,7 @@ Inside each stream: P0 first, then P1, then P2, respecting dependencies.
 
 ### Stream B: spatial
 - [x] S0: scaffold
-- [ ] Task 1: package model, grid helpers, fixture (P0)
+- [x] Task 1: package model, grid helpers, fixture (P0)
 - [ ] Task 2: Matterport import to grid, rooms, doors, obstacles (P0) — checkpoint (a): grid preview over the floor plan
 - [ ] Task 4: cane friendly planner (P0)
 - [ ] Task 5: segments and score (P0)

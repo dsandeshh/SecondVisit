@@ -3,6 +3,11 @@
 Contract and plan changes, newest first. Rule 2 in CLAUDE.md: any change to BuildingPackage, RunLog,
 RunPlan or PointResult is logged here in the same commit as the code.
 
+## 2026-11-14 (Sat): solo build, task log
+
+- 22:20 Task 1 done (cf0f9db..ec268b4): BuildingPackage v1 + v2 fields in `engine/dr/package.py` (contract created; `Route.from` via alias), OccGrid, lobby fixture (`ent_w`, `desk`).
+- 22:20 Task 14 done (172c979): resolver, fuzzy name search over the index, CoStar record from the local kit.
+
 ## 2026-11-14 (Sat, about 22:40): tokens copy
 
 - `web_tokens.css` (root, source) copied to `web/src/styles/tokens.css`. CLAUDE.md rule 13: copy again in
