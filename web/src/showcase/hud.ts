@@ -42,6 +42,9 @@ export type HudOptions = {
 
 const FONT = "600 18px ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
 
+/** Metres to one decimal (CALC): changes by a step (0.7 m) on every ArrowUp. */
+export const distLabel = (m: number): string => `${m.toFixed(1)} m`;
+
 export class Hud {
   readonly canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -187,8 +190,10 @@ export class Hud {
     const placed: { y: number; x: number }[] = [];
     for (const { l, accent } of items) {
       const s = this.pt(l.pos, 1.3, W, H);
-      const text = (l.spoken ?? "").replace(/possibly\s*/i, "");
-      if (!text) continue;
+      const name = (l.spoken ?? "").replace(/possibly\s*/i, "");
+      if (!name) continue;
+      // the distance counts down on every step, even when the photo stays on the same sweep
+      const text = `${name} · ${distLabel(dist(this.pos, l.pos))}`;
       let x: number, y: number;
       if (s) { x = s.x; y = s.y; } else { // behind: pin to the side it is on
         const az = wrap180(bearing(this.pos, l.pos) - this.heading); x = az > 0 ? W - 120 : 120; y = H * 0.45;

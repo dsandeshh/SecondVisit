@@ -25,7 +25,7 @@ import type { CueBus } from "../events";
 import type { BuildingPackage, Route, Vec2 } from "../types";
 import type { World } from "../world";
 import { fitCalibration, headingToYaw, planToSdk, sdkToPlan, type Calibration, type PlanPoint } from "./calibrate";
-import { chooseSweep, SweepFollower, type PlanSweep } from "./follow";
+import { chooseSweep, moveStyle, SweepFollower, type PlanSweep } from "./follow";
 import { Hud, type CamPose } from "./hud";
 import { FALLBACK_LINE, SDK_TIMEOUT_MS, connectSdk, withTimeout } from "./load";
 
@@ -39,7 +39,9 @@ export interface ShowcaseHandle {
   calibration: Calibration | null;
   ready: boolean;
   /** Diagnostics for the dev page: sweep moves done and the last move's duration in ms. */
-  stats: { moves: number; lastMoveMs: number; sweeps: number };
+  stats: { moves: number; lastMoveMs: number; sweeps: number; queued?: number };
+  /** Dev only: every Sweep.moveTo we sent (id, transition, ms, jump metres, plan pos at send time). */
+  moveLog?: { id: string; transition: string; ms: number; jumpM: number; t: number }[];
   /** Dev only: the last SDK camera pose. */
   pose(): CamPose | null;
   _sdk?: any;
@@ -52,7 +54,6 @@ export interface MountOptions {
 }
 
 const PITCH_DOWN = -10;
-const MOVE_MS = 500;
 export const EMBED_PARAMS = "play=1&qs=1&help=0&hl=0&title=0";
 
 async function loadPanos(pkg: BuildingPackage): Promise<PlanPoint[]> {
@@ -147,9 +148,17 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
       pose: () => pose, _sdk: sdk, setPose: () => undefined, enterAtEntrance: async () => ({ pos: [0, 0], heading: 0 }), stop,
     };
     let firstMove = true;
-    const follower = new SweepFollower(o.world, () => cached, async (id, h) => {
+    const moveLog: NonNullable<ShowcaseHandle["moveLog"]> = [];
+    handle.moveLog = moveLog;
+    // Sweep.Transition in SDK 1.6.2 is Camera.TransitionType: INSTANT, FLY ("smoothly interpolate the camera to the
+    // target"), FADEOUT, and experimental MOVEFADE/ORBIT. There is no INTERPOLATE member, so a walking step is a short
+    // FLY between adjacent sweeps (what the viewer's own arrow keys do); a long jump or the entrance is a slower FLY.
+    const follower = new SweepFollower(o.world, () => cached, async (id, h, info) => {
       if (firstMove) { firstMove = false; stage(`first Sweep.moveTo ${id}`); }
-      await withTimeout(sdk.Sweep.moveTo(id, { rotation: { x: PITCH_DOWN, y: headingToYaw(cal, h) }, transition: sdk.Sweep.Transition.FLY, transitionTime: MOVE_MS }), 4000, "move stalled").catch(e => { if ((e as Error).message === "move stalled") onOffline(); throw e; });
+      const st = moveStyle(info.jumpM, info.first), transition = sdk.Sweep.Transition.FLY;
+      moveLog.push({ id, transition: `${transition}${st.long ? " long" : " step"}`, ms: st.ms, jumpM: +info.jumpM.toFixed(2), t: Math.round(performance.now()) });
+      stage(`Sweep.moveTo ${id} ${st.long ? "long" : "step"} ${transition} ${st.ms} ms jump ${info.jumpM.toFixed(2)} m`);
+      await withTimeout(sdk.Sweep.moveTo(id, { rotation: { x: PITCH_DOWN, y: headingToYaw(cal, h) }, transition, transitionTime: st.ms }), 4000, "move stalled").catch(e => { if ((e as Error).message === "move stalled") onOffline(); throw e; });
       // turns made during the flight: settle on the walker's current heading
       void Promise.resolve(sdk.Camera.setRotation({ x: PITCH_DOWN, y: headingToYaw(cal, heading) }, { speed: 220 })).catch(() => undefined);
     });
@@ -161,9 +170,8 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
     let lastRot = 0, lastHeading = NaN;
     const follow = async (): Promise<void> => {
       if (stopped) return;
-      const moved = await follower.update(pos, heading);
-      handle.stats.moves = follower.moves; handle.stats.lastMoveMs = follower.lastMoveMs;
-      if (moved && !stopped) void follow(); // catch up once, never queued: update() drops calls while busy
+      await follower.update(pos, heading); // while a move is in flight this queues the newest pose (depth 1)
+      handle.stats.moves = follower.moves; handle.stats.lastMoveMs = follower.lastMoveMs; handle.stats.queued = follower.queued;
     };
     handle.setPose = (p, h) => {
       if (stopped) return; // after a fallback the walker keeps going; we just stop drawing
