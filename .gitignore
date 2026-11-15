@@ -230,8 +230,10 @@ mp_out/
 .DS_Store
 secondvisit-kit-v3.zip
 
-# Sponsor data: never in git
-data/costar/
+# Sponsor data: never in git (no trailing slash: also ignores worktree symlinks)
+data/costar
+data/*/raw
+.superpowers/
 vendor/matterport/models_index.csv
 vendor/matterport/basemap.json
 web/public/buildings/*/
