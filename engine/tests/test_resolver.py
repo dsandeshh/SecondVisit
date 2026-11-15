@@ -55,3 +55,50 @@ def test_costar_joins_to_fixture_rows(kit):
     assert rec["models"] == ["x37LjPx62VA", "hpGRjK5uFPW"]
     assert rec["tenants"][0]["name"] == "Invented Tenant"
     assert resolver.costar_record("999") is None
+
+
+def _ref(r):
+    return r["prov_entries"]["resolver.suite"].ref
+
+
+@pytest.mark.parametrize("setup", ["missing", "badpw", "corrupt", "nomember"])
+def test_kit_unavailable_never_crashes(tmp_path, monkeypatch, setup):
+    monkeypatch.setattr(resolver.probe, "DATA", tmp_path / "nodata")  # no cached costar.json
+    p = tmp_path / "kit.zip"
+    monkeypatch.setenv("COSTAR_KIT_ZIP", str(p))
+    monkeypatch.setenv("COSTAR_ZIP_PASSWORD", "s3cretpw")
+    if setup == "corrupt":
+        p.write_bytes(b"not a zip")
+    elif setup == "nomember":
+        with zipfile.ZipFile(p, "w") as z:
+            z.writestr("other.txt", "x")
+    elif setup == "badpw":
+        import shutil
+        import subprocess
+        if not shutil.which("zip"):
+            pytest.skip("zip CLI absent")
+        (tmp_path / "a.txt").write_text("x")
+        subprocess.run(["zip", "-q", "-P", "otherpw", str(p), "a.txt"], cwd=tmp_path, check=True)
+    r = resolver.resolve("medical office houston")
+    assert r["best"]["sid"] == "x37LjPx62VA" and r["costar"] is None
+    assert "kit unavailable:" in _ref(r)
+    assert "s3cretpw" not in _ref(r)
+
+
+def test_cached_costar_json_preferred(tmp_path, monkeypatch):
+    monkeypatch.setenv("COSTAR_KIT_ZIP", str(tmp_path / "absent.zip"))
+    monkeypatch.setattr(resolver.probe, "DATA", tmp_path)
+    raw = tmp_path / "x37LjPx62VA" / "raw"
+    raw.mkdir(parents=True)
+    (raw / "costar.json").write_text(json.dumps({"property": {"id": 5615020}, "tenants": [], "models": []}))
+    r = resolver.resolve("medical office houston")
+    assert r["costar"]["property"]["id"] == 5615020
+    assert "kit unavailable" not in _ref(r)
+
+
+def test_missing_index_names_path_and_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("DR_INDEX_CSV", str(tmp_path / "nope.csv"))
+    with pytest.raises(FileNotFoundError) as e:
+        resolver.search_index("x")
+    assert "nope.csv" in str(e.value) and "DR_INDEX_CSV" in str(e.value)
+    assert "\n" not in str(e.value)

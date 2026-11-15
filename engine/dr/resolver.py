@@ -7,7 +7,9 @@ the local kit zip via probe.costar_record. No network call is made here.
 from __future__ import annotations
 
 import csv
+import json
 import os
+import zipfile
 from pathlib import Path
 from typing import TypedDict
 
@@ -35,7 +37,10 @@ class Candidate(TypedDict):
 
 def _index_path() -> Path:
     p = Path(os.environ.get("DR_INDEX_CSV") or probe.INDEX_CSV)
-    return p if p.is_absolute() else ROOT / p
+    p = p if p.is_absolute() else ROOT / p
+    if not p.exists():
+        raise FileNotFoundError(f"sponsor index CSV not found at {p}; set DR_INDEX_CSV to its path")
+    return p
 
 
 def _f(v: str) -> float | None:
@@ -67,25 +72,38 @@ def search_index(text: str, city: str | None = None, k: int = 5) -> list[Candida
     return out[:k]
 
 
-def costar_record(property_id: str) -> dict | None:
-    """CoStar property, tenancies, tenants and linked models from the local kit; None if unknown."""
+def costar_lookup(property_id: str, sid: str | None = None) -> tuple[dict | None, str | None]:
+    """(record, None) on success, (None, None) if unknown, (None, reason) if the kit is unusable."""
     pid = str(property_id).strip()
     if not pid.isdigit():
-        return None
-    rec = probe.costar_record(int(pid))
-    return rec if rec["property"] else None
+        return None, None
+    cache = probe.DATA / sid / "raw" / "costar.json" if sid else None
+    try:
+        if cache and cache.exists():
+            rec = json.loads(cache.read_text())
+        else:
+            rec = probe.costar_record(int(pid))
+    except (OSError, RuntimeError, zipfile.BadZipFile, KeyError, ValueError) as e:
+        return None, f"{type(e).__name__}: {str(e)[:80]}".replace(os.environ.get("COSTAR_ZIP_PASSWORD") or "\0", "***")
+    return (rec if rec.get("property") else None), None
+
+
+def costar_record(property_id: str, sid: str | None = None) -> dict | None:
+    """CoStar property, tenancies, tenants and linked models (cache, else local kit); None if unknown or kit unavailable."""
+    return costar_lookup(property_id, sid)[0]
 
 
 def resolve(text: str) -> dict:
     cands = search_index(text)
     best = cands[0] if cands else None
     ambiguous = len(cands) > 1 and cands[0]["score"] - cands[1]["score"] <= AMBIGUOUS_GAP
-    cs = costar_record(best["costar_property_id"]) if best and best["costar_property_id"] else None
+    cs, why = costar_lookup(best["costar_property_id"], best["sid"]) if best and best["costar_property_id"] else (None, None)
     entries = {}
     if best:
         pb = ProvBuilder()
         pb.add("resolver.suite", "costar" if cs else "calc",
-               f"models_index.csv rapidfuzz token_set_ratio" + (f"; costar:{best['costar_property_id']}" if cs else ""),
+               "models_index.csv rapidfuzz token_set_ratio" + (f"; costar:{best['costar_property_id']}" if cs else "")
+               + (f"; kit unavailable: {why}" if why else ""),
                confidence=min(1.0, best["score"] / 100))
         entries = pb.entries
     return {"best": best, "candidates": cands, "costar": cs, "ambiguous": ambiguous,

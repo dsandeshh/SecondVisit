@@ -221,15 +221,14 @@ def navigability(pkg: BuildingPackage, build_s: float = 0.0, plan=None, segment=
 _costar_warned: list[int] = []
 
 
-def _costar(pid: str) -> dict:
+def _costar(pid: str, sid: str | None = None) -> dict:
     try:
-        rec = resolver.costar_record(pid)
+        rec, why = resolver.costar_lookup(pid, sid)
     except Exception as e:
-        if not _costar_warned:
-            _costar_warned.append(1)
-            print(f"warning: CoStar lookup failed ({type(e).__name__}: {str(e)[:100]}); rows have no CoStar fields",
-                  file=sys.stderr)
-        return {}
+        rec, why = None, f"{type(e).__name__}: {str(e)[:100]}"
+    if why and not _costar_warned:
+        _costar_warned.append(1)
+        print(f"warning: CoStar lookup failed ({why}); rows have no CoStar fields", file=sys.stderr)
     if not rec:
         return {}
     prop = {k: v for k, v in (rec.get("property") or {}).items() if isinstance(v, (str, int, float, bool))}
