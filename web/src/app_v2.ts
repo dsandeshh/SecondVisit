@@ -196,6 +196,12 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     audioRunning: () => audio.ctx?.state === "running",
     onPhase: p => showPhase(doc, session, p, app.router),
     onQuestion: q => showQuiz(doc, session, q),
+    onCheck: c => {
+      const inside = doc.getElementById("check-me-inside"); if (inside) inside.hidden = !c.available;
+      const coach = doc.getElementById("check-coach"), yes = doc.getElementById("check-yes");
+      if (coach) { coach.hidden = !c.source; coach.textContent = c.source ? `${c.line ?? ""} Chosen by: ${c.source === "agent" ? "coach agent" : "scripted"}.` : ""; }
+      if (yes) yes.hidden = !c.source;
+    },
     onNext: t => { $("next-action").textContent = doc.body.dataset.flow === "inside" ? t.replace("skip the fly-in and start the walk to the door", "start the rehearsal") : t; },
     onIntro: t => showIntro(doc, t),
     onHold: on => { audio.hold(on); },
@@ -223,6 +229,8 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     else { try { window.location.hash = "#/home"; } catch { /* */ } window.location.reload(); }
   });
   $("to-explore").addEventListener("click", () => { session.explore(); stage.focus(); });
+  for (const id of ["check-me", "check-me-inside"]) $(id).addEventListener("click", () => { session.check(); ($("check") as HTMLElement).focus(); });
+  $("check-yes").addEventListener("click", () => { session.yes(); stage.focus(); });
   $("go").addEventListener("click", () => stage.focus());
   doc.addEventListener("keydown", e => { if (e.key === "Escape" && app.router?.page === "about") { e.preventDefault(); app.router.go(pageOfPhase(session.phase)); } });
   if (op) {
@@ -445,7 +453,7 @@ function onPage(app: App, doc: Document, p: Page, prev: Page | null, started: bo
   else setTimeout(() => { if (app.speech.busyPri === null) say(); }, 2500);   // after the phase's own lines, never over them
 }
 
-function showQuiz(doc: Document, s: Session, q: QuizSession | null): void {
+function showQuiz(doc: Document, s: Session, q: QuizSession | import("./modes/check").CheckSession | null): void {
   const host = doc.getElementById("quiz")!;
   host.replaceChildren();
   host.hidden = !q || q.finished;

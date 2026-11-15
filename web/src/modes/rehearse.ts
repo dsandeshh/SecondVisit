@@ -23,6 +23,10 @@ type Deps = {
   threadId?: string;
   /** Hesitation counts only while the audio context runs. */
   audioRunning?: () => boolean;
+  /** Practise one stretch only (Check yourself): the run ends at the end of this segment. */
+  onlySegment?: number;
+  /** Said when that one stretch is done. */
+  stretchDone?: string;
 };
 
 /** Distance from p to the segment a-b. */
@@ -92,6 +96,13 @@ export class RehearsalRun {
     const dEnd = dist(p.pos, this.segment.end);
     if (dEnd < this.best - PROGRESS_M) { this.best = dEnd; this.lostMs = 0; }
     const last = this.route.segments.length - 1;
+    const only = this.deps.onlySegment;
+    if (only !== undefined && this.current === only && dist(p.pos, this.segment.end) <= ADVANCE_M) {
+      this.done = true;
+      this.push("arrive", p.pos);
+      this.speech.say(this.deps.stretchDone ?? "", 2);
+      return this.log.events.slice(from);
+    }
     if (this.arrived(p.pos)) this.arrive(p.pos);
     while (!this.done && this.current < last && dist(p.pos, this.segment.end) <= ADVANCE_M) {
       this.current++; this.best = Infinity; this.lostMs = 0;

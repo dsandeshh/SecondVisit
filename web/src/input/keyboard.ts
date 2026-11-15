@@ -39,6 +39,10 @@ export interface KeyActions {
   keys?(): void;
   /** X: back to Explore (from Rehearse, pointing, the quiz or the summary). */
   explore?(): void;
+  /** C: Check yourself (three questions, then the weak stretch). */
+  check?(): void;
+  /** Y: yes to the offer after Check yourself (same as Enter there). */
+  yes?(): void;
   /** Every handled key, first (cuts speech, resumes a paused AudioContext). `key` is the lower cased key. */
   any(key?: string): void;
 }
@@ -85,6 +89,8 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
       case "k": handled(); a.keys?.(); return;
       case "x": handled(); a.explore?.(); return;
       case "p": handled(); a.pause?.(); return;
+      case "c": handled(); a.check?.(); return;
+      case "y": handled(); a.yes?.(); return;
       case "1": case "2": case "3": case "4": case "5": case "6": case "7": case "8": case "9":
         handled(); a.digit?.(Number(k)); return;
       case "+": case "=": handled(); a.rate(0.15); return;

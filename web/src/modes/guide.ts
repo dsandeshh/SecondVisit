@@ -62,7 +62,7 @@ export class Intro {
   private finish(): void { this.active = false; (this.io.remember ?? storeSeen)(); }
 }
 
-export type NextCtx = { phase: Phase; intro?: string | null; picked?: boolean; pointed?: boolean; answered?: boolean; runNo?: number; hasRoute?: boolean };
+export type NextCtx = { phase: Phase; offer?: boolean; intro?: string | null; picked?: boolean; pointed?: boolean; answered?: boolean; runNo?: number; hasRoute?: boolean };
 
 /** The one clear next action, for the bottom strip. */
 export function nextAction(c: NextCtx): string {
@@ -73,7 +73,8 @@ export function nextAction(c: NextCtx): string {
       return c.hasRoute === false ? "Next: press Q to hear what is around you" : "Next: press Enter to skip the fly-in and start the walk to the door";
     case "rehearse": return "Next: follow the spoken directions. Press Space to hear them again";
     case "point": return c.pointed ? "Next: press Enter to go on" : "Next: turn with Left and Right, then press Space to confirm";
-    case "quiz": return c.answered ? "Next: press Enter for the next question" : "Next: press 1 to 4 to answer";
+    case "quiz": if (c.offer) return "Next: press Y or Enter to practise, or X for Explore";
+      return c.answered ? "Next: press Enter for the next question" : "Next: press 1 to 4 to answer";
     case "summary": return c.runNo === 2 ? "Next: press Space to hear the summary again" : "Next: press Enter to start run 2";
   }
 }
