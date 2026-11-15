@@ -71,11 +71,11 @@ def test_model_without_walls_skipped_with_reason(root):
     assert rows[0].skipped and "no walls" in rows[0].skipped and rows[0].total is None
 
 
-def test_crash_in_builder_is_a_skip():
+def test_crash_in_builder_is_an_error_row():
     def bad(sid):
         raise KeyError("boom")
     r = run_portfolio([{"sid": "z", "name": "z"}], build=bad, nav=fake_nav, costar=lambda p: {})[0]
-    assert r.skipped.startswith("error: KeyError")
+    assert r.error.startswith("KeyError") and r.skipped is None
 
 
 def test_navigability_uses_injected_route_stack(root):
