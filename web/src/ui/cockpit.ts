@@ -10,6 +10,7 @@ import { calmFloor, clearBackdrop, type FloorPlanMeta } from "../three/mapping";
 import type { BuildingPackage, Landmark, LandmarkKind, Prov, Vec2 } from "../types";
 import { bearing, dist } from "../world";
 import { chip, chipKind, describeProv, layerCounts, METER_ORDER, renderLayerMeter, withPossibly } from "./prov";
+import { projOpts, projWanted } from "../three/panoproj";
 
 export type FloorPlan = { meta: FloorPlanMeta; url: string; img: CanvasImageSource } | { missing: string };
 
@@ -147,6 +148,9 @@ export class Cockpit {
     } else {
       room.setScene("scan"); press("scan"); note.hidden = true; note.textContent = "";
       if (scanBtn) scanBtn.disabled = false;
+      // experimental: ?view=proj colours the scan from the panorama photos; on any failure the baked texture stays
+      const search = this.doc.location?.search ?? "";
+      if (projWanted(search)) void room.enableProjection(`/buildings/${this.pkg.id}/`, projOpts(search)).then(w => { if (w) console.warn(`photo projection off (${w}); baked texture`); });
     }
   }
 

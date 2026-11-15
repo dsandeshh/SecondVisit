@@ -9,6 +9,17 @@ import { shownName, spokenOf, isPossibly } from "../names";
 import type { BuildingPackage, Landmark, Vec2 } from "../types";
 import { decodeCells } from "../world";
 import { floorPlanPlacement, headingDir3, headingToYaw, roomMask, toThree, wallRects, type FloorPlanMeta, type Rect } from "./mapping";
+import { nearestPanos, panoToGL, type ProjIndex, type ProjPano, type RotMode } from "./panoproj";
+import { PROJ_SLOTS, patchMaterial, projUniforms, type ProjUniforms } from "./projshader";
+
+const CUBE_FILES = ["px.jpg", "nx.jpg", "py.jpg", "ny.jpg", "pz.jpg", "nz.jpg"];
+/** Pano cube maps kept on the GPU (about 32 MB each at 1024 px faces with mips); the least recently bound go first. */
+const PROJ_CACHE = 10;
+type ProjState = {
+  base: string; idx: ProjIndex; u: ProjUniforms; rot: RotMode;
+  slots: (string | null)[];
+  cache: Map<string, { tex: THREE.CubeTexture; ready: boolean; used: number }>;
+};
 
 export type ViewMode = "behind" | "top" | "orbit" | "eye";
 /** Eye height of the first person view on the mesh (metres above the floor), under the 2 m cut. */
@@ -114,6 +125,7 @@ export class Room3D {
   private accent: string; private mark: string; private ink: string;
   private planObjs: THREE.Object3D[] = [];
   private scan: THREE.Object3D | null = null;
+  private proj: ProjState | null = null;
   sceneMode: SceneMode = "plan";
 
   constructor(readonly host: HTMLElement, readonly pkg: BuildingPackage, opts: Room3DOptions = {}) {
@@ -217,6 +229,66 @@ export class Room3D {
   }
 
   get hasScan(): boolean { return !!this.scan; }
+
+  /**
+   * ?view=proj (experimental): colour the scan from the real panorama photos (pano/index.json and cube maps from
+   * engine/scripts/export_pano_faces.py). The PROJ_SLOTS panos nearest the camera are bound each frame; wherever no
+   * bound pano gives a photo texel the shader keeps the baked texture. Resolves with a reason on failure (the baked
+   * view then stays exactly as it was), null on success.
+   */
+  async enableProjection(base: string, o: { rot?: RotMode; debug?: boolean } = {}): Promise<string | null> {
+    if (!this.scan) return "no scan";
+    try {
+      const r = await fetch(`${base}pano/index.json`);
+      if (!r.ok) return `HTTP ${r.status}`;
+      if (/text\/html/.test(r.headers.get("content-type") ?? "")) return "pano index missing";
+      const idx = (await r.json()) as ProjIndex;
+      if (!idx.panos?.length) return "no panos";
+      const u = projUniforms(PROJ_SLOTS);
+      this.scan.traverse(x => {
+        const m = x as THREE.Mesh; if (!m.isMesh) return;
+        for (const mat of ([] as THREE.Material[]).concat(m.material)) if ((mat as THREE.MeshStandardMaterial).map) patchMaterial(mat as THREE.MeshStandardMaterial, u, { debug: o.debug });
+      });
+      this.proj = { base, idx, u, rot: o.rot ?? "quat", slots: new Array(PROJ_SLOTS).fill(null), cache: new Map() };
+      return null;
+    } catch (e) { return e instanceof Error ? e.message : "failed"; }
+  }
+  get projecting(): boolean { return !!this.proj; }
+
+  /** Bind the panos nearest the camera to the shader's slots, loading their cube maps on first use. */
+  private updateProj(now: number): void {
+    const P = this.proj; if (!P) return;
+    const cam: [number, number] = [this.camera.position.x, -this.camera.position.z];   // three -> plan
+    const want = nearestPanos(cam, P.idx.panos, PROJ_SLOTS);
+    const ids = new Set(want.map(p => p.id));
+    P.slots = P.slots.map(id => (id && ids.has(id) ? id : null));     // keep panos that stay, free the rest
+    for (const p of want) if (!P.slots.includes(p.id)) P.slots[P.slots.indexOf(null)] = p.id;
+    const byId = new Map(P.idx.panos.map(p => [p.id, p] as const));
+    P.slots.forEach((id, i) => {
+      const p = id ? byId.get(id) : undefined;
+      const c = p ? this.projTex(p) : undefined;
+      if (c) c.used = now;
+      P.u.svOn.value[i] = c?.ready ? 1 : 0;
+      P.u[`svCube${i}`].value = c?.ready ? c.tex : null;
+      if (p) { P.u.svPos.value[i].set(...p.pos); P.u.svG.value[i].set(...(panoToGL(p, P.idx.face_yaw0_deg, P.rot) as [number, number, number, number, number, number, number, number, number])); }
+    });
+    if (P.cache.size > PROJ_CACHE) {
+      const old = [...P.cache.entries()].filter(([id]) => !P.slots.includes(id)).sort((a, b) => a[1].used - b[1].used);
+      for (const [id, c] of old.slice(0, P.cache.size - PROJ_CACHE)) { c.tex.dispose(); P.cache.delete(id); }
+    }
+  }
+
+  private projTex(p: ProjPano): { tex: THREE.CubeTexture; ready: boolean; used: number } {
+    const P = this.proj!;
+    let c = P.cache.get(p.id);
+    if (!c) {
+      const entry = { tex: null as unknown as THREE.CubeTexture, ready: false, used: 0 };
+      entry.tex = new THREE.CubeTextureLoader().setPath(P.base + p.dir).load(CUBE_FILES, () => { entry.ready = true; }, undefined, () => { /* stays baked */ });
+      entry.tex.colorSpace = THREE.SRGBColorSpace;
+      P.cache.set(p.id, entry); c = entry;
+    }
+    return c;
+  }
 
   /** "scan": the real mesh (cut above 2 m) under the pins, route and walker; "plan": the built walls and floor plan. */
   setScene(m: SceneMode): void {
@@ -652,6 +724,7 @@ export class Room3D {
       return false;
     });
     if (this.layer) this.placeChips();
+    if (this.proj && this.scan?.visible) this.updateProj(now);
     if (this.host.clientWidth > 0) this.renderer.render(this.scene, this.camera);
     this.raf = requestAnimationFrame(t2 => this.frame(t2));
   }
@@ -681,6 +754,7 @@ export class Room3D {
     cancelAnimationFrame(this.raf);
     this.ro?.disconnect();
     this.disposables.forEach(d => d.dispose());
+    this.proj?.cache.forEach(c => c.tex.dispose());
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
