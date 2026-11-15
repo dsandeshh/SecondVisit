@@ -49,3 +49,11 @@ def test_straight_through_and_split_and_wall_fallback():
     assert out[0].instruction.endswith("go straight through the doorway between the wall and the wall.") or "between the wall and the wall" in out[0].instruction
     assert out[0].steps == round(out[0].length_m / 0.7) and out[1].instruction.startswith("Walk ")
     assert abs(out[0].end[0] - 5.05) < 0.4 and out[0].end == out[1].start
+
+
+def test_same_kind_both_sides_reads_as_one_object_and_a_wall():
+    from dr.doorway import Doorway, door_line
+    lms = [Landmark(id="a", kind="desk", label="Reception counter 3", pos=(4.7, 6.4), confidence=0.9, fixed=True, spoken="Reception counter 3"),
+           Landmark(id="b", kind="desk", label="Reception desk", pos=(4.7, 3.6), confidence=0.9, fixed=True, spoken="Reception desk by the column")]
+    d = Doorway((5.0, 5.0), 0.9, (4.7, 6.2), (4.7, 3.8))
+    assert door_line(d, 2, 40, lms) == "In 2 steps, turn right through the doorway between the Reception counter 3 and the wall."

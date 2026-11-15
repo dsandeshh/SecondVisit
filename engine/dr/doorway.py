@@ -118,7 +118,10 @@ def door_turn(path: list[Vec2], door: Doorway) -> float:
 
 def door_line(door: Doorway, steps: int, turn_deg: float, lms: list[Landmark]) -> str:
     left, lid = _name(lms, door.left_hit)
-    right, _ = _name(lms, door.right_hit, skip=lid)
+    right, rid = _name(lms, door.right_hit, skip=lid)
+    kinds = {lm.id: lm.kind for lm in lms}
+    if lid and rid and kinds[lid] == kinds[rid]:  # same kind both sides (two desks): one object and a wall, not two names
+        right = "the wall"
     t = _wrap180(turn_deg)
     word = "go straight" if abs(t) < 20 else ("turn right" if t > 0 else "turn left")
     n = f"{steps} step" if steps == 1 else f"{steps} steps"
