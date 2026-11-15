@@ -87,7 +87,7 @@ export function projOpts(search: string): { rot: RotMode; debug: boolean; stage:
 export type ProjCand = { dist: number; visible: boolean; facing: number; lumDiff?: number };
 /** Beyond FADE_M a pano fades out, by MAX_M it gives nothing; under FACING_LO (grazing, ~80 degrees) nothing,
  *  full trust from FACING_HI (~65 degrees); full trust up to AGREE_LO luma difference, none from AGREE_HI. */
-export const PROJ = { FADE_M: 6, MAX_M: 9, FACING_LO: 0.15, FACING_HI: 0.4, AGREE_LO: 0.2, AGREE_HI: 0.45, CAP: 3 };
+export const PROJ = { FADE_M: 6, MAX_M: 9, FACING_LO: 0.15, FACING_HI: 0.4, AGREE_LO: 0.2, AGREE_HI: 0.45, CAP: 3, FALLOFF: 2 };
 const smooth = (a: number, b: number, x: number) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** Trust in one candidate, 0..1: line of sight, facing, range, photo consistency. */
@@ -98,12 +98,13 @@ export function projConf(c: ProjCand): number {
 }
 
 /**
- * Blend weights over candidates: w = conf / (dist^2 + 0.25), only the `cap` largest kept, normalised to sum 1.
+ * Blend weights over candidates: w = conf / (dist^2 + 0.25)^FALLOFF (2: 1/d^4, so blending stays near the
+ * places where two panos are about equally near and does not ghost everywhere), only the `cap` largest kept, normalised to sum 1.
  * `alpha` is how much of the photo to show over the baked texel (the best candidate's trust); 0 = baked only.
  * cap 1 is stage c (the single best visible pano), cap 3 is stage d.
  */
 export function projBlend(cands: ProjCand[], cap = PROJ.CAP): { weights: number[]; alpha: number } {
-  const raw = cands.map(c => projConf(c) / (c.dist * c.dist + 0.25));
+  const raw = cands.map(c => projConf(c) / Math.pow(c.dist * c.dist + 0.25, PROJ.FALLOFF));
   const keep = raw.map((w, i) => [w, i] as const).filter(([w]) => w > 0).sort((a, b) => b[0] - a[0]).slice(0, cap);
   const weights = new Array(cands.length).fill(0);
   const sum = keep.reduce((s, [w]) => s + w, 0);

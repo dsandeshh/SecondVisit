@@ -107,11 +107,11 @@ describe("projBlend: which panos colour a surface point, and the baked fallback"
     const b = projBlend([C(2), C(3, false)]);
     expect(b.weights).toEqual([1, 0]); expect(b.alpha).toBe(1);
   });
-  it("the nearer of two clear panos weighs more (1/d^2) and weights sum to 1", () => {
+  it("the nearer of two clear panos weighs more ((d^2 + 0.25)^-FALLOFF) and weights sum to 1", () => {
     const b = projBlend([C(1), C(2)]);
     expect(b.weights[0]).toBeGreaterThan(b.weights[1]);
     expect(b.weights[0] + b.weights[1]).toBeCloseTo(1);
-    expect(b.weights[0] / b.weights[1]).toBeCloseTo((4 + 0.25) / (1 + 0.25));
+    expect(b.weights[0] / b.weights[1]).toBeCloseTo(Math.pow((4 + 0.25) / (1 + 0.25), PROJ.FALLOFF));
   });
   it("keeps only the 3 strongest; cap 1 is the single best visible pano (stage c)", () => {
     const b = projBlend([C(1), C(2), C(3), C(4)]);

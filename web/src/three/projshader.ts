@@ -72,7 +72,7 @@ export function fragHead(k: number, stage: ProjStage): string {
     float lumDiff = abs(svLuma(textureLod(svCube${i}, g, SV_BLUR_CUBE).rgb) - bakedBlurL);
     float conf = seen ? smoothstep(${f(PROJ.FACING_LO)}, ${f(PROJ.FACING_HI)}, facing) * (1.0 - smoothstep(${f(PROJ.FADE_M)}, ${f(PROJ.MAX_M)}, d))
       * (1.0 - smoothstep(${f(PROJ.AGREE_LO)}, ${f(PROJ.AGREE_HI)}, lumDiff)) : 0.0;
-    cf[${i}] = conf; w[${i}] = conf / (d * d + 0.25);
+    cf[${i}] = conf; w[${i}] = conf / pow(d * d + 0.25, ${f(PROJ.FALLOFF)});
   }`;
   const blend = `
   // surface normal from screen derivatives (the GLB has no normals), turned toward the viewer
