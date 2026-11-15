@@ -76,8 +76,11 @@ export function synth(kind: TapKind, sr: number): Float32Array {
       for (let i = 0; i < x.length; i++) x[i] = Math.sin(2 * Math.PI * 90 * i / sr) * Math.exp(-i / sr / 0.02);
       return normalise(x, 0.95);
     }
-    case "step": // footstep: low passed noise
-      return normalise(biquad(noiseBurst(n(0.04), 30), sr, "lp", 500, 0.7), 0.35);
+    case "step": { // one press of Up: a short, quiet cane tick (about 40 ms), not a footstep (human decision 15 Nov)
+      const x = biquad(noiseBurst(n(0.04), 4), sr, "bp", 2600, 1.4);
+      for (let i = 0; i < x.length; i++) x[i] += 0.35 * Math.sin(2 * Math.PI * 1500 * i / sr) * Math.exp(-i / sr / 0.006);
+      return normalise(x, 0.3);
+    }
   }
 }
 

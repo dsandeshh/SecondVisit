@@ -25,6 +25,8 @@ export interface KeyActions {
   ahead?(): void;
   /** Tab / Shift+Tab: next or previous place. */
   pick?(dir: 1 | -1): void;
+  /** An Up or Down press that came too soon after the last step: one cane tick, no step. */
+  stepTick?(): void;
   /** B: the continuous beacon on or off (falls back to hint()). */
   beacon?(): void;
   /** Escape: clear the target, cut a sweep. */
@@ -58,7 +60,7 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
     switch (k) {
       case "ArrowUp": case "ArrowDown":
         handled();
-        if (t - lastStep < STEP_GAP_MS) return;
+        if (t - lastStep < STEP_GAP_MS) { if (!e.repeat) a.stepTick?.(); return; }   // a fresh press is never ignored
         lastStep = t; a.step(k === "ArrowUp" ? 1 : -1); return;
       case "ArrowLeft": case "ArrowRight":
         handled();

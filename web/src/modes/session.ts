@@ -268,6 +268,8 @@ export class Session implements KeyActions {
   }
 
   step(dir: 1 | -1): void { if (this.blocked()) return; this.ex.step(dir); }
+  /** An Up press inside the step gap: the tick still answers it (no step). */
+  stepTick(): void { if (!this.held && this.live && !this.ex.locked) this.ex.caneTick(); }
 
   turn(deg: number): void {
     if (this.blocked()) return;

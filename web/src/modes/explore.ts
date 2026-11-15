@@ -118,8 +118,16 @@ export class Explore implements KeyActions {
     this.moved(false);
   }
 
+  private ticks = 0;
+  /** One quiet cane tick per Up press, alternating a little left and right, low in the mix: a press is never silent. */
+  caneTick(): void {
+    this.ticks++;
+    this.audio.play("step", { pan: this.ticks % 2 ? 0.15 : -0.15, gain: 0.5, send: 0 });
+  }
+
   step(dir: 1 | -1): void {
     if (this.locked) return;
+    this.caneTick();                               // first, even when the step is blocked (then the bump follows)
     const t = this.traveller;
     const r = t.step(dir);
     this.timer.reset();
@@ -132,7 +140,6 @@ export class Explore implements KeyActions {
       return;
     }
     this.steps++;
-    this.audio.play("step", { pan: this.steps % 2 ? 0.2 : -0.2, gain: 0.8, send: 1 });
     this.moved();
     this.hooks.onStep?.(t);
     if (dir > 0) this.autoSweep();
