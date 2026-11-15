@@ -8,3 +8,8 @@ finalize, mode `agent`. Venue request ("Where should our reception desk go?") to
 layout_advisor (layout_candidates, evaluate_layout, record_round), kind `layout`. Simulation is labelled "simulated (stub)"
 until Task 11 lands. Traces are written to `traces/<thread>.jsonl` (gitignored; replay with
 `GET /api/agent/replay?name=<file>`). Public LangSmith link: not captured yet.
+
+Playing the recordings (no model or sponsor call): `GET /api/agent/replay?name=visitor` (appointment at the front desk) and
+`?name=venue` (Where should our reception desk go?); `&speed=4` plays faster; `GET /api/agent/replays` lists which file each name
+resolves to. The local clinic recordings (`traces/replay-*-clinic.jsonl`, sponsor derived, gitignored) win when present, otherwise
+the committed `traces/replay-*-fixture.jsonl` play. The stream's start event says `mode: "replay"`.

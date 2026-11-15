@@ -33,7 +33,7 @@ import uuid
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.types import Command
@@ -252,10 +252,30 @@ async def resume_agent(req: ResumeRequest):
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+# Named replays for the demo: "visitor" and "venue". The clinic recording (sponsor derived, local only) is
+# preferred; the committed fixture recording is the fallback, so a clean checkout still replays.
+REPLAY_NAMES = {"visitor": ("replay-visitor-clinic.jsonl", "replay-visitor-fixture.jsonl"),
+                "venue": ("replay-venue-clinic.jsonl", "replay-venue-fixture.jsonl")}
+
+
+def resolve_replay(name: str) -> Path | None:
+    cands = REPLAY_NAMES.get(name) or (Path(name).name,)
+    return next((TRACE_DIR / c for c in cands if (TRACE_DIR / c).is_file()), None)
+
+
+@router.get("/api/agent/replays")
+async def replays():
+    """Which named replays can play right now, and from which file."""
+    return {k: (p.name if (p := resolve_replay(k)) else None) for k in REPLAY_NAMES}
+
+
 @router.get("/api/agent/replay")
 async def replay(name: str, speed: float = 1.0):
-    """Replay a recorded run with its original timing. The start event says it is a replay."""
-    path = TRACE_DIR / Path(name).name
+    """Replay a recorded run with its original timing. `name` is `visitor`, `venue` or a file in the trace
+    folder. The start event says it is a replay; no model or sponsor call is made."""
+    path = resolve_replay(name)
+    if path is None:
+        raise HTTPException(status_code=404, detail=f"no recorded trace named {name!r}")
 
     async def gen() -> AsyncIterator[str]:
         yield sse({"type": "start", "mode": "replay", "recorded": path.name})

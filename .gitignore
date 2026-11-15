@@ -239,7 +239,8 @@ vendor/matterport/basemap.json
 web/public/buildings/*/
 !web/public/buildings/fixture/
 web/public/portfolio.json
-traces/
+traces/*
+!traces/replay-*-fixture.jsonl
 *.xyz
 *.obj
 *.ply

@@ -469,3 +469,23 @@ def test_api_mounts_agent_router_scripted_mode(tmp_path, monkeypatch):
         api_stream.set_test_doubles(None, None)
     assert ev[0]["type"] == "start" and ev[-1]["type"] == "final"
     assert ev[-1]["result"]["mode"] == "scripted" and ev[-1]["result"]["kind"] == "layout"
+
+
+def test_named_replays_prefer_clinic_then_fixture_and_404_when_missing(tmp_path, monkeypatch):
+    fastapi = pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+    from dr.agents import api_stream
+
+    monkeypatch.setattr(api_stream, "TRACE_DIR", tmp_path)
+    app = fastapi.FastAPI()
+    app.include_router(api_stream.router)
+    client = TestClient(app)
+    line = lambda t: json.dumps({"t": 0.0, "event": {"type": t}}) + "\n"
+    (tmp_path / "replay-visitor-fixture.jsonl").write_text(line("start") + line("final"))
+    assert client.get("/api/agent/replays").json() == {"visitor": "replay-visitor-fixture.jsonl", "venue": None}
+    (tmp_path / "replay-visitor-clinic.jsonl").write_text(line("start") + line("thought") + line("final"))
+    assert client.get("/api/agent/replays").json()["visitor"] == "replay-visitor-clinic.jsonl"
+    body = client.get("/api/agent/replay?name=visitor&speed=100").text
+    assert '"recorded": "replay-visitor-clinic.jsonl"' in body and '"thought"' in body
+    assert client.get("/api/agent/replay?name=venue").status_code == 404
+    assert client.get("/api/agent/replay?name=../../etc/passwd").status_code == 404

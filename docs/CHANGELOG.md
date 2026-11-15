@@ -5,6 +5,7 @@ RunPlan or PointResult is logged here in the same commit as the code.
 
 ## 2026-11-14 (Sat): solo build, task log
 
+- 23:59 Agent replays: named `GET /api/agent/replay?name=visitor|venue` and `GET /api/agent/replays`; clinic recordings stay gitignored, fixture recordings `traces/replay-*-fixture.jsonl` are committed. No contract change.
 - 23:55 Rehearsal screen cockpit (UI_DESIGN 4.2a): `web/src/three/` (mapping.ts plan->three with tests, room3d.ts), `web/src/ui/cockpit.ts` (objects list, mini floor plan, live strip, agent and data panel); three@0.170.0 pinned. Audio, keys and the stage unchanged; phones skip it. No contract change.
 - 23:30 Overrides schema (R5) gains `label_overrides: {landmark_id: label}` (rename in the rehearsal objects list; merge_landmarks applies it and writes prov `landmark:<id>.label` as HAND). New `GET /api/overrides/<sid>` and `POST /api/overrides/<sid>/landmarks` {op: rename|remove|add} in `engine/dr/api.py`, writing only `data/<sid>/overrides.json`. No BuildingPackage change.
 - 23:05 Task 19 web done: `web/src/ui/prov.ts` (chips MP/VX/CS/CALC/AI/HAND, AI "possibly" under 0.6, layer meter, `sourceLine`), chips in the pocket summary, layer meter on the rehearsal screen, S speaks the source of the current instruction in Rehearse (swap stays in Explore). No contract change.
