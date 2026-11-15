@@ -123,7 +123,8 @@ The family stack in the tokens covers both names (`... Next Variable`, then `...
 
 **Don't**
 
-* Purple or blue gradients, gradient text, glows, neon, glassmorphism, `backdrop-filter: blur`.
+* Purple or blue gradients, gradient text, glows, neon, glassmorphism, `backdrop-filter: blur`. One
+  exception, and only through the `.glass-bar` and `.glass-panel` classes: the judge screens in 1.4.
 * Emoji, sparkle icons for AI, eye icons, white cane clip art, stock photos of blind people.
 * A centred hero, a big number with a gradient accent, "AI powered" badges.
 * The SaaS card kit: identical rounded cards with the same soft grey shadow. We use no box shadows at
@@ -135,6 +136,37 @@ The family stack in the tokens covers both names (`... Next Variable`, then `...
 * Skeleton shimmer, confetti, page load fades, hover lift on rows.
 * Placeholder text as the only label. Disabled buttons with no reason given.
 * Copy that says "experience blindness", "revolutionary", "seamless", "empower", "Oops".
+
+### 1.4 Apple clean layer
+
+The Apple feel comes from restraint, not effects. Two audiences, two rules.
+
+**Visitor screens (`index.html`: Home, mode choice, build list, rehearsal, Check yourself, Pocket
+summary, and the phone layout): no transparency and no blur, ever.** No `backdrop-filter`, no
+translucent overlays, no alpha on any surface that carries text. Low vision users lose text over a
+moving or blurred backdrop, and screen magnifiers make it worse. The clean feel comes from four things:
+
+| Lever | Rule | Tokens |
+|---|---|---|
+| Larger, heavier titles | The sign panel line and each screen's first heading use the visitor title size and weight 800, tight leading, slight negative tracking. Section headings use `--fw-heavy`. | `--fs-title-visitor` (40 to 56px), `--fw-title-visitor`, `--lh-title-visitor`, `--tracking-title-visitor` |
+| Fewer elements | A screen shows only what its one job needs. Required parts stay (sign panel, transcript region, rehearsal steps nav, chips the facts need); anything else moves to a later screen or behind a disclosure. No decorative rules, boxes or icons. | |
+| One primary action per screen | Exactly one `.btn--primary` per screen: Home "Start", build list "Start rehearsal", Check yourself "Next question", Pocket summary "Start run 2" ("Copy driver message" is secondary there). The mode choice is two equal secondary buttons, so neither is primary. The rehearsal stage has no primary button; on the phone, Step is the action. | `.btn--primary` |
+| Generous whitespace | At least `--sp-section` between blocks, content column left aligned at the sign panel's text edge, line length capped at `--measure`. Space separates groups; lines and boxes do not. | `--sp-section` (48 to 80px), `--measure` |
+
+**Judge screens (`observer.html`, `venue.html`): frosted glass on two surfaces only**, the top bar and
+the agent trace panel, through the classes `.glass-bar` and `.glass-panel` in the tokens file. Never
+on the plan canvas, the caption strip, tables, dials, chips or any other panel.
+
+* The tint is opaque enough that every text pair stays at 7:1 or better over **any** backdrop,
+  computed for the worst case (white behind the blue bar, black behind the white panel). Alpha 0.94:
+  light bar 7.24:1, light panel 7.42:1 (ink 2), dark bar 12.43:1, dark panel 7.83:1 (ink 2). At 0.92
+  the light bar already drops to 6.9:1, so the alpha is a floor, not a style choice.
+* The default is solid. Glass only turns on inside `@supports (backdrop-filter)`; it turns off again
+  (solid `--c-sign` bar, solid `--c-surface` panel, no blur) under `prefers-reduced-transparency:
+  reduce`, `prefers-contrast: more` and `forced-colors: active`.
+* Blur 16px, no saturation boost (saturation would change the backdrop's luminance and break the
+  contrast arithmetic above). A 1px `--c-rule-soft` hairline marks the edge.
+* The observer pins the light theme, so judges see the blue bar and the white trace panel.
 
 ---
 
@@ -157,6 +189,8 @@ Summary of what is in it and why:
 | Focus | `--focus-inner`, `--focus-outer`, `--focus-width` 3 | two rings: yellow inside, ink outside (dark theme swaps). Meets WCAG 2.4.13 (AAA) on paper and on navy |
 | Data | `--d-*`, `--heat-1..4`, `--heat-alpha` | read by canvas code through `getComputedStyle` |
 | Motion | `--dur-*`, `--ease-out`, `--motion-scale` | reduced motion sets durations to 0 and `--motion-scale` to 0 |
+| Visitor titles and space | `--fs-title-visitor` 40 to 56, `--fw-title-visitor` 800, `--lh-title-visitor` 1.05, `--tracking-title-visitor`, `--sp-section` 48 to 80 (px) | Apple clean layer, 1.4; fluid only between 360 and 720 like the rest |
+| Glass | `--glass-alpha` 0.94, `--glass-blur` 16px, `--glass-bar-*`, `--glass-panel-*`, `--glass-filter`, `--glass-border` | judge screens only, 1.4; solid by default and under reduced transparency, more contrast and forced colours |
 | Layers | `--z-base` 0, `--z-canvas-overlay` 10, `--z-sticky` 20, `--z-caption` 30, `--z-popover` 40, `--z-toast` 50, `--z-dialog` 60, `--z-operator` 70, `--z-skip` 100 | |
 
 Themes: default is light; `prefers-color-scheme: dark` switches to "panel" unless the page pins
@@ -221,7 +255,7 @@ Class names below are suggestions; keep them, so the forced colours block in the
 
 | Variant | Look | Use |
 |---|---|---|
-| `.btn--primary` | `--c-sign` fill, `--c-on-sign` text, no border | one per view: Start, Next run, Copy message |
+| `.btn--primary` | `--c-sign` fill, `--c-on-sign` text, no border | one per screen (1.4): Start, Start rehearsal, Next question, Start run 2 |
 | `.btn--secondary` | `--c-surface` fill, `--c-ink` text, 2px `--c-rule` border | everything else |
 | `.step-button` | phone only, see below | |
 
@@ -568,6 +602,8 @@ area. Follows the system theme; dark "panel" is comfortable for light sensitive 
 
 Grid: `grid-template-columns: 64fr 36fr; grid-template-rows: 6vh 1fr auto;`. Pinned
 `data-theme="light"` (a lit hall washes out dark backgrounds; the Matterport plan is dark on white).
+The 6vh top band is `.glass-bar` and the agent trace panel is `.glass-panel` (1.4); everything else on
+the observer is solid.
 
 **Projector rules** (5 m viewing distance, 1080p assumed):
 
@@ -636,6 +672,8 @@ stretch 3 of 6, 4 m from the waiting room").
 ```
 
 Grid `minmax(18rem, 22rem) 1fr minmax(22rem, 26rem)`; below 1200px the trace drops under the plan.
+The sign panel band is `.glass-bar` (sticky, so the page scrolls under it) and the agent trace column
+is `.glass-panel` (1.4). The plan, the before and after card, fixes and rounds stay solid.
 Heatmap bins are fixed (not quantiles) so before and after maps are comparable; each bin swatch carries
 its range as text. The heatmap legend frame is hatched because the whole layer is simulated.
 Critique text is AI written and carries the `AI` chip; every number next to it comes from code.
@@ -723,7 +761,8 @@ Run before every merge to main after 03:00, and once at freeze (05:00). Each lin
 | 3 | **Contrast** (1): run the token test; spot check the plan legend and chips in DevTools picker | All text pairs at least 7:1 except status words (6.1:1, large or bold) and non text at least 3:1 | add `tokens contrast` (below) |
 | 4 | **Zoom 200%** (2): Cmd plus to 200% on Home, Rehearsal, Venue, Portfolio | No horizontal scroll of the page (tables scroll inside their region), nothing overlaps, text doubled | manual; computed check: `--fs-body` at 720px viewport equals its max |
 | 5 | **Reduced motion and contrast** (1): macOS Settings, Accessibility, Display: Reduce motion and Increase contrast on; reload observer and venue | Tap rings appear static, no transitions; borders thicker, secondary text turns full ink | add `reduced motion makes tap ring static` (mock `matchMedia`, renderer radius constant) |
-| 6 | **Colour not alone** (1): DevTools Rendering, Emulate vision deficiencies: deuteranopia, then achromatopsia; look at observer, venue heatmap, quiz result | Every state still readable from shape or words: legend words, check and cross shapes, dashed vs solid, run labels | add `heat legend has text` (each swatch has a range string) |
+| 6 | **Glass** (1): on observer and venue, scroll content under the top bar; then turn on macOS Reduce transparency, then Increase contrast | Bar and trace text stay readable over the busiest backdrop; with either setting on, both surfaces turn solid; no blur anywhere on `index.html` | add `glass alpha keeps 7:1` (composite each `--glass-*-tint` over white and black, check every text token on it) and `no glass on visitor screens` (no `backdrop-filter` in `index.html` styles or `main.ts` output) |
+| 7 | **Colour not alone** (1): DevTools Rendering, Emulate vision deficiencies: deuteranopia, then achromatopsia; look at observer, venue heatmap, quiz result | Every state still readable from shape or words: legend words, check and cross shapes, dashed vs solid, run labels | add `heat legend has text` (each swatch has a range string) |
 
 ```ts
 // web/src/ui/tokens.test.ts

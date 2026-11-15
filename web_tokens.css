@@ -142,6 +142,36 @@
     --heat-4: #642A06;
     --heat-alpha: 0.85;
 
+    /* ---------- Visitor screens: the Apple clean layer (docs/UI_DESIGN.md 1.4) ----------
+       No transparency or blur on visitor screens. The feel comes from bigger, heavier titles and space. */
+    --fs-title-visitor: clamp(2.5rem, 1.5rem + 4.444vw, 3.5rem);    /* 40 to 56px, screen titles */
+    --fw-title-visitor: 800;
+    --lh-title-visitor: 1.05;
+    --tracking-title-visitor: -0.015em;
+    --sp-section: clamp(3rem, 1rem + 8.889vw, 5rem);                 /* 48 to 80px between blocks */
+
+    /* ---------- Glass: judge screens only (observer.html, venue.html), top bar and agent trace panel ----------
+       Default is SOLID. The @supports block below turns glass on; reduced transparency, more contrast and
+       forced colours turn it off again. Tint alpha 0.94 keeps every text pair at 7:1 or better over ANY
+       backdrop (worst case: white under the blue bar, black under the white panel):
+         light bar   white on rgb(11 79 138 / 0.94)    7.24:1 over white
+         light panel ink-2 on rgb(255 255 255 / 0.94)  7.42:1 over black
+         dark bar    on-sign on rgb(232 237 241 / 0.94) 12.43:1 over black
+         dark panel  ink-2 on rgb(16 42 68 / 0.94)      7.83:1 over white
+       Do not lower the alpha: 0.92 already drops the light bar to 6.9:1. */
+    --glass-alpha: 0.94;
+    --glass-blur: 16px;
+    --glass-bar-solid: var(--c-sign);
+    --glass-bar-tint: rgb(11 79 138 / 0.94);
+    --glass-bar-text: var(--c-on-sign);
+    --glass-panel-solid: var(--c-surface);
+    --glass-panel-tint: rgb(255 255 255 / 0.94);
+    --glass-panel-text: var(--c-ink);
+    --glass-border: var(--c-rule-soft);   /* 1px hairline under the bar, above the panel edge */
+    --glass-filter: none;                 /* fallback: no blur */
+    --glass-bar-bg: var(--glass-bar-solid);
+    --glass-panel-bg: var(--glass-panel-solid);
+
     /* ---------- Motion ---------- */
     --dur-instant: 80ms;
     --dur-fast: 140ms;
@@ -195,6 +225,8 @@
       --d-traveller-ring: #0A1F33;
       --d-cane-free: rgb(255 255 255 / 0.75);
       --d-route-casing: #0A1F33;
+      --glass-bar-tint: rgb(232 237 241 / 0.94);   /* dark sign is a light plate */
+      --glass-panel-tint: rgb(16 42 68 / 0.94);
     }
   }
   :root[data-theme="dark"] {
@@ -226,6 +258,26 @@
     --d-traveller-ring: #0A1F33;
     --d-cane-free: rgb(255 255 255 / 0.75);
     --d-route-casing: #0A1F33;
+    --glass-bar-tint: rgb(232 237 241 / 0.94);
+    --glass-panel-tint: rgb(16 42 68 / 0.94);
+  }
+
+  /* ---------- Glass on: only where the browser can blur ---------- */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root {
+      --glass-filter: blur(var(--glass-blur));
+      --glass-bar-bg: var(--glass-bar-tint);
+      --glass-panel-bg: var(--glass-panel-tint);
+    }
+  }
+
+  /* ---------- Glass off again: reduced transparency (macOS Reduce transparency) ---------- */
+  @media (prefers-reduced-transparency: reduce) {
+    :root {
+      --glass-filter: none;
+      --glass-bar-bg: var(--glass-bar-solid);
+      --glass-panel-bg: var(--glass-panel-solid);
+    }
   }
 
   /* ---------- More contrast (macOS Increase Contrast, Windows contrast themes report "more") ---------- */
@@ -238,6 +290,9 @@
       --fw-body: 480;
       --focus-width: 4px;
       --d-plan-image-opacity: 0.2;
+      --glass-filter: none;              /* glass off: solid fills only */
+      --glass-bar-bg: var(--glass-bar-solid);
+      --glass-panel-bg: var(--glass-panel-solid);
     }
   }
 
@@ -287,6 +342,14 @@
   /* The rehearsal stage keeps a focus ring too: a blind user's sighted helper needs to see it. */
   [role="application"]:focus-visible { outline-offset: calc(-1 * var(--focus-width) * 2); }
 
+  /* Glass: judge screens only. Use exactly these two classes; never add backdrop-filter elsewhere. */
+  .glass-bar, .glass-panel {
+    -webkit-backdrop-filter: var(--glass-filter);
+    backdrop-filter: var(--glass-filter);
+  }
+  .glass-bar { background: var(--glass-bar-bg); color: var(--glass-bar-text); border-bottom: var(--bw-hair) solid var(--glass-border); }
+  .glass-panel { background: var(--glass-panel-bg); color: var(--glass-panel-text); border: var(--bw-hair) solid var(--glass-border); }
+
   /* Visually hidden but read by screen readers */
   .sr-only {
     position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0;
@@ -311,6 +374,7 @@
     :focus-visible { outline: 3px solid Highlight; box-shadow: none; }
     .chip, .tag, .btn, .quiz-option, .step-button { border: 2px solid ButtonText; forced-color-adjust: auto; }
     .tag--simulated { background: none; border-style: double; }
-    canvas { forced-color-adjust: none; }   /* the plan keeps its validated palette; legend text still adapts */
+    canvas { forced-color-adjust: none; }
+    .glass-bar, .glass-panel { -webkit-backdrop-filter: none; backdrop-filter: none; background: Canvas; color: CanvasText; }   /* the plan keeps its validated palette; legend text still adapts */
   }
 }

@@ -3,6 +3,18 @@
 Contract and plan changes, newest first. Rule 2 in CLAUDE.md: any change to BuildingPackage, RunLog,
 RunPlan or PointResult is logged here in the same commit as the code.
 
+## 2026-11-14 (Sat, about 22:30): Apple clean layer
+
+- `docs/UI_DESIGN.md` 1.4: visitor screens (`index.html`) get no transparency or blur; the clean feel
+  comes from bigger heavier titles, fewer elements, one primary action per screen and whitespace.
+  "Copy driver message" is now secondary so the pocket summary has one primary ("Start run 2").
+- Judge screens (`observer.html`, `venue.html`) may use frosted glass on the top bar and the agent
+  trace panel only, via `.glass-bar` and `.glass-panel`. Tint alpha 0.94 keeps 7:1 over any backdrop
+  (worst case 7.24:1); solid by default and under reduced transparency, more contrast and forced colours.
+- `web_tokens.css`: `--fs-title-visitor`, `--fw-title-visitor`, `--lh-title-visitor`,
+  `--tracking-title-visitor`, `--sp-section`, the `--glass-*` tokens with fallbacks, the two classes.
+- Accessibility check gains a glass row and two tests to add with the web suite.
+
 ## 2026-11-14 (Sat, about 22:15): UI pack
 
 - Added `docs/UI_DESIGN.md`, `docs/CLAUDE_CODE_SETUP.md` and `web_tokens.css` (repo root) from the UI pack.
