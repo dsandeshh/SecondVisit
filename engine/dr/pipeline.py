@@ -158,7 +158,9 @@ def build_package(sid: str, from_id: str | None = None, to_id: str | None = None
         try:
             from dr import arrival as arr
             ov = load_overrides(sid, data_root).model_dump(mode="json")
-            res = arr.build(sid, ov, data_dir=Path(data_root), web_dir=Path(web_root or WEB_BUILDINGS))
+            res = arr.build(sid, ov, data_dir=Path(data_root), web_dir=Path(web_root or WEB_BUILDINGS),
+                            entrance=pkg.entrances[0] if pkg.entrances else None,
+                            outline=arr.building_outline(pkg.rooms))
             pkg.arrival = res.arrival
             pkg.prov.update(res.prov)
             if res.geo_anchor is not None:

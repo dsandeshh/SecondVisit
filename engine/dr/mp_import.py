@@ -11,6 +11,7 @@ import sys
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from pydantic import BaseModel, Field
@@ -464,6 +465,17 @@ class Overrides(BaseModel):
     faces_clockwise: bool = True
     arrival: ArrivalPins | None = None
     drop_diagonal_walls: bool = False  # clinic: drop the diagonal scan artefact edges from the wall graph
+    # curb to door (agent6 4.1.2 / 4.1.6); all optional, unknown stays unknown
+    facade_bearing_deg: float | None = None  # compass bearing of the entrance facade edge (plan_north_deg = alpha + this)
+    facade_bearing_src: Literal["hand", "calc", "vexcel", "costar"] | None = None
+    facade_bearing_ref: str | None = None
+    reference_bearing_deg: float | None = None  # compass bearing the person faces at the curb pin (HAND)
+    reference_words: str | None = None  # "with the car beside you and the building ahead"
+    edge_type: Literal["flush", "curb_ramp", "step_up", "unknown"] | None = None
+    crosses_drive_lane: bool | None = None
+    door_type: Literal["automatic_sliding", "automatic_swing", "push", "pull", "unknown"] | None = None
+    canopy: list[Vec2] | None = None  # canopy polygon in plan metres (HAND)
+    second_destination: OverrideDestination | None = None  # second demo route target (R5 extension)
 
     @property
     def destination_landmark_id(self) -> str | None:

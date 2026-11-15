@@ -1,10 +1,32 @@
 {
-  "entrance": {"id": "ent_main", "label": "Main entrance", "pos": [2.9, 0.1], "heading_deg": 270},
-  "destination": {"pos": [-2.9, -4.3], "label": "Reception desk"},
+  "entrance": {
+    "id": "ent_main",
+    "label": "Main entrance",
+    "pos": [
+      2.9,
+      0.1
+    ],
+    "heading_deg": 270
+  },
+  "destination": {
+    "pos": [
+      -2.9,
+      -4.3
+    ],
+    "label": "Reception desk"
+  },
   "extra_landmarks": [],
   "deleted_landmark_ids": [],
   "face_yaw0_deg": 90,
   "faces_clockwise": true,
-  "arrival": {"door_lat": 29.9665098, "door_lon": -95.5395056, "curb_lat": 29.9664982, "curb_lon": -95.5395821},
-  "drop_diagonal_walls": true
+  "arrival": {
+    "door_lat": 29.9665098,
+    "door_lon": -95.5395056,
+    "curb_lat": 29.9664982,
+    "curb_lon": -95.5395821
+  },
+  "drop_diagonal_walls": true,
+  "facade_bearing_deg": 153.1,
+  "facade_bearing_src": "calc",
+  "facade_bearing_ref": "roof edge orientation in the Vexcel ortho (structure tensor over the roof, edge 63.1, facade perpendicular); assumed until a human checks it"
 }

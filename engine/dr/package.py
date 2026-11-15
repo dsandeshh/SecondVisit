@@ -98,6 +98,26 @@ class SimResult(BaseModel):
     lost_cells_b64: str
 
 
+class ArrivalOrtho(BaseModel):
+    url: str
+    wkt: str
+    corners_plan: list[Vec2]  # SW, SE, NE, NW in the plan frame
+
+
+class ArrivalOblique(BaseModel):
+    url: str
+    product_type: str
+    capture_date: str = ""
+
+
+class ArrivalCue(BaseModel):
+    id: str
+    kind: Literal["traffic", "lot", "edge", "canopy", "door", "post", "tree", "car"]
+    plan: list[Vec2]  # point (1 vertex), line or polygon in the plan frame
+    prov: "Prov"
+    line: str | None = None  # spoken text, if any
+
+
 class Arrival(BaseModel):
     lat: float
     lon: float
@@ -107,7 +127,26 @@ class Arrival(BaseModel):
     image_url: str | None = None
     confirmed: bool = False
     curb_to_door_m: float | None = None
-    dropoff_plan: Vec2 | None = None  # curb pin in plan metres (x east, y north from geo_anchor)
+    dropoff_plan: Vec2 | None = None  # curb pin in plan metres (equals curb_plan once geo_anchor is set from the door)
+    # curb to door (agent6 4.1.2), all optional
+    curb_plan: Vec2 | None = None
+    door_plan: Vec2 | None = None
+    reference_bearing_deg: float | None = None  # compass bearing the clock is relative to (HAND or CALC default)
+    reference_words: str | None = None
+    walk_m: float | None = None
+    steps: int | None = None
+    clock: int | None = None
+    crosses_drive_lane: bool | None = None
+    edge_type: Literal["flush", "curb_ramp", "step_up", "unknown"] | None = None
+    door_type: Literal["automatic_sliding", "automatic_swing", "push", "pull", "unknown"] | None = None
+    canopy_plan: list[Vec2] | None = None
+    building_outline_plan: list[Vec2] | None = None  # "suite from the scan", not the whole building
+    building_height_m: float | None = None
+    ortho: ArrivalOrtho | None = None
+    oblique: ArrivalOblique | None = None
+    cues: list[ArrivalCue] = Field(default_factory=list)
+    lines: list[str] = Field(default_factory=list)
+    recovery: list[str] = Field(default_factory=list)
 
 
 class Prov(BaseModel):
@@ -122,7 +161,8 @@ class GeoAnchor(BaseModel):
     lat: float
     lon: float
     plan_pos: Vec2
-    plan_north_deg: float
+    plan_north_deg: float  # degrees counterclockwise from plan +x to true north
+    mirror: bool = False  # True if the plan y axis points down (flips east)
 
 
 class Frames(BaseModel):
@@ -209,3 +249,7 @@ class RunPlan(BaseModel):
     repeat_segment: int | None = None
     extra_cues: bool
     speech_rate: float
+
+
+ArrivalCue.model_rebuild()
+Arrival.model_rebuild()

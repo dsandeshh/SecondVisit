@@ -51,13 +51,34 @@ export interface Arrival {
   image_url: string | null; confirmed: boolean;
   curb_to_door_m: number | null;
   dropoff_plan: Vec2 | null; // curb pin in plan metres
+  // curb to door (agent6 4.1.2), all optional
+  curb_plan?: Vec2 | null; door_plan?: Vec2 | null;
+  reference_bearing_deg?: number | null; // compass bearing the clock is relative to
+  reference_words?: string | null;
+  walk_m?: number | null; steps?: number | null; clock?: number | null;
+  crosses_drive_lane?: boolean | null;
+  edge_type?: "flush" | "curb_ramp" | "step_up" | "unknown" | null;
+  door_type?: "automatic_sliding" | "automatic_swing" | "push" | "pull" | "unknown" | null;
+  canopy_plan?: Vec2[] | null;
+  building_outline_plan?: Vec2[] | null; // the suite from the scan, not the whole building
+  building_height_m?: number | null;
+  ortho?: ArrivalOrtho | null;
+  oblique?: ArrivalOblique | null;
+  cues?: ArrivalCue[]; lines?: string[]; recovery?: string[];
+}
+
+export interface ArrivalOrtho { url: string; wkt: string; corners_plan: Vec2[]; } // SW, SE, NE, NW
+export interface ArrivalOblique { url: string; product_type: string; capture_date: string; }
+export interface ArrivalCue {
+  id: string; kind: "traffic" | "lot" | "edge" | "canopy" | "door" | "post" | "tree" | "car";
+  plan: Vec2[]; prov: Prov; line?: string | null;
 }
 
 export type Source = "matterport" | "vexcel" | "costar" | "hand" | "calc" | "ai";
 
 export interface Prov { src: Source; ref: string; at: string; inputs?: string[] | null; confidence?: number | null; }
 
-export interface GeoAnchor { lat: number; lon: number; plan_pos: Vec2; plan_north_deg: number; }
+export interface GeoAnchor { lat: number; lon: number; plan_pos: Vec2; plan_north_deg: number; mirror?: boolean; }
 
 export interface Frames {
   plan_from_matterport: number[] | null; // 3x3 2D affine, row major

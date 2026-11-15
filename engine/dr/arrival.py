@@ -13,10 +13,11 @@ import math
 from dataclasses import dataclass, field
 from datetime import date
 
-from dr import probe
+from dr import geo, probe
 from dr.config import STEP_M
 from dr.mp_client import ROOT
-from dr.package import Arrival, GeoAnchor, Prov
+from dr.grounding import grounded
+from dr.package import Arrival, ArrivalCue, ArrivalOrtho, GeoAnchor, Prov
 from dr.prov import ProvBuilder
 from dr.probe import VexcelCoverageError, vexcel_ortho_body
 
@@ -92,7 +93,155 @@ def _frontage_hint(costar: dict, lat: float, lon: float) -> str | None:
     return None
 
 
-def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, fetch=None) -> ArrivalResult:
+def building_outline(rooms) -> list[tuple[float, float]] | None:
+    """The suite from the scan: union of the room polygons (plan metres), outer ring. Not the whole building."""
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    polys = [Polygon(r.polygon).buffer(0.05) for r in rooms if len(r.polygon) >= 3]
+    if not polys:
+        return None
+    u = unary_union(polys)
+    if u.geom_type == "MultiPolygon":
+        u = max(u.geoms, key=lambda g: g.area)
+    return [(round(x, 3), round(y, 3)) for x, y in u.exterior.coords]
+
+
+def facade_bearing(overrides: dict | None, costar: dict | None) -> tuple[float, str, str] | None:
+    """(compass bearing of the entrance facade edge, prov src, ref). HAND/calc line first, else CoStar frontage."""
+    o = overrides or {}
+    if o.get("facade_bearing_deg") is not None:
+        return float(o["facade_bearing_deg"]), o.get("facade_bearing_src") or "hand", \
+            o.get("facade_bearing_ref") or "overrides.json facade_bearing_deg"
+    fr = ((((costar or {}).get("property") or {}).get("propertyRetail") or {}).get("frontage")) or []
+    for f in sorted(fr, key=lambda f: not f.get("isPrimaryFrontage")):
+        pts = (((f.get("footprint") or {}).get("shape") or {}).get("coordinates")) or []
+        if len(pts) >= 2:
+            return bearing_deg(pts[0][1], pts[0][0], pts[-1][1], pts[-1][0]), "costar", \
+                "propertyRetail.frontage[].footprint LineString bearing"
+    return None
+
+
+def _vec(anchor: GeoAnchor, compass: float) -> tuple[float, float]:
+    """Plan unit vector pointing along a compass bearing."""
+    x, y = geo.enToPlan(anchor, math.sin(math.radians(compass)), math.cos(math.radians(compass)))
+    return x - anchor.plan_pos[0], y - anchor.plan_pos[1]
+
+
+def _wall_hit(curb, heading_vec, door, wall_dir):
+    """Signed offset (m) along the entrance wall, from the door, where a ray from the curb meets the wall line."""
+    px, py = curb[0] - door[0], curb[1] - door[1]
+    hx, hy = heading_vec
+    wx, wy = wall_dir
+    den = hx * wy - hy * wx
+    if abs(den) < 1e-9:
+        return None
+    t = (-px * wy + py * wx) / den  # curb + t*h = door + u*w
+    u = (px + t * hx) * wx + (py + t * hy) * wy
+    return (t, u) if t > 0 else None
+
+
+def curb_script(anchor: GeoAnchor, entrance, curb_plan, door_plan, ov: dict, side: str, costar: dict | None):
+    """Lines 1 to 8 and recovery lines, computed from the geometry (agent6 4.1.6). Every line passes grounded()."""
+    ov = ov or {}
+    walk_vec = (math.cos(math.radians(90 - entrance.heading_deg)), math.sin(math.radians(90 - entrance.heading_deg)))
+    ref = ov.get("reference_bearing_deg")
+    ref_src = "hand"
+    if ref is None:
+        ref, ref_src = geo.plan_bearing(anchor, *walk_vec), "calc"  # facing the building, perpendicular to the facade
+    words = ov.get("reference_words") or ("facing the building" if ref_src == "calc" else "")
+    dx, dy = door_plan[0] - curb_plan[0], door_plan[1] - curb_plan[1]
+    walk_m = math.hypot(dx, dy)
+    steps = max(1, round(walk_m / STEP_M))
+    hour = geo.clockOf(geo.plan_bearing(anchor, dx, dy), ref)
+    allowed: set[float] = {float(steps), float(hour)}
+    lines: list[str] = []
+    cues: list[ArrivalCue] = []
+    recovery: list[str] = []
+    at = date.today().isoformat()
+
+    def prov(src, ref_text, conf=None):
+        return Prov(src=src, ref=ref_text, at=at, confidence=conf)
+
+    lines.append(f"You are at the drop off, on the {side} side of the building.")
+    lines.append(f"Face the building{', ' + words.removeprefix('facing the building').strip() if words and words != 'facing the building' else ''}. "
+                 f"The entrance is at {hour} o'clock, about {steps} steps.")
+    # traffic: the CoStar frontage line, relative to the reference (CS, simulated sound)
+    traffic_rel = None
+    fr = ((((costar or {}).get("property") or {}).get("propertyRetail") or {}).get("frontage")) or []
+    for f in fr:
+        pts = (((f.get("footprint") or {}).get("shape") or {}).get("coordinates")) or []
+        if len(pts) >= 2:
+            ends = [geo.geoToPlan(anchor, p[1], p[0]) for p in pts]
+            (ax, ay), (bx, by) = ends[0], ends[-1]
+            vx, vy = bx - ax, by - ay
+            t = max(0.0, min(1.0, ((curb_plan[0] - ax) * vx + (curb_plan[1] - ay) * vy) / (vx * vx + vy * vy or 1)))
+            nx, ny = ax + t * vx, ay + t * vy
+            d = math.hypot(nx - curb_plan[0], ny - curb_plan[1])
+            if d <= 60:
+                traffic_rel = (geo.plan_bearing(anchor, nx - curb_plan[0], ny - curb_plan[1]) - ref + 540) % 360 - 180
+                where = ("behind you" if abs(traffic_rel) >= 120 else "ahead of you" if abs(traffic_rel) <= 60
+                         else "on your right" if traffic_rel > 0 else "on your left")
+                street = f.get("streetName")
+                line = f"Traffic from {street if street else 'the road'} is {where}."
+                lines.append(line)
+                cues.append(ArrivalCue(id="traffic", kind="traffic", plan=[(round(nx, 2), round(ny, 2))],
+                                       prov=prov("costar", "propertyRetail.frontage[] nearest point; sound simulated", 0.5), line=line))
+                break
+    if ov.get("crosses_drive_lane"):
+        lines.append("Before the entrance you reach a lane where cars drive. Stop, listen, then cross.")
+    edge = {"flush": "The walkway is level with the aisle.",
+            "curb_ramp": "A curb ramp takes you up onto the walkway.",
+            "step_up": "There is a step up onto the walkway."}.get(
+        ov.get("edge_type") or "unknown", "The ground may change between the drop off and the walkway. Check with your cane.")
+    lines.append(edge)
+    if ov.get("canopy"):
+        lines.append("You are under the canopy now. The door is straight ahead.")
+        cues.append(ArrivalCue(id="canopy", kind="canopy", plan=[tuple(p) for p in ov["canopy"]],
+                               prov=prov("hand", "overrides.json canopy")))
+    lines.append({"automatic_sliding": "The doors slide open by themselves.",
+                  "automatic_swing": "The door opens by itself. Stand back from it as it swings.",
+                  "push": "Push the door; the handle is on the right.",
+                  "pull": "Pull the door; the handle is on the right."}.get(
+        ov.get("door_type") or "unknown", "Find the door handle with your hand; the door may be heavy."))
+    lines.append("You are inside. Your rehearsal continues from the entrance.")
+    cues.append(ArrivalCue(id="door", kind="door", plan=[tuple(door_plan)], prov=prov("hand", "overrides.json arrival door pin")))
+
+    # recovery: what would I hit if I turned wrong
+    wall_dir = (-walk_vec[1], walk_vec[0])
+    for sign in (-30, 30):
+        h = _vec(anchor, ref + sign)
+        hit = _wall_hit(curb_plan, h, door_plan, wall_dir)
+        if hit and hit[0] < 40:
+            off = hit[1]
+            n = round(abs(off) / STEP_M)
+            if n >= 1:
+                # facing the wall, the door is to the right when it lies clockwise of the heading from the hit point
+                to_door = (-off * wall_dir[0], -off * wall_dir[1])
+                cross = walk_vec[0] * to_door[1] - walk_vec[1] * to_door[0]
+                side_w = "left" if cross > 0 else "right"
+                recovery.append(f"If you touch the building wall and find no door, trail the wall to your {side_w} "
+                                f"about {n} steps to the entrance.")
+                allowed.add(float(n))
+    if traffic_rel is not None and abs(traffic_rel) >= 120:
+        recovery.append("If the traffic sound is in front of you, you are facing the road. Turn around.")
+        recovery.append("If you lose your way, stop and turn until the traffic is behind you, then walk toward the building.")
+    lines = [x for x in lines if grounded(x, allowed)]
+    recovery = [x for x in recovery if grounded(x, allowed)]
+    return dict(lines=lines, recovery=recovery, cues=cues, steps=steps, clock=hour, walk_m=walk_m,
+                reference_bearing_deg=ref, reference_words=words or None, ref_src=ref_src)
+
+
+def ortho_corners(anchor: GeoAnchor, lat: float, lon: float):
+    """The cached ortho was requested with vexcel_ortho_body(lat, lon, ORTHO_HALF_M); rebuild its WKT and map the
+    SW, SE, NE, NW corners into the plan frame."""
+    import re
+    wkt = probe.vexcel_ortho_body(lat, lon, ORTHO_HALF_M)["wkt"]
+    ring = [tuple(map(float, m.split())) for m in re.findall(r"(-?[\d.]+ -?[\d.]+)", wkt)][:4]  # (lon, lat)
+    return wkt, [tuple(round(v, 3) for v in geo.geoToPlan(anchor, la, lo)) for lo, la in ring]
+
+
+def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, fetch=None,
+          entrance=None, outline=None) -> ArrivalResult:
     """fetch(lat, lon, half_m) -> jpeg bytes, used only when raw/vexcel_ortho.jpg is not cached."""
     data = (data_dir or ROOT / "data") / sid
     raw = data / "raw"
@@ -138,9 +287,51 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
     msg = f"Please drop me at {where} entrance of {name}, {address}."
     anchor = GeoAnchor(lat=lat, lon=lon, plan_pos=[0.0, 0.0], plan_north_deg=0.0)
     pb.add("frames.geo_anchor", src="calc", ref="assumed: model lat/lon at plan origin, plan north = true north", confidence=0.3)
+    anchored = False
+    fb = facade_bearing(overrides, json.loads(costar_p.read_text()) if costar_p.exists() else None)
+    if pins and entrance is not None and fb is not None:
+        door_en = (0.0, 0.0)
+        probe_a = GeoAnchor(lat=pins["door_lat"], lon=pins["door_lon"], plan_pos=(0.0, 0.0), plan_north_deg=0.0)
+        curb_en = geo.geoToEN(probe_a, pins["curb_lat"], pins["curb_lon"])
+        t = geo.solve_north(entrance.pos, entrance.heading_deg, fb[0], curb_en, door_en)
+        anchor = GeoAnchor(lat=pins["door_lat"], lon=pins["door_lon"], plan_pos=tuple(entrance.pos), plan_north_deg=round(t, 2))
+        prov.pop("frames.geo_anchor", None)
+        pb.add("frames.geo_anchor", src="calc", confidence=0.5, inputs=["arrival.door_pin", "arrival.dropoff"],
+               ref=f"assumed until verified: plan_north_deg {t:.1f} = entrance wall alpha + facade bearing "
+                   f"{fb[0]:.1f} ({fb[2]}); 180 degrees resolved by the curb pin in front of the entrance")
+        curb_plan = list(geo.geoToPlan(anchor, pins["curb_lat"], pins["curb_lon"]))
+        plan = curb_plan
+        anchored = True
+    extra: dict = {}
+    if anchored:
+        ov = overrides or {}
+        costar = json.loads(costar_p.read_text()) if costar_p.exists() else None
+        sc = curb_script(anchor, entrance, curb_plan, list(entrance.pos), ov, side, costar)
+        wkt, corners = ortho_corners(anchor, lat, lon)
+        (out / "arrival_ortho.json").write_text(json.dumps({"wkt": wkt, "srid": 4326, "half_m": ORTHO_HALF_M,
+                                                            "corners_plan": corners}) + "\n")
+        pb.add("arrival.curb", src="hand", ref="overrides.json arrival curb pin", inputs=["arrival.dropoff"])
+        pb.add("arrival.door", src="hand", ref="overrides.json arrival door pin; plan position = entrance.pos")
+        pb.add("arrival.walk_m", src="calc", ref="haversine curb pin to door pin", inputs=["arrival.curb", "arrival.door"])
+        pb.add("arrival.clock", src="calc", ref=f"clock of door bearing relative to reference {sc['reference_bearing_deg']:.1f} "
+               f"({'HAND' if sc['ref_src'] == 'hand' else 'assumed: perpendicular to the facade'})", inputs=["arrival.walk_m"])
+        pb.add("arrival.ortho", src="vexcel", ref=f"ortho/extract {2 * ORTHO_HALF_M:.0f} m square, corners mapped by geo_anchor")
+        for k, v in (("edge_type", "edge_type"), ("door_type", "door_type"), ("crosses_drive_lane", "crosses_drive_lane")):
+            if ov.get(v) is not None:
+                pb.add(f"arrival.{k}", src="hand", ref=f"overrides.json {v}")
+        extra = dict(
+            curb_plan=tuple(curb_plan), door_plan=tuple(entrance.pos), walk_m=sc["walk_m"], steps=sc["steps"],
+            clock=sc["clock"], reference_bearing_deg=sc["reference_bearing_deg"], reference_words=sc["reference_words"],
+            crosses_drive_lane=ov.get("crosses_drive_lane"), edge_type=ov.get("edge_type"),
+            door_type=ov.get("door_type"), canopy_plan=[tuple(p) for p in ov["canopy"]] if ov.get("canopy") else None,
+            building_outline_plan=[tuple(p) for p in outline] if outline else None,
+            ortho=ArrivalOrtho(url=f"/buildings/{sid}/arrival.jpg", wkt=wkt, corners_plan=corners),
+            cues=sc["cues"], lines=sc["lines"], recovery=sc["recovery"])
+        if outline:
+            pb.add("arrival.building_outline", src="matterport", ref="suite from the scan: union of room polygons, not the whole building")
     arr = Arrival(lat=lat, lon=lon, entrance_side=side, dropoff=dropoff, driver_message=msg,
                   image_url=f"/buildings/{sid}/arrival.jpg", confirmed=pins is not None,
-                  curb_to_door_m=curb_m, dropoff_plan=plan)
+                  curb_to_door_m=curb_m, dropoff_plan=plan, **extra)
     return ArrivalResult(arr, curb_m, summary, prov, anchor)
 
 
