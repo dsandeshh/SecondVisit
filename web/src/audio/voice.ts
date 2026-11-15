@@ -74,11 +74,10 @@ export function routeLineIds(texts: string[], store: Pick<ClipStore, "has">): st
 
 export type Part = { text: string; id: string; at?: Vec2 };
 
-/** The clips that make up one cue: the prefix word (centred), then the line (from `at`), as sentences if all have clips. */
+/** The clips that make up one cue: the line (from `at`), as sentences if all have clips. */
 export function partsFor(c: Cue, store: Pick<ClipStore, "has">): Part[] {
   const text = c.text ?? "";
   const out: Part[] = [];
-  if (c.prefix) out.push({ text: c.prefix, id: lineId(c.prefix) });
   const whole = lineId(text);
   const ss = sentences(text);
   if (!store.has(whole) && ss.length > 1 && ss.every(s => store.has(lineId(s)))) ss.forEach(s => out.push({ text: s, id: lineId(s), at: c.at }));

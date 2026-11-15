@@ -5,7 +5,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { CANE_M } from "../config";
 import { ringPoint } from "../events";
-import { shownName, spokenOf, isPossibly } from "../names";
+import { spokenOf, isLowConfidence } from "../names";
 import type { BuildingPackage, Landmark, Vec2 } from "../types";
 import { decodeCells } from "../world";
 import { floorPlanPlacement, headingDir3, headingToYaw, roomMask, toThree, wallRects, type FloorPlanMeta, type Rect } from "./mapping";
@@ -83,7 +83,7 @@ function labelSprite(text0: string, ink: string): THREE.Sprite {
 }
 
 /** compact (the v2 pages): no big sound ring or flashes in the scene (the small compass says it), and only the destination and the
- *  nearest landmark are named, as dark text on a white chip drawn in the page (always 18 px, never "possibly"). */
+ *  nearest landmark are named, as dark text on a white chip drawn in the page (always 18 px, never a confidence word). */
 export type Room3DOptions = { floorPlan?: { meta: FloorPlanMeta; url: string } | null; reducedMotion?: boolean; compact?: boolean; view?: ViewMode };
 
 export class Room3D {
@@ -451,7 +451,7 @@ export class Room3D {
     hh.position.y = head.position.y; hh.userData.halo = true;
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.5, 40), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.02;
-    const label = labelSprite(shownName(l) + (dest ? " (destination)" : ""), this.ink);
+    const label = labelSprite(spokenOf(l) + (dest ? " (destination)" : ""), this.ink);
     label.position.y = dest ? 2.45 : 2.0;
     full.add(hh, stem, head, ring, label);
     // quiet state: one small dot at head height, no stem, no label
@@ -463,7 +463,7 @@ export class Room3D {
     const [x, , z] = toThree(l.pos);
     grp.position.set(x, 0, z);
     this.scene.add(grp);
-    this.pins.set(l.id, { grp, full, dot, pos: l.pos, dest, name: spokenOf(l), sure: !isPossibly(l) });
+    this.pins.set(l.id, { grp, full, dot, pos: l.pos, dest, name: spokenOf(l), sure: !isLowConfidence(l) });
     if (this.compact) label.visible = false;
     this.refreshPins();
   }

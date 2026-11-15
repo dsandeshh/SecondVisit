@@ -103,7 +103,7 @@
     --c-on-mark: #0F1C2A;      /* on mark 10.95:1 */
     --c-good: #1B6B3A;         /* 6.54:1 on white, 6.01:1 on surface-2; always with the word */
     --c-bad: #B3261E;          /* 6.54:1 on white, 6.00:1 on surface-2; always with the word */
-    --c-caution: #8C5300;      /* 6.26:1 on white, 5.75:1 on surface-2; "possibly", low confidence notes */
+    --c-caution: #8C5300;      /* 6.26:1 on white, 5.75:1 on surface-2; low confidence AI chips */
     --c-hatch: rgb(29 29 31 / 0.14);   /* simulated hatch lines */
     --c-scrim: rgb(29 29 31 / 0.6);
 

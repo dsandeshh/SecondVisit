@@ -8,7 +8,7 @@ import { pulse, PULSE } from "../audio/haptics";
 import { LandmarkSounds } from "../audio/landmarks";
 import { RATE_MAX, RATE_MIN, type Speech } from "../audio/speech";
 import type { KeyActions } from "../input/keyboard";
-import { possiblyOpts, spokenOf } from "../names";
+import { spokenOf } from "../names";
 import type { Entrance, Landmark, Vec2 } from "../types";
 import { bearing, dist, Traveller, wrap180, type World } from "../world";
 import { HesitationTimer } from "./hesitation";
@@ -28,7 +28,7 @@ export type ExploreHooks = {
   now?: () => number;
 };
 
-/** The short spoken name, first letter lower case; "possibly" is a separate prefix, never part of the name. */
+/** The short spoken name, first letter lower case; never a confidence word. */
 export const lmName = (l: Landmark): string => spokenOf(l).charAt(0).toLowerCase() + spokenOf(l).slice(1);
 const TAP_WORD: Record<number, string> = { 1: "wall", 2: "obstacle", 3: "obstacle", 4: "glass", 5: "stairs" };
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

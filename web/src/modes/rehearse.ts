@@ -4,9 +4,9 @@ import type { Landmark, PointResult, QuizEntry, Route, RunEvent, RunLog, RunLogK
 import { dist } from "../world";
 import type { Priority } from "../audio/speech";
 import { LOST_HELP } from "./guide";
-import { possiblyOpts, spokenLower } from "../names";
+import { spokenLower } from "../names";
 
-export type RunSpeech = { say(text: string, pri?: Priority, opts?: { at?: Vec2; prefix?: string }): void; readonly speaking: boolean };
+export type RunSpeech = { say(text: string, pri?: Priority, opts?: { at?: Vec2 }): void; readonly speaking: boolean };
 export type Pose = { pos: Vec2; heading: number };
 
 export const ADVANCE_M = 0.8;
@@ -154,7 +154,7 @@ export class RehearsalRun {
     this.done = true;
     this.push("arrive", p);
     const g = this.deps.landmarks?.find(l => l.id === this.route.to);
-    this.speech.say(`You have reached the ${g ? spokenLower(g) : "destination"}.`, 2, g ? possiblyOpts(g) : {});
+    this.speech.say(`You have reached the ${g ? spokenLower(g) : "destination"}.`, 2);
   }
 
   private checkOffRoute(p: Vec2): void {
@@ -174,7 +174,7 @@ export class RehearsalRun {
       const l = this.deps.landmarks.find(x => x.id === id);
       if (!l || this.cued.has(id) || dist(p, l.pos) > ARRIVE_M) continue;
       this.cued.add(id);
-      this.speech.say(`Passing the ${spokenLower(l)}.`, 1, possiblyOpts(l));
+      this.speech.say(`Passing the ${spokenLower(l)}.`, 1);
     }
   }
 }

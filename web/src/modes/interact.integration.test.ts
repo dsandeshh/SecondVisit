@@ -215,7 +215,7 @@ describe("Q around me: the nearest 4 places", () => {
     const out = said.slice(n);
     expect(out.length).toBeGreaterThan(4);
     for (const t of out) expect(t).not.toMatch(/possibly/i);
-    for (const c of cues.slice(nc).filter(c => c.kind === "say")) { expect(c.prefix).toBeUndefined(); }
+    for (const c of cues.slice(nc).filter(c => c.kind === "say")) { expect("prefix" in c).toBe(false); expect(c.text ?? "").not.toMatch(/possibly/i); }
     expect(document.getElementById("say-polite")!.textContent).not.toMatch(/possibly/i);
   });
 });

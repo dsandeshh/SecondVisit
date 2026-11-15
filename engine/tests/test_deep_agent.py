@@ -46,7 +46,7 @@ SEGMENTS = [
      "instruction": "Facing into the building. Walk 7 steps, wall on your left."},
     {"id": "s1", "start": [0.5, 10.9], "end": [9.6, 10.9], "heading_deg": 90.0, "length_m": 9.1, "steps": 13,
      "wall_side": "left", "open_m": 1.0, "landmarks_passed": ["pillar"], "turn_after": "none", "turn_deg": 0.0,
-     "instruction": "Turn right to 3 o'clock. Walk 13 steps, wall on your left, passing possibly the pillar."},
+     "instruction": "Turn right to 3 o'clock. Walk 13 steps, wall on your left, passing the pillar."},
     {"id": "s2", "start": [9.6, 10.9], "end": [17.9, 10.9], "heading_deg": 90.0, "length_m": 8.3, "steps": 12,
      "wall_side": "left", "open_m": 0.0, "landmarks_passed": [], "turn_after": "none", "turn_deg": 0.0,
      "instruction": "Walk 12 steps, wall on your left. The Reception desk is at 2 o'clock, about 2 steps."},
@@ -154,7 +154,8 @@ def test_inspect_writes_dossier_with_uncertainty(ws):
     p, files = da.t_inspect_building(ws, "fixture")
     assert p["ok"] and "/building_dossier.md" in files
     text = " ".join(p["uncertainty"])
-    assert "Matterport scan" in text and "no aerial arrival" in text and "possibly" in text and "pillar" in text
+    assert "Matterport scan" in text and "no aerial arrival" in text and "confidence" in text and "pillar" in text
+    assert "possibly" not in text.lower()
 
 
 def test_no_route_offers_bounded_retries(ws):

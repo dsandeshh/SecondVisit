@@ -40,7 +40,7 @@ export class Interact {
   private pub(c: Pub): void { this.speech.bus.publish(c); }
   private clock(at: Vec2): number { return clockHour(azOf(this.t.pos, this.t.heading, at)); }
   private byId(id: string | null): Item | null { return this.items.find(i => i.id === id) ?? null; }
-  private nameOpts(i: Item) { return { at: i.at, ...(i.possibly ? { prefix: "possibly" } : {}) }; }
+  private nameOpts(i: Item) { return { at: i.at }; }
 
   /** A key or a new request cancels a running sweep, ahead or where. */
   cancel(): void { this.token++; if (this.sweeping) { this.sweeping = false; this.pub({ kind: "sweep_item", id: "end" }); } }
@@ -64,7 +64,7 @@ export class Interact {
       if (tk !== this.token) return;
       this.lastItem = it;
       this.pub({ kind: "sweep_item", id: it.id, at: it.at, label: it.name, deg: Math.round(azOf(this.t.pos, this.t.heading, it.at)) });
-      await this.speech.sayAsync(this.placeLine(it), 1, { at: it.at });   // the spoken name only: no "possibly" in this list
+      await this.speech.sayAsync(this.placeLine(it), 1, { at: it.at });   // the spoken name only, never a confidence word
       if (tk !== this.token) return;
       await sleep(SWEEP_GAP_MS);
     }
@@ -169,7 +169,7 @@ export class Interact {
     this.pub({ kind: "arrive", at: tg.at, id: tg.id, label: tg.name });
     const place = tg.name.charAt(0).toLowerCase() + tg.name.slice(1);
     const near = d < 0.7 ? "within reach" : stepsWords(d);
-    this.speech.say(`You're at the ${place}, at ${this.clock(tg.at)} o'clock, ${near}.`, 2, tg.possibly ? { prefix: "possibly" } : {});
+    this.speech.say(`You're at the ${place}, at ${this.clock(tg.at)} o'clock, ${near}.`, 2);
   }
 
   // ---- bump -----------------------------------------------------------------------------------------------------

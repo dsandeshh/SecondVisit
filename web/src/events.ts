@@ -16,7 +16,7 @@ export type Cue = {
   v: 1; t: "cue"; ts: number; kind: CueKind;
   at?: Vec2; id?: string; ids?: string[]; label?: string; deg?: number; hit_m?: number;
   /** say: the exact text spoken and shown, and the id of its clip (lines.ts). */
-  text?: string; line?: string; pri?: number; seq?: number; prefix?: string;
+  text?: string; line?: string; pri?: number; seq?: number;
   /** sound: recipe name and bus. */
   sound?: string; bus?: BusName;
 };
@@ -48,12 +48,10 @@ export function polar(l: Listener, at: Vec2): Polar {
 /** Caption text with its direction: "Reception desk, 2 o'clock". The arrow is drawn from `az`. */
 export function directionWords(p: Polar): string { return `${p.clock} o'clock`; }
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
-/** What the caption shows for a spoken line: the text itself, or "Possibly reception desk" with a prefix word. */
-export function captionText(text: string, prefix?: string): string {
-  return prefix ? `${cap(prefix)} ${lowerFirst(text)}` : text;
+/** What the caption shows for a spoken line: the text itself, exactly as spoken. */
+export function captionText(text: string): string {
+  return text;
 }
 
 /** Where the ring draws a sound: true direction from the walker, true distance up to maxM. */
@@ -67,6 +65,6 @@ export function ringPoint(l: Listener, at: Vec2, maxM = 8): { az: number; distM:
 /** Short label the ring draws next to a flash. Only `say` and `sound` cues flash (the others have their own visuals). */
 export function ringLabel(c: Cue): string | null {
   if (c.kind !== "say" && c.kind !== "sound") return null;
-  const t = c.kind === "say" ? captionText(c.text ?? "", c.prefix) : (c.label ?? c.sound ?? "sound");
+  const t = c.kind === "say" ? captionText(c.text ?? "") : (c.label ?? c.sound ?? "sound");
   return t.length > 24 ? t.slice(0, 23).trimEnd() + "\u2026" : t;
 }

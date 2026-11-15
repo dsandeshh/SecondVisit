@@ -3,6 +3,10 @@
 Contract and plan changes, newest first. Rule 2 in CLAUDE.md: any change to BuildingPackage, RunLog,
 RunPlan or PointResult is logged here in the same commit as the code.
 
+## 2026-11-15 (Sun)
+
+- 05:55 Human decision: the word "possibly" is never spoken or shown. `instructions._clause` no longer writes "passing possibly the"; `voice_lines.KIND_WORDS` drops "possibly"; `names._DROP` strips confidence words from spoken names. Web: `SayOpts.prefix` / `Cue.prefix` (observer protocol) removed, `possiblyOpts`, `shownName`, `withPossibly` removed, `isPossibly` renamed `isLowConfidence` (drives the AI chip, class `chip--low`, only). Low confidence shows only as the AI chip value ("AI 0.42"). Clinic and Office B rebuilt and re-voiced. Tests: `engine/tests/test_no_possibly.py`, `web/src/pages/no_possibly.test.ts`.
+
 ## 2026-11-14 (Sat): solo build, task log
 
 - 23:59 Layout fix and landmark dedupe: `layout._defaults` imported `score_route` from the wrong module, the swallowed ImportError left evaluated routes without segments and the simulator read 0.0 arrival for every desk (clinic now 0.58 current, 0.91 proposed at 100 runs). Annotator merge: second pass joins same kind groups within 1.0 m, kind "other" under 0.5 merged confidence is dropped (clinic 57 to 47 landmarks). No contract change.

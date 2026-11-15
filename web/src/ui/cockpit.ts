@@ -2,14 +2,14 @@
 // agent and data panel (UI_DESIGN 4.2a). Read only on the traveller's state; it never changes audio or keys.
 import { STEP_M } from "../config";
 import { ringLabel, type Cue } from "../events";
-import { shownName } from "../names";
+import { spokenOf } from "../names";
 import type { Explore, ExploreHooks } from "../modes/explore";
 import type { Session } from "../modes/session";
 import { Room3D, type SceneMode, type ViewMode } from "../three/room3d";
 import { calmFloor, clearBackdrop, type FloorPlanMeta } from "../three/mapping";
 import type { BuildingPackage, Landmark, LandmarkKind, Prov, Vec2 } from "../types";
 import { bearing, dist } from "../world";
-import { chip, chipKind, describeProv, layerCounts, METER_ORDER, renderLayerMeter, withPossibly } from "./prov";
+import { chip, chipKind, describeProv, layerCounts, METER_ORDER, renderLayerMeter } from "./prov";
 import { projOpts, projWanted } from "../three/panoproj";
 
 export type FloorPlan = { meta: FloorPlanMeta; url: string; img: CanvasImageSource } | { missing: string };
@@ -288,7 +288,7 @@ export class Cockpit {
       const th = this.doc.createElement("th"); th.scope = "row";
       const name = this.doc.createElement("button");
       name.type = "button"; name.className = "linkbtn";
-      name.textContent = shownName(l) + (l.id === destId ? " (destination)" : "");
+      name.textContent = spokenOf(l) + (l.id === destId ? " (destination)" : "");
       name.title = l.label; name.setAttribute("aria-pressed", String(l.id === this.sel));
       name.addEventListener("click", () => { this.sel = this.sel === l.id ? null : l.id; this.room?.highlight(this.sel); this.objects(); });
       const sub = this.doc.createElement("span"); sub.className = "objects__sub";

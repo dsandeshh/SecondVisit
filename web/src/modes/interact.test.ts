@@ -7,9 +7,9 @@ import { beaconPoint, findPath, nextPick, pulseInterval, pulseKind, targetOrder 
 import { BumpGate, bumpOf } from "./bump";
 import { ApproachTracker, crossesDoor, RoomTracker, roomLine, roomSize } from "./rooms";
 import { aheadItems, aheadLine, sweepItems, type Item } from "./sweep";
-import { isPossibly, possiblyOpts } from "../names";
+import { isLowConfidence } from "../names";
 
-const item = (id: string, x: number, y: number, kind = "desk"): Item => ({ id, kind, at: [x, y], name: id, possibly: false, fixed: true });
+const item = (id: string, x: number, y: number, kind = "desk"): Item => ({ id, kind, at: [x, y], name: id, fixed: true });
 const open = new World(gridPkg(Array(30).fill(".".repeat(30))));
 const at = (r: number, deg: number): Vec2 => [15 + r * Math.sin(deg * Math.PI / 180), 15 + r * Math.cos(deg * Math.PI / 180)];
 
@@ -167,10 +167,9 @@ describe("callouts and doorways", () => {
     expect(t.check("b", 1, 1000)).toBe(false);
     expect(t.check("b", 1, 4100)).toBe(true);
   });
-  it("low confidence says possibly: a separate prefix, never part of the name", () => {
-    expect(isPossibly({ confidence: 0.5 })).toBe(true);
-    expect(possiblyOpts({ confidence: 0.5 })).toEqual({ prefix: "possibly" });
-    expect(possiblyOpts({ confidence: 0.6 })).toEqual({});
+  it("low confidence is a flag for the AI chip only, never a word", () => {
+    expect(isLowConfidence({ confidence: 0.5 })).toBe(true);
+    expect(isLowConfidence({ confidence: 0.6 })).toBe(false);
   });
 });
 
@@ -197,7 +196,7 @@ it("E names a landmark once: its obstacle cells are not said again as 'Obstacle'
   const { aheadSummary } = await import("./sweep");
   const rows = Array(30).fill(".".repeat(30)); rows[30 - 1 - 20] = ".".repeat(15) + "o" + ".".repeat(14);
   const w = new World(gridPkg(rows));
-  const a = aheadSummary(w, [15.5, 15.5], 0, [{ id: "c", kind: "pillar", at: [15.5, 20.5], name: "Column", possibly: false, fixed: true }]);
+  const a = aheadSummary(w, [15.5, 15.5], 0, [{ id: "c", kind: "pillar", at: [15.5, 20.5], name: "Column", fixed: true }]);
   expect(a.text).toMatch(/Column at 12 o'clock, 5 metres\./);
   expect(a.text).not.toMatch(/Obstacle/);
 });

@@ -20,7 +20,7 @@ export interface EndMsg {
 /** agent5 section 5: published at the moment each sound starts (events.ts Cue; kinds beyond agent5: say, sound). */
 export interface CueMsg {
   v: 1; t: "cue"; ts: number; kind: string; at?: Vec2; id?: string; ids?: string[]; label?: string; deg?: number;
-  hit_m?: number; text?: string; line?: string; pri?: number; seq?: number; prefix?: string; sound?: string; bus?: string;
+  hit_m?: number; text?: string; line?: string; pri?: number; seq?: number; sound?: string; bus?: string;
 }
 export type ObsMsg =
   | { v: 1; t: "hello"; session: string; building_id: string; route_id: string; run: number; mode: string }

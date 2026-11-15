@@ -6,8 +6,8 @@ import type { Vec2 } from "../types";
 
 export type Priority = 0 | 1 | 2 | 3; // 0 info, 1 landmark, 2 instruction, 3 safety
 /** `at`: the line comes from that point (a name clip through the HRTF chain, a direction in the caption).
- *  `prefix`: a separate first word, "possibly" under 0.6 confidence. */
-export type SayOpts = { at?: Vec2; prefix?: string };
+ *  No prefix word: a line is spoken the same whatever the confidence (decision 15 Nov). */
+export type SayOpts = { at?: Vec2 };
 type Deps = { raf?: (f: () => void) => void; doc?: Document };
 
 export const RATE_MIN = 0.8, RATE_MAX = 1.6;
@@ -58,14 +58,14 @@ export class Speech {
 
   private sayInner(text: string, pri: Priority, opts: SayOpts): number {
     if (this.current !== null && pri < this.current) return 0;
-    const full = captionText(text, opts.prefix);
+    const full = captionText(text);
     this.last = text; this.lastPri = pri; this.lastOpts = opts;
     this.write(full, pri);
     try { this.onSay(full, pri); } catch { /* observer must never break speech */ }
     this.flush();                       // the line before this one is superseded
     const seq = ++this.seq;
     this.onCancel();
-    this.bus.publish({ kind: "say", text, line: lineId(text), pri, at: opts.at, prefix: opts.prefix, seq });
+    this.bus.publish({ kind: "say", text, line: lineId(text), pri, at: opts.at, seq });
     if (!this.hasClips) return seq;       // captions only: there is nothing to play it
     this.current = pri;
     return seq;

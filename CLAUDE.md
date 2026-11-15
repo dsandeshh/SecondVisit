@@ -48,8 +48,8 @@ another task owns, code against that task's **Interfaces** block; do not build i
    destination (human decision 15 Nov). One event bus drives audio, sound ring,
    captions and the observer. Interactions and keys follow `review/agent5_interaction.md` (Top 8, keymap
    section 6: S = source of line, Shift+S = swap channels); arrival follows `review/agent6_arrival.md`.
-8. **Honest labels everywhere.** Chips `MP`, `VX`, `CS`, `CALC`, `AI` (with confidence, "possibly"
-   under 0.6), `HAND` (human confirmed pins in `data/<sid>/overrides.json`). "simulated" on simulated
+8. **Honest labels everywhere.** Chips `MP`, `VX`, `CS`, `CALC`, `AI` (chips show the confidence value,
+   e.g. "AI 0.42"; the word "possibly" is never spoken or shown, human decision 15 Nov), `HAND` (human confirmed pins in `data/<sid>/overrides.json`). "simulated" on simulated
    numbers, "assumed" on assumed weights and the portfolio's assumed entrance, "scripted" and "replay"
    on agent fallbacks. Product copy never claims to replace a cane, guide dog, mobility training or a
    compliance audit, and never says "experience blindness".

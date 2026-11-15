@@ -190,7 +190,7 @@ export class Hud {
     const placed: { y: number; x: number }[] = [];
     for (const { l, accent } of items) {
       const s = this.pt(l.pos, 1.3, W, H);
-      const name = (l.spoken ?? "").replace(/possibly\s*/i, "");
+      const name = l.spoken ?? "";
       if (!name) continue;
       // the distance counts down on every step, even when the photo stays on the same sweep
       const text = `${name} · ${distLabel(dist(this.pos, l.pos))}`;

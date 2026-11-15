@@ -68,7 +68,8 @@ def test_voice_lines_contents_hash_unique():
     texts = [v.text for v in pkg.voice_lines]
     assert texts == sorted(set(texts))
     assert "Facing into the building. Walk 7 steps." in texts
-    assert "Waiting room" in texts and "may move" in texts and "possibly" in texts
+    assert "Waiting room" in texts and "may move" in texts
+    assert not any("possibly" in t.lower() for t in texts)
     assert "wide doorway" in texts
     for lm in pkg.landmarks:
         assert lm.spoken in texts

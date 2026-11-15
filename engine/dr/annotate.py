@@ -174,7 +174,7 @@ def _find_json(text: str) -> dict | None:
 
 def _salvage(text: str) -> dict | None:
     """A reply cut off by max_tokens: pull the room and every item that still has a kind and an x_px.
-    A missing confidence becomes 0.5 (so it is shown as "possibly"); a missing built_in becomes false."""
+    A missing confidence becomes 0.5 (so it is flagged as low confidence); a missing built_in becomes false."""
     if '"items"' not in text:
         return None
     room = None
@@ -513,8 +513,7 @@ class Annotator:
                 continue
             r = labels.get(room.id)
             if r:
-                word = r["label"] if r["confidence"] >= 0.6 else f"possibly {r['label']}"
-                lines.append(f"| {room.id} | {r['label']} | {r['confidence']:.2f} AI ({word}) | "
+                lines.append(f"| {room.id} | {r['label']} | AI {r['confidence']:.2f} | "
                              f"{', '.join(r['panos'])} |")
             else:
                 lines.append(f"| {room.id} | {room.label} | MP | |")

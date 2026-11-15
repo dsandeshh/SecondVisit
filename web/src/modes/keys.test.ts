@@ -53,7 +53,7 @@ describe("keys answer synchronously", () => {
     const key = (k: string, o: KeyboardEventInit = {}) => stage.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, ...o }));
     key("Tab"); key("Enter");
     expect(out.filter(x => x.startsWith("say:")).at(-1)).toMatch(/^say:Target set, /);
-    s.ex.fx.setTarget({ id: "elsewhere", kind: "sign", at: [2, 2], name: "Sign", possibly: false, fixed: true });
+    s.ex.fx.setTarget({ id: "elsewhere", kind: "sign", at: [2, 2], name: "Sign", fixed: true });
     key("Escape"); expect(out.filter(x => x.startsWith("say:")).at(-1)).toMatch(/^say:Target cleared\./);
     key("b"); expect(out.filter(x => x.startsWith("say:")).at(-1)).toBe("say:Beacon off.");
     key("b"); expect(out.filter(x => x.startsWith("say:")).at(-1)).toBe("say:Beacon on.");

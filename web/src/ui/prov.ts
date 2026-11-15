@@ -11,7 +11,7 @@ const NAME: Record<Source, string> = {
 export const METER_ORDER: ChipKind[] = ["MP", "VX", "CS", "AI", "CALC", "HAND"];
 
 export const chipKind = (p: Prov): ChipKind => KIND[p.src];
-export const isPossibly = (p: Prov): boolean => p.src === "ai" && (p.confidence ?? 1) < LOW_CONFIDENCE;
+export const isLowConfidence = (p: Prov): boolean => p.src === "ai" && (p.confidence ?? 1) < LOW_CONFIDENCE;
 
 export function chipText(p: Prov): string {
   const k = chipKind(p);
@@ -36,14 +36,11 @@ export function describeProv(p: Prov, prov: Record<string, Prov> = {}): string {
   }
   if (p.src === "ai") {
     const c = p.confidence;
-    const conf = c == null ? "" : `, confidence ${c.toFixed(2)}${isPossibly(p) ? ", possibly" : ""}`;
+    const conf = c == null ? "" : `, confidence ${c.toFixed(2)}`;
     return `Source: labelled by AI${conf}`;
   }
   return `Source: ${NAME[p.src]}`;
 }
-
-/** "a reception desk" becomes "possibly a reception desk" for a low confidence AI label. */
-export const withPossibly = (text: string, p: Prov | undefined): string => (p && isPossibly(p) ? `possibly ${text}` : text);
 
 let uid = 0;
 
@@ -53,7 +50,7 @@ export function chip(doc: Document, key: string, p: Prov, prov: Record<string, P
   const kind = chipKind(p);
   const button = doc.createElement("button");
   button.type = "button";
-  button.className = `chip chip--${kind.toLowerCase()}${isPossibly(p) ? " chip--possibly" : ""}`;
+  button.className = `chip chip--${kind.toLowerCase()}${isLowConfidence(p) ? " chip--low" : ""}`;
   button.textContent = chipText(p);
   button.setAttribute("aria-expanded", "false");
   button.setAttribute("aria-controls", id);

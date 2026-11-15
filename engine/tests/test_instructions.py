@@ -50,10 +50,11 @@ def test_templates_and_match():
     assert not numbers_match(bad, out[0])
 
 
-def test_possibly():
+def test_low_confidence_is_spoken_the_same():
     segs, lms, ents = lobby_segs()
     lms[0] = lms[0].model_copy(update={"confidence": 0.5})
-    assert "passing possibly the Reception desk" in write(segs, lms, ents)[2].instruction
+    text = write(segs, lms, ents)[2].instruction
+    assert "passing the Reception desk" in text and "possibly" not in text.lower()
 
 
 def test_smooth_rejects_drift(monkeypatch):
@@ -75,11 +76,11 @@ def test_llm_failure_returns_empty(monkeypatch):
     assert llm.complete("s", "u") == ""
 
 
-def test_uses_spoken_name_and_possibly_prefix():
+def test_uses_spoken_name_without_confidence_word():
     segs, lms, ents = lobby_segs()
     lms[0] = lms[0].model_copy(update={"spoken": "Front desk", "confidence": 0.5})
     text = write(segs, lms, ents)[2].instruction
-    assert "passing possibly the Front desk" in text and "The Front desk is at" in text
+    assert "passing the Front desk" in text and "The Front desk is at" in text and "possibly" not in text.lower()
     assert "Reception" not in text
 
 

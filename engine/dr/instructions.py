@@ -36,8 +36,8 @@ def _clause(seg: Segment, lms: dict[str, Landmark], wall: bool = True, lm: bool 
     if lm:
         for lid in seg.landmarks_passed:
             if lid in lms:
-                p = "possibly " if lms[lid].confidence < 0.6 else ""
-                out += f", passing {p}the {_say(lms[lid])}"
+                # never a confidence word: low confidence shows only as the AI chip value (decision 15 Nov)
+                out += f", passing the {_say(lms[lid])}"
                 break
     return out
 

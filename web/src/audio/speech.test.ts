@@ -32,13 +32,13 @@ describe("Speech (captions and priority; the voice is VoiceOut's)", () => {
     const sp = setup();
     sp.hasClips = true;
     sp.say("Walk about 12 steps.", 2);
-    sp.say("Possibly a sign.", 1);
+    sp.say("A sign.", 1);
     expect(el("say-polite").textContent).toBe("Walk about 12 steps.");
     sp.say("Stairs ahead.", 3);
     expect(el("say-polite").textContent).toBe("Stairs ahead.");
     sp.stop();
-    sp.say("Possibly a sign.", 1);
-    expect(el("say-polite").textContent).toBe("Possibly a sign.");
+    sp.say("A sign.", 1);
+    expect(el("say-polite").textContent).toBe("A sign.");
   });
 
   it("ducks while a clip plays and keeps the rate in range", () => {

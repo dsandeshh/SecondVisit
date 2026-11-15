@@ -1,7 +1,7 @@
 // Around me (Q) and Ahead of me (E): which things, in what order (review/agent5_interaction.md 4.4, 4.5). Pure: no audio.
 import { clockHour } from "../clock";
 import { ARRIVE_M, STEP_M } from "../config";
-import { isPossibly, spokenOf } from "../names";
+import { spokenOf } from "../names";
 import type { BuildingPackage, Landmark, Vec2 } from "../types";
 import { bearing, dist, wrap180, type World } from "../world";
 
@@ -16,17 +16,17 @@ export const KIND_PLURAL: Record<string, string> = {
 };
 
 /** A landmark, a door (midpoint) or an entrance, as the interactions see it. */
-export type Item = { id: string; kind: string; at: Vec2; name: string; possibly: boolean; fixed: boolean };
+export type Item = { id: string; kind: string; at: Vec2; name: string; fixed: boolean };
 export type SweepItem = Item & { az: number; d: number; count: number };
 
 export function itemsOf(pkg: BuildingPackage): Item[] {
   const out: Item[] = pkg.landmarks.map((l: Landmark) => ({
-    id: l.id, kind: l.kind, at: l.pos, name: spokenOf(l), possibly: isPossibly(l), fixed: l.fixed }));
-  for (const e of pkg.entrances) out.push({ id: e.id, kind: "entrance", at: e.pos, name: e.label, possibly: false, fixed: true });
+    id: l.id, kind: l.kind, at: l.pos, name: spokenOf(l), fixed: l.fixed }));
+  for (const e of pkg.entrances) out.push({ id: e.id, kind: "entrance", at: e.pos, name: e.label, fixed: true });
   const hasDoor = (p: Vec2) => out.some(i => (i.kind === "door" || i.kind === "glass_door") && dist(i.at, p) < 1);
   for (const d of pkg.doors ?? []) {
     const mid: Vec2 = [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2];
-    if (!hasDoor(mid)) out.push({ id: d.id, kind: "door", at: mid, name: "door", possibly: false, fixed: true });
+    if (!hasDoor(mid)) out.push({ id: d.id, kind: "door", at: mid, name: "door", fixed: true });
   }
   return out;
 }
@@ -70,7 +70,7 @@ function merge(g: Item[], pos: Vec2, heading: number): SweepItem {
   const at: Vec2 = [g.reduce((a, i) => a + i.at[0], 0) / g.length, g.reduce((a, i) => a + i.at[1], 0) / g.length];
   const first = g[0];
   return { ...first, at, count: g.length, name: g.length > 1 ? (KIND_PLURAL[first.kind] ?? "objects") : first.name,
-    possibly: g.length === 1 && first.possibly, az: azOf(pos, heading, at), d: dist(pos, at) };
+    az: azOf(pos, heading, at), d: dist(pos, at) };
 }
 
 /** The 6 nearest groups within 8 m that the walker could hear in the room or see, clockwise from straight ahead. */
@@ -115,7 +115,7 @@ export const AHEAD_THINGS = 3;
  * E, one short line of a fixed shape: "Clear 4 metres. Wall at 11 o'clock, 2 metres. Doorway at 1 o'clock, 3 metres."
  * Open distance straight ahead first, then up to 3 notable things in the 60 degree cone (the nearest wall, glass,
  * obstacle or stairs from the rays, the nearest doorway, the nearest fixed landmark), nearest first. Spoken names
- * only: never "possibly" here.
+ * only, never a confidence word.
  */
 export function aheadSummary(world: World, pos: Vec2, heading: number, items: Item[], doors: { a: Vec2; b: Vec2 }[] = []): { text: string; clear_m: number; things: AheadThing[] } {
   const hit = world.raycast(pos, heading, AHEAD_R_M);

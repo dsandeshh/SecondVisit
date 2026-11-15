@@ -113,12 +113,12 @@ describe("one bus: caption equals spoken text", () => {
     expect(dir.hidden).toBe(true);                              // sentences are centred: no direction
   });
 
-  it("possibly is a separate prefix word and a separate clip", () => {
+  it("a name is one clip from where it is, with no confidence word before it", () => {
     const r = rig([]);
-    r.speech.say("Reception desk", 1, { at: [1, 1], prefix: "possibly" });
-    expect(document.getElementById("say-polite")!.textContent).toBe(captionText("Reception desk", "possibly"));
+    r.speech.say("Reception desk", 1, { at: [1, 1] });
+    expect(document.getElementById("say-polite")!.textContent).toBe(captionText("Reception desk"));
     const say = r.cues.find(c => c.kind === "say")!;
-    expect(partsFor(say, r.voice.store).map(p => [p.text, !!p.at])).toEqual([["possibly", false], ["Reception desk", true]]);
+    expect(partsFor(say, r.voice.store).map(p => [p.text, !!p.at])).toEqual([["Reception desk", true]]);
   });
 
   it("a long caption is never cut: nothing is truncated in the text", () => {

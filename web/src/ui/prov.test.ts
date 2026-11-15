@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { fixturePkg } from "../test/fakes";
 import type { Prov } from "../types";
-import { chip, chipText, describeProv, isPossibly, layerCounts, renderLayerMeter, sourceLine, withPossibly } from "./prov";
+import { chip, chipText, describeProv, isLowConfidence, layerCounts, renderLayerMeter, sourceLine } from "./prov";
 
 const P = (src: Prov["src"], extra: Partial<Prov> = {}): Prov => ({ src, ref: "r", at: "2026-11-14T21:42:00+00:00", ...extra });
 
@@ -12,12 +12,12 @@ describe("provenance chips", () => {
     expect(chipText(P("hand"))).toBe("HAND");
     expect(chipText(P("ai", { confidence: 0.72 }))).toBe("AI 0.72");
   });
-  it("AI under 0.6 is possibly, in text and in the label", () => {
+  it("AI under 0.6 shows only its confidence value, never the word possibly", () => {
     const lo = P("ai", { confidence: 0.4 });
-    expect(isPossibly(lo)).toBe(true);
-    expect(isPossibly(P("ai", { confidence: 0.6 }))).toBe(false);
-    expect(withPossibly("a reception desk", lo)).toBe("possibly a reception desk");
-    expect(describeProv(lo)).toContain("possibly");
+    expect(isLowConfidence(lo)).toBe(true);
+    expect(isLowConfidence(P("ai", { confidence: 0.6 }))).toBe(false);
+    expect(chipText(lo)).toBe("AI 0.40");
+    expect(describeProv(lo)).toBe("Source: labelled by AI, confidence 0.40");
   });
   it("CALC lists its input sources", () => {
     const prov = { "grid": P("matterport"), "landmark:desk": P("ai", { confidence: 0.8 }) };
@@ -28,7 +28,8 @@ describe("provenance chips", () => {
     const { button, details } = chip(document, "landmark:desk", P("ai", { confidence: 0.4 }));
     document.body.append(button, details);
     expect(button.textContent).toBe("AI 0.40");
-    expect(button.getAttribute("aria-label")).toMatch(/possibly/);
+    expect(button.getAttribute("aria-label")).not.toMatch(/possibly/i);
+    expect(button.className).toContain("chip--low");
     expect(details.hidden).toBe(true);
     button.click();
     expect(details.hidden).toBe(false);

@@ -54,7 +54,7 @@ All ratios are WCAG 2 relative luminance, computed for these exact hex values.
 | Accent strong | `--c-accent-strong` | #004C99 | hover, pressed | white on it 8.42:1 |
 | Rule | `--c-rule` | #86868B | control borders | 3.62:1 on white, 3.33:1 on quiet fill (non text 3:1) |
 | Rule soft | `--c-rule-soft` | #D2D2D7 | decorative hairline | 1.51:1; never the only boundary of a control |
-| Good, bad, caution | `--c-good`, `--c-bad`, `--c-caution` | #1B6B3A, #B3261E, #8C5300 | words "Correct", "Not this one", "possibly" | 6.54, 6.54, 6.26:1 on white |
+| Good, bad, caution | `--c-good`, `--c-bad`, `--c-caution` | #1B6B3A, #B3261E, #8C5300 | words "Correct", "Not this one", low confidence AI chips | 6.54, 6.54, 6.26:1 on white |
 | Mark | `--c-mark`, `--c-on-mark` | #FFC629, #0F1C2A | traveller, you are here, HAND chip | ink on it 10.95:1 |
 
 Dark: page #000000, surface #1C1C1E, quiet fill #2C2C2E, ink #F5F5F7 (15.63:1 on surface), ink 2 #A1A1A6
@@ -363,8 +363,8 @@ One persistent element present from page load (CLAUDE.md rule 7, agent3 section 
 
 * Size: `--fs-small` bold, height 1.75rem (28px), padding 0 8px, radius `--r-chip`. Above the 24px
   WCAG 2.5.8 minimum; in tables give the cell 8px around it.
-* AI under 0.6: the value it labels reads "possibly a reception desk" and the chip shows the number in
-  `--c-caution` bold. The word does the work, not the colour.
+* AI under 0.6: the chip shows the confidence value ("AI 0.42") in `--c-caution` bold. The label itself is
+  the short spoken name only; the word "possibly" is never spoken or shown (human decision 15 Nov).
 * Placement: on a column header or a section heading when every value below shares a source (portfolio
   CoStar columns); per value only when sources differ value to value (landmarks, spoken numbers).
   Do not sprinkle chips on every cell.
@@ -708,7 +708,7 @@ the observer is solid.
 | 9 | Stairs or drop (code 5) | `hatch(--d-stairs-a, --d-stairs-b)`: the real world step edge marking |
 | 10 | Route | casing then `--d-route`; current stretch thicker; completed stretches graphite |
 | 11 | Trails | run 1 `--d-before` 4px, run 2 `--d-route` 6px; "Run 1" / "Run 2" written at each trail end |
-| 12 | Landmarks | 10px ink ring plus label; AI landmarks dotted ring; under 0.6 the label says "possibly" |
+| 12 | Landmarks | 10px ink ring plus label; AI landmarks dotted ring; under 0.6 the AI chip shows the confidence value; the label never says "possibly" |
 | 13 | Destination | 16px ink square, label |
 | 14 | Cane ray | free: `--d-cane-free` 3px to `CANE_M`; on contact: material colour, ends at the contact shape |
 | 15 | Tap rings | at contact; radius 10 to 24px over `--dur-tap` (300 ms), 4px stroke; shape by material: wall ink circle, glass teal double circle, fixed obstacle orange square, movable orange dashed triangle, bump ink cross 24px. Reduced motion: static shape for 300 ms |
@@ -786,7 +786,8 @@ draw order, and "Save pin" buttons that write `HAND` entries. No extra design wo
 * Numbers come from the package and are said with "about" when they are step counts: "about 12 steps".
 * Directions are left, right, straight on, or a clock hour from where you face.
 * Every spoken line does one job and ends with what to do. At most 160 characters (Task 8).
-* Say what we do not know: "possibly a reception desk", "chairs may move", "this number is simulated".
+* Say what we do not know: "chairs may move", "this number is simulated". Low confidence labels show only
+  as the AI chip value, never a word in speech (human decision 15 Nov).
 * Errors say what happened and what to do next; they never apologise and are never vague.
 
 **Spoken lines (examples)**

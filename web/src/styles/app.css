@@ -101,7 +101,7 @@ body.is-phone .actions, body.is-phone .quiz, body.is-phone .summary, body.is-pho
   border: var(--bw-control) solid var(--c-ink); border-radius: var(--r-chip); }
 .chip--ai { border-style: dotted; }
 .chip--hand { background: var(--c-mark); color: var(--c-on-mark); }
-.chip--possibly { color: var(--c-caution); }
+.chip--low { color: var(--c-caution); }
 .chip__details { font-size: var(--fs-small); color: var(--c-ink-2); margin: var(--sp-1) 0 var(--sp-2); }
 .chip__details dl { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-1) var(--sp-3); margin: 0; }
 .chip__details dd { margin: 0; overflow-wrap: anywhere; }

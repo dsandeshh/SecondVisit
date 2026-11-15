@@ -384,7 +384,7 @@ def t_inspect_building(ws: Workspace, building_id: str) -> tuple[dict, Files]:
     elif not arrival.get("confirmed"):
         gaps.append("entrance pin not confirmed by a person")
     if low:
-        gaps.append("low confidence landmarks, spoken as 'possibly': " + ", ".join(low))
+        gaps.append("low confidence landmarks, shown as AI chips with their confidence: " + ", ".join(low))
     gaps += pkg.get("notes", [])
     summary = {
         "ok": True, "building_id": building_id, "name": pkg["name"], "source": pkg["source"],
@@ -425,7 +425,7 @@ def t_review_landmarks(ws: Workspace, building_id: str) -> tuple[dict, Files]:
     md = ["# Landmark review", "", "| id | kind | label | confidence | fixed | source |", "|---|---|---|---|---|---|"]
     md += [f"| {r['id']} | {r['kind']} | {r['label']} | {r['confidence']:.2f} | {r['fixed']} | {r.get('source') or '?'} |"
            for r in rows]
-    md += ["", "Weak (below 0.6, spoken as 'possibly'): " + (", ".join(r["label"] for r in weak) or "none")]
+    md += ["", "Weak (below 0.6, AI chip shows the confidence): " + (", ".join(r["label"] for r in weak) or "none")]
     return ({"ok": True, "building_id": building_id, "landmarks": rows, "weak": [r["id"] for r in weak]},
             {"/annotations/landmark_review.md": "\n".join(md)})
 

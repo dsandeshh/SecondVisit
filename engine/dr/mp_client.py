@@ -118,7 +118,7 @@ class MPClient:
 class HttpFile(io.RawIOBase):
     """Read only, seekable file over HTTP range requests, so zipfile can open a remote zip in place.
 
-    `get_url` returns a (possibly fresh) signed URL; it is called again if the link expires.
+    `get_url` returns a signed URL (fresh if needed); it is called again if the link expires.
     """
 
     def __init__(self, client: MPClient, get_url: Callable[[], str], block: int = 8 * 2**20):

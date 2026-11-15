@@ -1,7 +1,7 @@
 """Spoken short names (1 to 4 words) derived by code from annotator labels. The full label is kept.
 
-"possibly" is NOT part of the name: `is_possible(lm)` (confidence < 0.6) is a separate flag the app
-prefixes at speech time (the clip "possibly" exists in voice_lines).
+No confidence word is ever part of the name or spoken (decision 15 Nov): `is_possible(lm)` (confidence < 0.6)
+only drives the AI chip value shown on the about page and provenance.
 """
 from __future__ import annotations
 
@@ -24,7 +24,9 @@ KIND_PLURAL = {"desk": "desks", "elevator": "elevators", "stairs": "stairs", "do
 _DROP = {"closed", "open", "opened", "illuminated", "lit", "wooden", "wood", "laminate", "granite", "metal", "glossy",
          "white", "red", "grey", "gray", "black", "blue", "green", "brown", "dark", "light", "large", "small", "long",
          "short", "tall", "curved", "square", "round", "rounded", "partly", "partially", "a", "an", "the", "some",
-         "speckled", "carpeted", "hinged", "mounted"}
+         "speckled", "carpeted", "hinged", "mounted",
+         # confidence words never reach a name (decision 15 Nov); confidence lives on the AI chip only
+         "possibly", "possible", "probably", "maybe", "likely"}
 _CUT = re.compile(r"\s+(?:with|on|above|below|beside|besides|at|mounted|leading|marked|reading|visible|hinged|"
                   r"partly|partially|along|near|next|under|over|in|into|to|of|from|behind|facing|hanging|outside|"
                   r"and|or|by|left|right|centre|center|upper|lower)\b.*$", re.I)

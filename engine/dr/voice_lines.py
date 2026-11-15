@@ -13,7 +13,7 @@ from dr import names
 from dr.package import BuildingPackage, VoiceLine
 
 KIND_WORDS = ["wall", "glass", "doorway", "wide doorway", "glass door", "door", "entrance", "exit", "obstacle",
-              "stairs", "may move", "possibly"]
+              "stairs", "may move"]
 
 # Literal strings the web app passes to say()/prime() (grep of web/src; test_fixed_ui_lines_cover_web_literals
 # fails if a new literal appears). Keep in step with the web.
