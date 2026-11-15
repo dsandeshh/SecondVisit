@@ -265,3 +265,6 @@ body[data-phase]:not(.is-phone) .cockpit__side { height: auto; }
 .strip__text { display: none; }
 .strip .transcript__now { min-height: 2.5em; }
 @media (max-width: 1099px) { .strip .next-action, .strip__meta, .strip__lede, .strip .transcript { grid-area: auto; grid-column: auto; } }
+.room3d-bar__gap { width: var(--sp-3); }
+.room3d-bar .btn:disabled { opacity: 0.6; cursor: default; }
+.room3d-bar > #room3d-note { background: var(--c-surface); padding: 0 var(--sp-2); }

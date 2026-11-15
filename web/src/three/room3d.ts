@@ -2,6 +2,7 @@
 // walls from grid cells, rooms with scanned=false hatched, landmarks, the route. Plan->three in mapping.ts.
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { CANE_M } from "../config";
 import { ringPoint } from "../events";
 import { shownName } from "../names";
@@ -10,6 +11,9 @@ import { decodeCells } from "../world";
 import { floorPlanPlacement, headingDir3, headingToYaw, roomMask, toThree, wallRects, type FloorPlanMeta, type Rect } from "./mapping";
 
 export type ViewMode = "behind" | "top" | "orbit";
+export type SceneMode = "scan" | "plan";
+/** The real scan is cut away above this height so the camera sees in from above (metres above the floor). */
+export const SCAN_CUT_M = 2.0;
 export const WALL_H = 2.4;
 export const RING_M = 2.9;
 
@@ -92,6 +96,9 @@ export class Room3D {
   private disposables: { dispose(): void }[] = [];
   private center: THREE.Vector3;
   private accent: string; private mark: string; private ink: string;
+  private planObjs: THREE.Object3D[] = [];
+  private scan: THREE.Object3D | null = null;
+  sceneMode: SceneMode = "plan";
 
   constructor(readonly host: HTMLElement, readonly pkg: BuildingPackage, opts: Room3DOptions = {}) {
     this.reduced = opts.reducedMotion ?? (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -109,8 +116,10 @@ export class Room3D {
     this.center = new THREE.Vector3(...toThree([g.origin[0] + g.width * g.res / 2, g.origin[1] + g.height * g.res / 2]));
     this.bounds = this.fit();
     this.lights();
+    const n0 = this.scene.children.length;
     this.floor(opts.floorPlan ?? null);
     this.walls();
+    this.planObjs = this.scene.children.slice(n0);
     this.landmarks();
     this.routeRibbon();
 
@@ -143,6 +152,57 @@ export class Room3D {
     this.setPose(e?.pos ?? [g.origin[0] + 1, g.origin[1] + 1], e?.heading_deg ?? 0, 0);
     this.snapCamera();
     this.raf = requestAnimationFrame(t => this.frame(t));
+  }
+
+  /**
+   * Load the real Matterport mesh (plan frame: metres, z up, so it takes the same plan->three turn as everything else:
+   * x stays, plan z becomes three y, plan y becomes -z). Resolves with a reason string on failure, null on success.
+   * Fails (never throws) when the file is missing, is HTML, or does not arrive within `timeoutMs`.
+   */
+  async loadScan(url: string, timeoutMs = 5000, yUp = false): Promise<string | null> {
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), timeoutMs);
+    try {
+      const r = await fetch(url, { signal: ac.signal });
+      if (!r.ok) return `HTTP ${r.status}`;
+      if (/text\/html/.test(r.headers.get("content-type") ?? "")) return "file missing";
+      const buf = await r.arrayBuffer();
+      const gltf = await new Promise<{ scene: THREE.Group }>((ok, bad) => new GLTFLoader().parse(buf, "", g => ok(g as { scene: THREE.Group }), bad));
+      clearTimeout(timer);
+      const grp = new THREE.Group();
+      grp.add(gltf.scene);
+      if (!yUp) grp.rotation.x = -Math.PI / 2;           // plan (x, y, z up) -> three (x, z, -y)
+      const plane = new THREE.Plane(new THREE.Vector3(0, -1, 0), SCAN_CUT_M);   // keeps y <= 2 m
+      this.renderer.localClippingEnabled = true;
+      gltf.scene.traverse(o => {
+        const m = o as THREE.Mesh; if (!m.isMesh) return;
+        m.castShadow = false; m.receiveShadow = false;
+        for (const mat of ([] as THREE.Material[]).concat(m.material)) {
+          mat.side = THREE.DoubleSide; mat.clippingPlanes = [plane]; mat.needsUpdate = true;
+          this.disposables.push(mat);
+          (mat as THREE.MeshStandardMaterial).map && this.disposables.push((mat as THREE.MeshStandardMaterial).map!);
+        }
+        this.disposables.push(m.geometry);
+      });
+      grp.visible = false; this.scene.add(grp); this.scan = grp;
+      return null;
+    } catch (e) {
+      return ac.signal.aborted ? "took longer than 5 seconds" : (e instanceof Error ? e.message : "failed");
+    } finally { clearTimeout(timer); }
+  }
+
+  get hasScan(): boolean { return !!this.scan; }
+
+  /** "scan": the real mesh (cut above 2 m) under the pins, route and walker; "plan": the built walls and floor plan. */
+  setScene(m: SceneMode): void {
+    if (m === "scan" && !this.scan) return;
+    this.sceneMode = m;
+    const scan = m === "scan";
+    if (this.scan) this.scan.visible = scan;
+    this.planObjs.forEach(o => { o.visible = !scan; });
+    // overlays ignore depth in scan mode so the route ribbon, rings and cane are never buried in the mesh floor
+    const over = [...this.routeMeshes, this.hi, this.ringGrp, this.wedgeM, this.coneM, this.rayM, this.cane];
+    over.forEach(o => o.traverse(x => { const mm = x as THREE.Mesh; if (!mm.isMesh) return; (mm.material as THREE.Material).depthTest = !scan; mm.renderOrder = scan ? 5 : 0; }));
+    this.pins.forEach(p => p.grp.traverse(x => { const mm = x as THREE.Mesh; if (mm.isMesh && !(x as THREE.Sprite).isSprite) { (mm.material as THREE.Material).depthTest = !scan; mm.renderOrder = scan ? 6 : 0; } }));
   }
 
   /** Bounding box (three coordinates) of the walls, obstacles and the entrance: what the top view must frame. */
@@ -288,6 +348,7 @@ export class Room3D {
     this.pins.clear();
     const destId = this.pkg.routes[0]?.to;
     list.forEach(l => this.addPin(l, l.id === destId));
+    if (this.sceneMode === "scan") this.setScene("scan");
   }
 
   private routeRibbon(): void {

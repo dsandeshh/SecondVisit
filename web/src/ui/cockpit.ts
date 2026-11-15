@@ -5,7 +5,7 @@ import { ringLabel, type Cue } from "../events";
 import { shownName } from "../names";
 import type { Explore, ExploreHooks } from "../modes/explore";
 import type { Session } from "../modes/session";
-import { Room3D, type ViewMode } from "../three/room3d";
+import { Room3D, type SceneMode, type ViewMode } from "../three/room3d";
 import { calmFloor, clearBackdrop, type FloorPlanMeta } from "../three/mapping";
 import type { BuildingPackage, Landmark, LandmarkKind, Prov, Vec2 } from "../types";
 import { bearing, dist } from "../world";
@@ -94,6 +94,7 @@ export class Cockpit {
       const prev = hooks.onTap;
       hooks.onTap = (at, code) => { prev?.(at, code); this.room?.tap(at); };
       this.room.setLandmarks(this.landmarks);
+      void this.initScene(this.room);
       // The sound ring: the same cues the headphones get (one event bus), each flashed where it comes from.
       this.ringOff = this.ex.speech.bus.subscribe(c => {
         const label = ringLabel(c);
@@ -116,6 +117,29 @@ export class Cockpit {
   }
 
   destroy(): void { if (this.timer) clearInterval(this.timer); this.ringOff?.(); this.cueOff?.(); this.room?.dispose(); }
+
+  /** Real scan is the default scene; the Plan view takes over (with a visible note) when the GLB is missing or slow. */
+  private async initScene(room: Room3D): Promise<void> {
+    const btns = Array.from(this.doc.querySelectorAll<HTMLButtonElement>("[data-scene]"));
+    const press = (m: SceneMode) => btns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.scene === m)));
+    const note = this.$("room3d-note");
+    btns.forEach(b => b.addEventListener("click", () => {
+      const m = b.dataset.scene as SceneMode;
+      if (m === "scan" && !room.hasScan) return;
+      room.setScene(m); press(m);
+    }));
+    const scanBtn = btns.find(b => b.dataset.scene === "scan");
+    note.hidden = false; note.textContent = "Loading the real scan.";
+    const why = await room.loadScan(`/buildings/${this.pkg.id}/scan.glb`);
+    if (this.room !== room) return;
+    if (why) {
+      room.setScene("plan"); press("plan");
+      note.textContent = `Real scan not available (${why}). Showing the built plan.`;
+    } else {
+      room.setScene("scan"); press("scan"); note.hidden = true; note.textContent = "";
+      if (scanBtn) scanBtn.disabled = false;
+    }
+  }
 
   /** Each interaction's cue draws its own picture (agent5 section 5 visual grammar): blue = what the system points at, orange = bumps. */
   private onCue(c: Cue): void {
