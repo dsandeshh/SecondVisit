@@ -1,0 +1,23 @@
+{
+  "face_yaw0_deg": 90.0,
+  "faces_clockwise": true,
+  "entrance": {
+    "id": "ent_main",
+    "label": "Main entrance",
+    "pos": [
+      4.51,
+      -0.08
+    ],
+    "heading_deg": 270.2,
+    "src": "calc",
+    "ref": "assumed: glass_door_3 (AI 0.25) on the outer wall nearest the first scan; not confirmed by a human"
+  },
+  "destination": {
+    "landmark_id": "restroom_1"
+  },
+  "auto_pins": {
+    "face_yaw0_deg": "calc: Matterport skybox convention with per pano yaw (human calibrated on the clinic); assumed for this model",
+    "entrance": "assumed: glass_door_3 (AI 0.25) on the outer wall nearest the first scan; not confirmed by a human",
+    "destination": "assumed: the most confident restroom landmark (AI 0.47), no desk seen; not confirmed by a human"
+  }
+}

@@ -85,3 +85,25 @@ def test_destination_landmark_id_from_overrides_is_routed(tmp_path):
     (tmp_path / "sq" / "landmarks.json").write_text(json.dumps({"landmarks": [lm.model_dump(mode="json")]}))
     pkg = pipeline.build_package("sq", data_root=tmp_path, web_root=tmp_path / "web", arrival=False)
     assert pkg.routes[0].to == "restroom_1" and pkg.routes[0].from_ == "ent_main"
+
+
+OFFICE_B = ROOT / "data" / "hpGRjK5uFPW"
+
+
+@pytest.mark.skipif(not (OFFICE_B / "raw" / "rooms.json").exists() or not (OFFICE_B / "landmarks.json").exists(),
+                    reason="no cached Office B data")
+def test_office_b_second_building_end_to_end(tmp_path):
+    """The second building through the same generic pipeline: auto pins (calc, assumed), one route, a sim."""
+    from dr import voice_lines
+    pkg = pipeline.build_package("hpGRjK5uFPW", web_root=tmp_path / "buildings", arrival=False, sim=40)
+    r = pkg.routes[0]
+    assert r.from_ == "ent_main" and r.to == "restroom_1"
+    assert pkg.prov["entrance:ent_main"].src == "calc" and "assumed" in pkg.prov["entrance:ent_main"].ref
+    assert not any(p.src == "hand" for k, p in pkg.prov.items() if k.startswith(("entrance", "landmark")))
+    steps = sum(s.steps for s in r.segments)
+    assert 40 <= steps <= 70 and len(r.segments) >= 4
+    assert r.segments[0].instruction.startswith("Facing into the building. Turn left to 9 o'clock.")
+    assert 0.0 < pkg.sim[r.id].arrival_rate < 1.0
+    assert len(pkg.landmarks) >= 10 and any(not rm.scanned for rm in pkg.rooms)
+    texts = {v.text for v in pkg.voice_lines}
+    assert voice_lines.NO_INDOOR_LINE in texts and all(s.instruction in texts for s in r.segments)
