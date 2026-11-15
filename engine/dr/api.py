@@ -2,19 +2,13 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import defaultdict
-
-import os
-from pathlib import Path
-
-import os
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-
-from dr.package import RunLog
 
 from dr.package import RunLog
 
@@ -25,17 +19,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def _load_env() -> None:
-    try:
-        from dotenv import load_dotenv
-        load_dotenv(Path(__file__).resolve().parents[2] / ".env")
-    except Exception:
-        pass
-
-
-_load_env()
 
 
 def _load_env() -> None:
@@ -120,36 +103,6 @@ async def obs_relay(ws: WebSocket, session: str):
         _rooms[session].discard(ws)
         if not _rooms[session]:
             _rooms.pop(session, None)
-
-
-# --- Coach (Task 10 engine): RunLog in, RunPlan out. Rules decide; the model writes one grounded line. ---
-class CoachRequest(RunLog):
-    building_id: str = ""
-
-
-def _route_segments(building_id: str, route_id: str) -> list[dict] | None:
-    root = Path(os.environ.get("DR_BUILDINGS", Path(__file__).resolve().parents[2] / "web" / "public" / "buildings"))
-    if not _SESSION_RE.match(building_id or ""):
-        return None
-    try:
-        pkg = json.loads((root / building_id / "package.json").read_text())
-        return next(r["segments"] for r in pkg["routes"] if r["id"] == route_id)
-    except Exception:
-        return None
-
-
-@app.post("/api/coach")
-def coach_endpoint(req: CoachRequest) -> dict:
-    from dr.coach_rules import coach
-
-    segs = _route_segments(req.building_id, req.route_id)
-    if segs:
-        n = len(segs)
-        allowed = {float(v) for s in segs for k in ("steps", "length_m", "turn_deg") if (v := s.get(k)) is not None}
-    else:
-        n = max([e.seg for e in req.events] + [q.seg for q in req.quiz] + [0]) + 1
-        allowed = set()
-    return coach(req, n, allowed)
 
 
 # --- Coach (Task 10 engine): RunLog in, RunPlan out. Rules decide; the model writes one grounded line. ---
@@ -270,9 +223,7 @@ def edit_landmark(sid: str, edit: LandmarkEdit) -> dict:
 import subprocess
 import uuid
 
-from fastapi import HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
 
 _ROOT = Path(__file__).resolve().parents[2]
 TTS_CACHE = _ROOT / "data" / "tts_cache"
