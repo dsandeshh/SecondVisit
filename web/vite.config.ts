@@ -5,6 +5,7 @@ const page = (name: string) => fileURLToPath(new URL(name, import.meta.url));
 
 export default defineConfig({
   server: {
+    open: false,  // never pop a browser window: agents use headless Chrome (human, 15 Nov 02:20)
     proxy: {
       "/api": "http://localhost:8000",
       "/ws": { target: "ws://localhost:8000", ws: true },
