@@ -25,6 +25,7 @@ import { renderScore, type RunResult } from "./pages/score";
 import { cardWanted, mountKeyCard } from "./pages/keycard";
 import { mountKeyPill } from "./pages/keypill";
 import { OFFLINE, resolveAddress, tierLines, type Resolved } from "./home/home";
+import { homeVariant, mountStory } from "./home/story";
 import { lineId } from "./lines";
 import { World } from "./world";
 import { loadOutdoorHook, runFlow } from "./flow";
@@ -78,6 +79,7 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
   try { const r = Number(localStorage.getItem("sv.rate")); if (r) speech.setRate(r); } catch { /* none */ }
   const audio = new AudioEngine(speech);
   const app: App = { audio, speech, pkg: null, explore: null, session: null };
+  if (homeVariant(params) === "story") mountStory(doc, params);   // ?home=story: the silent line drawing behind the form (sighted judges); plain is the default
   const op = params.get("op") === "1";
   if (op) $("op").hidden = false;
 
