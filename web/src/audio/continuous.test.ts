@@ -7,7 +7,7 @@ import { azimuth } from "./space";
 import { AudioEngine } from "./engine";
 import { Speech } from "./speech";
 import { FakeAudioContext } from "../test/fakes";
-import { beaconAz, beaconRate, beaconSpot, ContinuousSounds, nearestAhead, proxGain, proxRate } from "./continuous";
+import { beaconAz, beaconRate, beaconSpot, ContinuousSounds, nearestAhead, droneGain } from "./continuous";
 
 describe("continuous beacon", () => {
   it("pulses about 1/s beyond 10 m, 2/s at 5 m, 4/s within 2 m, interpolated in between", () => {
@@ -32,11 +32,11 @@ describe("continuous beacon", () => {
 });
 
 describe("continuous obstacle proximity", () => {
-  it("is silent beyond 3 m and with nothing ahead", () => {
-    for (const d of [3.01, 4, 12, Infinity, NaN, null, undefined]) { expect(proxRate(d as number)).toBe(0); expect(proxGain(d as number)).toBe(0); }
-    expect(proxRate(3)).toBeGreaterThan(0);
-    expect(proxRate(0.5)).toBeGreaterThan(proxRate(2.5));      // faster as it gets nearer
-    expect(proxGain(1)).toBeGreaterThan(0);
+  it("is silent beyond 2.5 m and with nothing ahead", () => {
+    for (const d of [2.51, 3, 4, 12, Infinity, NaN, null, undefined]) expect(droneGain(d as number)).toBe(0);
+    expect(droneGain(2.4)).toBeGreaterThan(0);
+    expect(droneGain(0.5)).toBeGreaterThan(droneGain(2));      // louder as it gets nearer
+    expect(droneGain(1)).toBeGreaterThan(0);
   });
   it("finds the nearest solid thing in the 60 degree cone, with its direction", () => {
     // a 10 x 10 room, walls round it; the walker 2 m from the north wall facing north
@@ -46,20 +46,20 @@ describe("continuous obstacle proximity", () => {
     expect(n.code).toBe(1);
     expect(n.dist).toBeGreaterThan(1.3); expect(n.dist).toBeLessThan(1.6);
     expect(Math.abs(n.az)).toBeLessThanOrEqual(30);
-    expect(nearestAhead(w, [5, 2.5], 0)).toBeNull();            // 6.5 m of floor ahead: nothing within 3 m
-    expect(proxRate(nearestAhead(w, [5, 2.5], 0)?.dist)).toBe(0);
+    expect(nearestAhead(w, [5, 2.5], 0)).toBeNull();            // 6.5 m of floor ahead: nothing within 2.5 m
+    expect(droneGain(nearestAhead(w, [5, 2.5], 0)?.dist)).toBe(0);
   });
 });
 
 describe("continuous sounds in Rehearse", () => {
-  it("the obstacle tick still plays, the continuous beacon never does", () => {
+  it("the obstacle drone still plays, the continuous beacon never does", () => {
     const rows = ["##########", ...Array(8).fill("#........#"), "##########"];
     const w = new World(gridPkg(rows));
     const audio = new AudioEngine(new Speech({ doc: document, raf: f => f() }));
     audio.ctx = new FakeAudioContext() as unknown as AudioContext; (audio as any).build(audio.ctx);
     const c = new ContinuousSounds(audio, w, { pose: () => ({ pos: [5, 7.5], heading: 0 }), target: () => [5, 2], live: () => true, rehearse: () => true });
     for (let i = 0; i < 25; i++) { (audio.ctx as any).currentTime = i * 0.04; c.tick(); }
-    expect(c.ticks).toBeGreaterThan(0);
+    expect(c.lastDrone!.gain).toBeGreaterThan(0);
     expect(c.pulses).toBe(0);
     expect(c.beaconRunning).toBe(false);
   });

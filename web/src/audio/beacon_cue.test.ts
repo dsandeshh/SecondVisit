@@ -8,9 +8,10 @@ import { World } from "../world";
 import { AudioEngine } from "./engine";
 import { Speech } from "./speech";
 import { azimuth, forwardFor } from "./space";
-import { humParams, wobbleHz, HUM_BEHIND_LEVEL, HUM_PARTIALS, HUM_NOISE_HZ, HUM_NOISE_LEVEL, HUM_RAMP_TAU, HUM_GLIDE_TAU } from "./beacon_cue";
+import { humParams, wobbleHz, HUM_BEHIND_LEVEL, HUM_PARTIALS, HUM_NOISE_HZ, HUM_NOISE_LEVEL, HUM_NOISE_Q, HUM_RAMP_TAU, HUM_GLIDE_TAU } from "./beacon_cue";
 import { BEACON_HZ, BEHIND_LEVEL, BEHIND_LP_HZ, BEHIND_RATE, CLICK_HZ, CLICK_S, cueOf, cueParams, heard, pulseRate } from "./beacon_cue";
-import { beaconAz, beaconSpot, ContinuousSounds } from "./continuous";
+import { BEACON_GAIN, beaconAz, beaconSpot, ContinuousSounds, droneGain, DRONE_GAIN, throbDepth, THROB_DEPTH, THROB_HZ } from "./continuous";
+import { BUS_DUCK } from "./engine";
 import { HeadingSmoother, TURN_GLIDE_MS } from "./heading_smooth";
 
 describe("beacon direction", () => {
@@ -47,9 +48,9 @@ describe("beacon cue", () => {
     expect(BEHIND_LEVEL).toBeGreaterThan(0.5); expect(BEHIND_RATE).toBeLessThan(1);
     expect(side.lpHz).toBeGreaterThan(10000); expect(side.level).toBe(1); expect(side.rateK).toBe(1);
   });
-  it("the click stays high and short, far from the low dry obstacle tick (160 Hz square under a 900 Hz low-pass)", () => {
+  it("the click stays high and short, far from the low obstacle drone (80 + 160 Hz under a 300 Hz low-pass)", () => {
     expect(CLICK_HZ).toBeGreaterThanOrEqual(3000); expect(CLICK_S).toBeLessThanOrEqual(0.01);
-    expect(CLICK_HZ / 900).toBeGreaterThan(3);
+    expect(CLICK_HZ / 300).toBeGreaterThan(10);
   });
   it("what the ear hears: cue plus side", () => {
     expect(heard(10)).toEqual({ cue: "near", side: 1 });
@@ -138,28 +139,32 @@ describe("the 60 fps update path", () => {
 });
 
 describe("the continuous hum (replaces the pulse)", () => {
-  it("distance is the wobble rate: 1.5 Hz at 12 m, 3 Hz at 5 m, 6 Hz at 1.5 m, interpolated, depth about 50 % off axis", () => {
+  it("distance is the wobble rate: 1.5 Hz at 12 m, 3 Hz at 5 m, 6 Hz at 1.5 m, interpolated, depth about 45 % off axis", () => {
     expect(wobbleHz(12)).toBe(1.5); expect(wobbleHz(5)).toBeCloseTo(3); expect(wobbleHz(1.5)).toBe(6);
     expect(wobbleHz(7.5)).toBeCloseTo(2.25); expect(wobbleHz(3.5)).toBeCloseTo(4.5);
-    for (const d of [12, 5, 1.5]) { const q = humParams(45, d); expect(q.rateHz).toBeCloseTo(wobbleHz(d)); expect(q.depth).toBeCloseTo(0.5); expect(q.level).toBe(1); }
+    for (const d of [12, 5, 1.5]) { const q = humParams(45, d); expect(q.rateHz).toBeCloseTo(wobbleHz(d)); expect(q.depth).toBeCloseTo(0.45); expect(q.level).toBe(1); }
   });
   it("aim is brightness: 30 deg dull and wobbling, 10 deg brighter and steadier, 2 deg brightest, nearly steady, the click", () => {
     const a = humParams(30, 5), b = humParams(-10, 5), c = humParams(2, 5);
-    expect(a).toMatchObject({ cue: "plain", lpHz: 1200, depth: 0.5, click: false });
-    expect(b.cue).toBe("near"); expect(b.lpHz).toBeCloseTo(1200 * 5 ** (2 / 3), 3); expect(b.depth).toBeCloseTo(0.5 - 0.35 * 2 / 3, 6); expect(b.click).toBe(false);
-    expect(c).toMatchObject({ cue: "on", lpHz: 6000, depth: 0.1, click: true });
-    expect(humParams(20, 5).lpHz).toBeCloseTo(1200); expect(humParams(5.001, 5).lpHz).toBeCloseTo(6000, -1); expect(humParams(5.001, 5).depth).toBeCloseTo(0.15, 3);
+    expect(a).toMatchObject({ cue: "plain", lpHz: 900, depth: 0.45, click: false });
+    expect(b.cue).toBe("near"); expect(b.lpHz).toBeCloseTo(900 * (7000 / 900) ** (2 / 3), 3); expect(b.depth).toBeCloseTo(0.45 - 0.3 * 2 / 3, 6); expect(b.click).toBe(false);
+    expect(c).toMatchObject({ cue: "on", lpHz: 7000, depth: 0.1, click: true });
+    expect(humParams(20, 5).lpHz).toBeCloseTo(900); expect(humParams(5.001, 5).lpHz).toBeCloseTo(7000, -1); expect(humParams(5.001, 5).depth).toBeCloseTo(0.15, 3);
     expect(humParams(-30, 1.5).rateHz).toBe(6);
   });
   it("behind: 1 kHz low-pass, about -4 dB, the wobble 25 % slower", () => {
     const q = humParams(150, 5);
-    expect(q).toMatchObject({ cue: "behind", lpHz: 1000, depth: 0.5, click: false });
+    expect(q).toMatchObject({ cue: "behind", lpHz: 1000, depth: 0.45, click: false });
     expect(q.rateHz).toBeCloseTo(3 * 0.75); expect(20 * Math.log10(q.level)).toBeCloseTo(-4); expect(q.level).toBe(HUM_BEHIND_LEVEL);
   });
-  it("timbre and timing: 220..1320 Hz partials slightly detuned, noise at 2.6 kHz at 20 %, 80 ms ramps, 250 ms glide", () => {
-    expect(HUM_PARTIALS.map(p => p.hz)).toEqual([220, 440, 660, 880, 1320]);
-    expect(HUM_PARTIALS.every(p => p.cents !== 0 && Math.abs(p.cents) <= 6)).toBe(true);
-    expect(HUM_NOISE_HZ).toBe(2600); expect(HUM_NOISE_LEVEL).toBe(0.2);
+  it("timbre and timing: three tonal partials 196/294/392 Hz (1, 0.35, 0.18, at most 2 cents), noise 4 kHz Q 1.5 at 5 %, 80 ms ramps, 250 ms glide", () => {
+    expect(HUM_PARTIALS.map(p => p.hz)).toEqual([196, 294, 392]);
+    expect(HUM_PARTIALS.map(p => p.level)).toEqual([1, 0.35, 0.18]);
+    expect(HUM_PARTIALS.every(p => Math.abs(p.cents) <= 2)).toBe(true);
+    expect(HUM_NOISE_HZ).toBe(4000); expect(HUM_NOISE_Q).toBe(1.5); expect(HUM_NOISE_LEVEL).toBe(0.05);
+    // the band covers 3..5 kHz (-3 dB edges of a band-pass: f0 / Q wide)
+    const bw = HUM_NOISE_HZ / HUM_NOISE_Q, lo = (-bw + Math.hypot(bw, 2 * HUM_NOISE_HZ)) / 2;
+    expect(lo).toBeLessThanOrEqual(3000); expect(lo + bw).toBeGreaterThanOrEqual(5000);
     expect(HUM_RAMP_TAU * 3).toBeCloseTo(0.08); expect(HUM_GLIDE_TAU * 3).toBeCloseTo(0.25);
   });
   it("the hum's filter, wobble and level follow the mapping on every frame, from one voice", () => {
@@ -180,5 +185,84 @@ describe("the continuous hum (replaces the pulse)", () => {
       expect(got.level / 0.16).toBeCloseTo(q.level, 6);
     }
     expect((c as any).beacon).toBe(v);
+  });
+});
+
+describe("the cleaner beacon and the obstacle drone (the mix)", () => {
+  const room = () => {
+    const rows = ["##########", ...Array(8).fill("#........#"), "##########"];
+    const w = new World(gridPkg(rows));
+    const audio = new AudioEngine(new Speech({ doc: document, raf: f => f() }));
+    audio.ctx = new FakeAudioContext() as unknown as AudioContext; (audio as any).build(audio.ctx);
+    return { w, audio, ctx: audio.ctx as unknown as FakeAudioContext };
+  };
+  it("the beacon: exactly three tonal oscillators at 196/294/392 Hz, the noise at 0.05", () => {
+    const { w, audio, ctx } = room();
+    const pose = { pos: [5, 5] as Vec2, heading: 90 };
+    const c = new ContinuousSounds(audio, w, { pose: () => pose, target: () => [8, 5], live: () => true, raf: () => {} });
+    c.tick();
+    const v = (c as any).beacon, drone = (c as any).drone;
+    const tonal = v.srcs.filter((n: any) => ctx.oscillators.includes(n));
+    expect(tonal.map((o: any) => o.frequency.value)).toEqual([196, 294, 392]);
+    expect(tonal.every((o: any) => o.type === "sine" && Math.abs(o.detune.value) <= 2)).toBe(true);
+    // every other oscillator is the wobble LFO, the click, or the drone's
+    const others = ctx.oscillators.filter(o => !tonal.includes(o) && o !== v.lfo && o !== v.click.osc && !drone.srcs.includes(o) && o !== drone.lfo);
+    expect(others).toEqual([]);
+    const ng = v.nodes.find((n: any) => n.gain?.value === HUM_NOISE_LEVEL);
+    expect(ng).toBeTruthy(); expect(HUM_NOISE_LEVEL).toBe(0.05);
+  });
+  it("aim brightness on the hum: 900 Hz at 30 degrees, 7 kHz at 2 degrees", () => {
+    const { w, audio } = room();
+    const pose = { pos: [5, 5] as Vec2, heading: 90 - 30 };
+    const c = new ContinuousSounds(audio, w, { pose: () => pose, target: () => [8, 5], live: () => true, raf: () => {} });
+    c.tick();
+    const v = (c as any).beacon;
+    expect(v.lp.frequency.target).toBeCloseTo(900, 3);
+    pose.heading = 90 - 2; (audio.ctx as any).currentTime = 0.1; c.tick();
+    expect(v.lp.frequency.target).toBeCloseTo(7000, 3);
+  });
+  it("the drone: silent beyond 2.5 m, rising to clear at 0.5 m, throbbing only inside 1 m", () => {
+    for (const d of [2.51, 3, 10, Infinity, NaN, null, undefined]) { expect(droneGain(d as number)).toBe(0); expect(throbDepth(d as number)).toBe(0); }
+    let last = -1;
+    for (let d = 2.5; d >= 0.5 - 1e-9; d -= 0.05) { const g = droneGain(d); expect(g).toBeGreaterThanOrEqual(last); last = g; }
+    expect(droneGain(2.4)).toBeGreaterThan(0); expect(droneGain(0.5)).toBeCloseTo(DRONE_GAIN); expect(droneGain(0.2)).toBeCloseTo(DRONE_GAIN);
+    for (let d = 1; d <= 2.6; d += 0.1) expect(throbDepth(d)).toBe(0);
+    expect(throbDepth(0.9)).toBeGreaterThan(0); expect(throbDepth(0.5)).toBeCloseTo(THROB_DEPTH);
+    expect(THROB_HZ).toBe(4);
+  });
+  it("the drone's peak is about 6 dB under the beacon; speech ducks the cue bus (both) about 12 dB", () => {
+    const peak = Math.max(...Array.from({ length: 60 }, (_, i) => droneGain(i * 0.05)));   // with the throb the gain swings 1 - depth .. 1
+    expect(20 * Math.log10(peak / BEACON_GAIN)).toBeCloseTo(-6, 1);
+    expect(20 * Math.log10(BUS_DUCK.cue)).toBeCloseTo(-12, 1);
+  });
+  it("over a walk at a wall: the drone is made and started once, sines at or under 200 Hz, a 300 Hz low-pass, panned to the wall, on the cue bus", () => {
+    const { w, audio, ctx } = room();
+    const pose = { pos: [5, 1.5] as Vec2, heading: 0 };
+    const c = new ContinuousSounds(audio, w, { pose: () => pose, target: () => [5, 8.5], live: () => true, raf: () => {} });
+    c.tick();
+    const dr = (c as any).drone, v = (c as any).beacon;
+    expect(c.droneStarts).toBe(3);
+    const oscs = ctx.oscillators.length;
+    const levels: number[] = [], throbs: number[] = [];
+    for (let i = 1; i <= 70; i++) {
+      pose.pos = [5, 1.5 + i * 0.1]; ctx.currentTime = i * 0.05; c.tick();   // north to 0.5 m from the wall at y = 9
+      levels.push(dr.level.gain.target); throbs.push(dr.lfoDepth.gain.target);
+      const d = 9 - pose.pos[1];
+      if (d > 2.6) expect(dr.level.gain.target).toBe(0);
+      if (d > 1.05) expect(dr.lfoDepth.gain.target).toBe(0);
+    }
+    for (let i = 1; i < levels.length; i++) expect(levels[i]).toBeGreaterThanOrEqual(levels[i - 1] - 1e-12);
+    expect(levels.at(-1)).toBeCloseTo(DRONE_GAIN); expect(throbs.at(-1)!).toBeGreaterThan(0);
+    expect(ctx.oscillators.length).toBe(oscs);                 // nothing made again
+    expect(c.droneStarts).toBe(3);
+    for (const n of [...dr.srcs, dr.lfo]) expect(n.starts).toBe(1);
+    for (const o of dr.srcs) { expect(o.type).toBe("sine"); expect(o.frequency.value).toBeLessThanOrEqual(200); }
+    expect(dr.lfo.frequency.value).toBe(4);
+    expect(dr.lp.type).toBe("lowpass"); expect(dr.lp.frequency.value).toBe(300);
+    expect(dr.panner.panningModel).toBe("HRTF");
+    expect(dr.panner.positionX.target).toBeCloseTo(5, 6);
+    expect(dr.nodes.some((n: any) => n.outs.includes(audio.buses!.cue))).toBe(true);
+    expect(v.nodes.some((n: any) => n.outs.includes(audio.buses!.cue))).toBe(true);
+    expect(c.lastDrone!.d).toBeLessThan(1);
   });
 });

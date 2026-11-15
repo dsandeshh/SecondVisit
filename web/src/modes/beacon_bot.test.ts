@@ -46,7 +46,7 @@ function byEar(ex: Explore, clock: { t: number }, max = 800): { ups: number; tur
   for (let i = 0; i < max; i++) {
     const hh = ex.cont.hearing();
     // what the ear can tell: which side, and the brightness band (bright and steady, brightening, dull, dull and muffled)
-    const band = (lp: number): Cue => lp >= HUM_BRIGHT_HZ - 1 ? "on" : lp > HUM_DARK_HZ + 1 ? "near" : lp <= HUM_BEHIND_HZ + 1 ? "behind" : "plain";
+    const band = (lp: number): Cue => lp >= HUM_BRIGHT_HZ - 1 ? "on" : Math.abs(lp - HUM_BEHIND_HZ) < 1 ? "behind" : lp > HUM_DARK_HZ + 1 ? "near" : "plain";
     const h = hh && { side: hh.side, cue: band(hh.lpHz) };
     if (!h && !ex.fx.beaconTarget) return { ups, turns, silent };   // silent and reached: arrived
     if (!h) { silent++; if (!step()) return { ups: Infinity, turns }; continue; }   // on top of a path corner: walk on
@@ -201,10 +201,9 @@ describe.skipIf(!hasClinic)("the continuous hum along the lab door -> main entra
     ex.fx.beaconAim = () => (aimed = aimOf() as [number, number] | null);
     ctx.currentTime = 0; c.tick();
     const v = (c as any).beacon;
-    expect(c.humStarts).toBe(8);    // five partials, the noise, the wobble, the on axis click: each started once
+    expect(c.humStarts).toBe(6);    // three partials, the noise, the wobble, the on axis click: each started once
     let restarts = 0;
     for (const n of [...v.srcs, v.lfo, v.click.osc]) n.start = () => { restarts++; };
-    const made = oscs - (c as any).prox ? 1 : 0;
     let px = 0, pz = 0;
     v.panner.positionX.setTargetAtTime = (x: number) => { px = x; return v.panner.positionX; };
     v.panner.positionZ.setTargetAtTime = (z: number) => { pz = z; return v.panner.positionZ; };
@@ -226,9 +225,9 @@ describe.skipIf(!hasClinic)("the continuous hum along the lab door -> main entra
     expect(new Set(ks).size).toBeGreaterThan(1);
     for (let n = 1; n < ks.length; n++) expect(ks[n]).toBeGreaterThanOrEqual(ks[n - 1]);   // never back to one passed
     expect(dist(seen.at(-1)!, ent)).toBeLessThan(1e-6);
-    expect(restarts).toBe(0); expect(c.humStarts).toBe(8);                         // never restarted, never made again
-    expect(oscs).toBeLessThanOrEqual(9);                                             // the hum's 7 plus the obstacle tick's one
-    void made; void starts;
+    expect(restarts).toBe(0); expect(c.humStarts).toBe(6); expect(c.droneStarts).toBe(3);                         // never restarted, never made again
+    expect(oscs).toBeLessThanOrEqual(8);                                             // the hum's 5 plus the drone's 3
+    void starts;
     expect((c as any).beacon).toBe(v);
   });
 });

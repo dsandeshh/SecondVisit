@@ -11,13 +11,16 @@ export function fixturePkg(): BuildingPackage {
 
 const param = () => ({
   value: 0, setValueAtTime() { return this; }, linearRampToValueAtTime() { return this; },
-  setTargetAtTime() { return this; }, exponentialRampToValueAtTime() { return this; },
+  /** The last value a setTargetAtTime aimed at (undefined: never), for tests of the continuous sounds. */
+  target: undefined as number | undefined,
+  setTargetAtTime(v: number) { this.target = v; return this; }, exponentialRampToValueAtTime() { return this; },
   cancelScheduledValues() { return this; },
 });
 
 /** Any AudioNode: connect/disconnect/start/stop, and any other property reads as an AudioParam. */
 function node(): any {
-  const base: any = { connect: (n: any) => n, disconnect() {}, start() {}, stop() {}, onended: null };
+  const base: any = { outs: [] as any[], starts: 0, connect: (n: any) => { base.outs.push(n); return n; }, disconnect() {},
+    start() { base.starts++; }, stop() {}, onended: null };
   return new Proxy(base, {
     get(t, k) { if (!(k in t) && typeof k === "string") t[k] = param(); return t[k]; },
     set(t, k, v) { t[k] = v; return true; },
@@ -52,7 +55,9 @@ export class FakeAudioContext {
   createStereoPanner() { return node(); }
   createPanner() { return node(); }
   createBiquadFilter() { return node(); }
-  createOscillator() { return node(); }
+  /** Every oscillator made on this context, in order (tests read their type and frequency). */
+  oscillators: any[] = [];
+  createOscillator() { const o = node(); this.oscillators.push(o); return o; }
 }
 
 export class FakeUtterance {

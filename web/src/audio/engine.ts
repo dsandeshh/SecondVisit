@@ -17,12 +17,13 @@ const latencyOf = (c: AudioContext) =>
   Math.round(1000 * ((c.baseLatency ?? 0) + ((c as any).outputLatency ?? 0)));
 
 const dbToGain = (db: number) => Math.pow(10, db / 20);
-/** Bus levels (agent5 4.2) and how far speech ducks each (safety never below -4 dB). */
+/** Bus levels (agent5 4.2) and how far speech ducks each (safety never below -4 dB; the cue bus, the beacon and the
+ *  obstacle drone, about 12 dB). */
 export const BUS_LEVEL: Record<BusName, number> = {
   voice: 1, cue: dbToGain(-6), safety: 1, ambient: dbToGain(-18), footsteps: dbToGain(-8),
 };
 export const BUS_DUCK: Record<BusName, number> = {
-  voice: 1, cue: dbToGain(-10), safety: dbToGain(-4), ambient: dbToGain(-6), footsteps: 1,
+  voice: 1, cue: dbToGain(-12), safety: dbToGain(-4), ambient: dbToGain(-6), footsteps: 1,
 };
 const REVERB_SEND = dbToGain(-10);
 
