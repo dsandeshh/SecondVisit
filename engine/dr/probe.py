@@ -53,6 +53,9 @@ Q_PANOS = """query Panos($id: ID!) { model(id: $id) {
 Q_PANOS_DEF = """query PanosDef($id: ID!) { model(id: $id) {
   panoLocations { id label position { x y z } skybox(resolution: "2k") { status children } } } }"""
 
+Q_ROTATIONS = """query Rotations($id: ID!) { model(id: $id) {
+  panoLocations { id label rotation { x y z w } } } }"""
+
 Q_MATTERPAK = """query MatterPak($id: ID!) { model(id: $id) {
   bundle(id: "mp:matterpak") { availability assets { ... on Resource { format status filename url } } } } }"""
 
@@ -78,7 +81,7 @@ def _pano_ids(raw: Path, name: str) -> list[str]:
 
 def expected_files(raw: Path) -> list[str]:
     """Every file a finished pull leaves in `raw`, given what is cached so far."""
-    files = ["basics.json", "rooms.json", "panos.json", "panos_defurnished.json"]
+    files = ["basics.json", "rooms.json", "panos.json", "panos_defurnished.json", "pano_rotations.json"]
     files += [f"faces/{p}_{k}.jpg" for p in _pano_ids(raw, "panos.json") for k in FACES]
     files += [f"faces_def/{p}_{k}.jpg" for p in _pano_ids(raw, "panos_defurnished.json") for k in FACES]
     files += ["floorplan.jpg", "floorplan.json", "matterpak.json", "cloud_sample.xyz", "vexcel_ortho.jpg",
@@ -285,6 +288,7 @@ class Puller:
             ("basics", lambda: self.step_json("basics.json", Q_BASICS)),
             ("rooms", lambda: self.step_json("rooms.json", Q_ROOMS)),
             ("panos", lambda: self.step_json("panos.json", Q_PANOS)),
+            ("pano_rotations", lambda: self.step_json("pano_rotations.json", Q_ROTATIONS)),
             ("defurnished", self.step_defurnished),
             ("faces", lambda: self.step_faces("panos.json", "faces", Q_PANOS)),
             ("faces_def", lambda: self.step_faces("panos_defurnished.json", "faces_def", Q_PANOS_DEF,

@@ -216,8 +216,10 @@ def build_package(sid: str, from_id: str | None = None, to_id: str | None = None
                 pkg.frames.geo_anchor = res.geo_anchor
         except Exception as e:  # offline and optional: the route does not depend on it
             pkg.notes.append(f"arrival skipped: {type(e).__name__}: {str(e)[:80]}")
-    add_route(pkg, from_id, to_id, clearance, drop_specks)
     ov2 = load_overrides(sid, data_root)
+    if to_id is None and ov2.destination is not None and ov2.destination.landmark_id:
+        to_id = ov2.destination.landmark_id  # a destination named by landmark id (no "dest" pin, no desk)
+    add_route(pkg, from_id, to_id, clearance, drop_specks)
     to2, _ = second_destination(ov2)
     for extra in ([to2] if to2 else []) + list(also_to or []):
         if extra != pkg.routes[0].to:

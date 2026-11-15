@@ -33,7 +33,7 @@ ROUTE_NEAR_M = 3.0
 LOOK_BUDGET = 60
 
 VISION_PROMPT = (
-    "This is one 90 degree view inside a medical office. (1) What kind of room is the camera standing in: "
+    "This is one 90 degree view inside a building that visitors walk into (an office, clinic, shop or similar). (1) What kind of room is the camera standing in: "
     "reception, waiting, exam, office, restroom, corridor, storage or other? (2) List visible objects a blind "
     "visitor could use as landmarks or must avoid: desk (reception or check in), counter, door, glass_door, "
     "elevator, stairs, seating, restroom, sign, pillar, water, other. For each, say whether it is built in "

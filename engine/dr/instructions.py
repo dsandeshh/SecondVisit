@@ -50,19 +50,23 @@ def _bearing(a, b) -> float:
     return math.degrees(math.atan2(b[0] - a[0], b[1] - a[1]))  # compass: 0 north, 90 east
 
 
-def _line(seg, prev, lms, tail, wall=True, lm=True) -> str:
+def _line(seg, prev, lms, tail, wall=True, lm=True, start_heading=None) -> str:
     head = ""
     if prev is None:
         head = "Facing into the building. "
+        if start_heading is not None:
+            rel = wrap180(seg.heading_deg - start_heading)
+            if clock_hour(rel) != 12:  # the route leaves the door off its facing direction: turn first
+                head += f"Turn {'right' if rel > 0 else 'left'} to {clock_hour(rel)} o'clock. "
     else:
         rel = wrap180(seg.heading_deg - prev.heading_deg)
         head = f"Turn {'right' if rel > 0 else 'left'} to {clock_hour(rel)} o'clock. "
     return f"{head}Walk {_steps(seg.steps)}{_clause(seg, lms, wall, lm)}{tail}."
 
 
-def _fit(seg, prev, lms, tail) -> str:
+def _fit(seg, prev, lms, tail, start_heading=None) -> str:
     for wall, lm in ((True, True), (True, False), (False, False)):
-        s = _line(seg, prev, lms, tail, wall, lm)
+        s = _line(seg, prev, lms, tail, wall, lm, start_heading)
         if len(s) <= MAX_LEN:
             return s
     return s
@@ -93,6 +97,11 @@ def numbers_match(text: str, seg: Segment) -> bool:
 def write(segments: list[Segment], landmarks: list[Landmark], entrances: list[Entrance],
           smooth: bool = False, dest: str | None = None) -> list[Segment]:
     lms = {lm.id: lm for lm in landmarks}
+    start_heading = None
+    if segments and entrances:
+        e = min(entrances, key=lambda e: math.dist(e.pos, segments[0].start))
+        if math.dist(e.pos, segments[0].start) <= 1.0:
+            start_heading = e.heading_deg
     out: list[Segment] = []
     for i, seg in enumerate(segments):
         prev = segments[i - 1] if i else None
@@ -109,7 +118,7 @@ def write(segments: list[Segment], landmarks: list[Landmark], entrances: list[En
             if d is not None:
                 rel = wrap180(_bearing(seg.end, d.pos) - seg.heading_deg)
                 tail = f". The {_say(d)} is at {clock_hour(rel)} o'clock"
-        text = _fit(seg, prev, lms, tail)
+        text = _fit(seg, prev, lms, tail, start_heading if i == 0 else None)
         if smooth:
             s = llm.complete(SMOOTH_SYSTEM, text)
             if (s and numbers_match(s, seg) and _nums(s) == _nums(text)

@@ -439,6 +439,8 @@ class OverrideEntrance(BaseModel):
     label: str = "Entrance"
     pos: Vec2
     heading_deg: float
+    src: Literal["hand", "calc", "ai"] = "hand"  # calc: picked by dr.autopins, no human confirmed it
+    ref: str | None = None
 
 
 class OverrideDestination(BaseModel):
@@ -584,7 +586,7 @@ def build_from_matterport(sid: str, data_root: Path = DATA) -> BuildingPackage:
     if ov.entrance:
         e = ov.entrance
         entrances.append(Entrance(id=e.id, label=e.label, pos=e.pos, heading_deg=e.heading_deg))
-        pb.add(f"entrance:{e.id}", src="hand", ref="overrides.json")
+        pb.add(f"entrance:{e.id}", src=e.src, ref=e.ref or "overrides.json")
     else:
         notes.append("no entrance: data/<sid>/overrides.json missing or has no entrance (set it in pick.html)")
 

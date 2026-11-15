@@ -182,3 +182,22 @@ def test_drop_diagonal_walls():
 def test_package_room_scanned_default():
     from dr.package import Room
     assert Room(id="a", label="x", polygon=[(0, 0), (1, 0), (1, 1)], area_m2=0.5).scanned is True
+
+
+def _sq(tmp_path, overrides):
+    raw = tmp_path / "sq" / "raw"
+    raw.mkdir(parents=True)
+    shutil.copy(FIX, raw / "rooms.json")
+    (tmp_path / "sq" / "overrides.json").write_text(json.dumps(overrides))
+    return tmp_path
+
+
+def test_entrance_prov_follows_its_override_src(tmp_path):
+    """A pin no human confirmed (dr.autopins) is calc + "assumed", never HAND (rule 8)."""
+    ent = {"id": "ent_main", "label": "Main entrance", "pos": [1, 1], "heading_deg": 90}
+    pkg = build_from_matterport("sq", data_root=_sq(tmp_path, {"entrance": ent}))
+    assert pkg.prov["entrance:ent_main"].src == "hand"
+    auto = dict(ent, src="calc", ref="assumed: glass_door_1 nearest the first scan")
+    pkg = build_from_matterport("sq", data_root=_sq(tmp_path / "b", {"entrance": auto}))
+    assert pkg.prov["entrance:ent_main"].src == "calc"
+    assert "assumed" in pkg.prov["entrance:ent_main"].ref

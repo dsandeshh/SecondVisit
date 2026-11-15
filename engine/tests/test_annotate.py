@@ -277,3 +277,10 @@ def test_record_uses_pano_yaw(tmp_path):
     a.record("pA", 1, json.dumps({"items": [{"kind": "door", "x_px": 1024, "confidence": 0.9}]}), width_px=2048)
     assert a.obs[0]["bearing_deg"] == pytest.approx(270)
     assert a.obs[0]["pos"][0] == pytest.approx(0.5, abs=0.1)
+
+
+def test_vision_prompt_does_not_assume_a_medical_office():
+    """The same annotator runs on every building (the clinic, an empty office); the prompt names no type."""
+    from dr.annotate import vision_prompt
+    p = vision_prompt(2048)
+    assert "medical office" not in p and "2048" in p and "glass_door" in p

@@ -70,3 +70,18 @@ def test_sim_fixture_cli_labels_simulated(tmp_path):
     d = json.loads(out.read_text())
     assert d["sim"][d["routes"][0]["id"]]["runs"] == 20
     assert any("simulated" in n for n in d["notes"])
+
+
+def test_destination_landmark_id_from_overrides_is_routed(tmp_path):
+    """overrides.json destination {landmark_id} (no desk in the building) is the route target."""
+    FIX = ROOT / "data" / "fixtures" / "mp_square_room.json"
+    raw = tmp_path / "sq" / "raw"
+    raw.mkdir(parents=True)
+    shutil.copy(FIX, raw / "rooms.json")
+    (tmp_path / "sq" / "overrides.json").write_text(json.dumps({
+        "entrance": {"id": "ent_main", "label": "Main entrance", "pos": [1, 1], "heading_deg": 90, "src": "calc"},
+        "destination": {"landmark_id": "restroom_1"}}))
+    lm = Landmark(id="restroom_1", kind="restroom", label="toilet", pos=(5, 3), confidence=0.47, fixed=True)
+    (tmp_path / "sq" / "landmarks.json").write_text(json.dumps({"landmarks": [lm.model_dump(mode="json")]}))
+    pkg = pipeline.build_package("sq", data_root=tmp_path, web_root=tmp_path / "web", arrival=False)
+    assert pkg.routes[0].to == "restroom_1" and pkg.routes[0].from_ == "ent_main"

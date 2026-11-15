@@ -81,3 +81,17 @@ def test_uses_spoken_name_and_possibly_prefix():
     text = write(segs, lms, ents)[2].instruction
     assert "passing possibly the Front desk" in text and "The Front desk is at" in text
     assert "Reception" not in text
+
+
+def test_first_line_turns_when_the_route_leaves_off_the_entrance_heading():
+    """Office B: the entrance faces west (270) but the route first follows the wall south (180).
+    "Facing into the building. Walk 3 steps" would walk the visitor west; say the turn first."""
+    from dr.package import Entrance
+    ent = [Entrance(id="ent_main", label="Main entrance", pos=(4.5, 0.0), heading_deg=270)]
+    segs = [seg(1, (4.5, 0.0), (4.5, -2.1), 180), seg(2, (4.5, -2.1), (-3, -2.1), 270)]
+    out = write(segs, [], ent)
+    assert out[0].instruction == "Facing into the building. Turn left to 9 o'clock. Walk 3 steps, wall on your left."
+    assert numbers_match(out[0].instruction, out[0])
+    # aligned with the entrance (the clinic): unchanged
+    segs[0] = seg(1, (4.5, 0.0), (2.4, 0.0), 270)
+    assert write(segs, [], ent)[0].instruction.startswith("Facing into the building. Walk 3 steps")
