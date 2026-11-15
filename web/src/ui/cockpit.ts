@@ -1,14 +1,14 @@
 // The sighted watcher's view of the rehearsal: 3D room, objects list, mini floor plan, live instruction strip,
 // agent and data panel (UI_DESIGN 4.2a). Read only on the traveller's state; it never changes audio or keys.
 import { STEP_M } from "../config";
-import { ringLabel } from "../events";
+import { ringLabel, type Cue } from "../events";
 import { shownName } from "../names";
 import type { Explore, ExploreHooks } from "../modes/explore";
 import type { Session } from "../modes/session";
 import { Room3D, type ViewMode } from "../three/room3d";
 import { calmFloor, clearBackdrop, type FloorPlanMeta } from "../three/mapping";
 import type { BuildingPackage, Landmark, LandmarkKind, Prov, Vec2 } from "../types";
-import { dist } from "../world";
+import { bearing, dist } from "../world";
 import { chip, chipKind, describeProv, layerCounts, METER_ORDER, renderLayerMeter, withPossibly } from "./prov";
 
 export type FloorPlan = { meta: FloorPlanMeta; url: string; img: CanvasImageSource } | { missing: string };
@@ -70,6 +70,9 @@ export class Cockpit {
   private timer: ReturnType<typeof setInterval> | null = null;
   private planCtx: CanvasRenderingContext2D | null = null;
   private ringOff: (() => void) | null = null;
+  private cueOff: (() => void) | null = null;
+  private beacon: { bp: Vec2; target: Vec2 } | null = null;
+  private coneTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private doc: Document, readonly pkg: BuildingPackage, private ex: Explore, private session: Session,
     hooks: ExploreHooks, private fetcher: typeof fetch = fetch) {
@@ -99,6 +102,7 @@ export class Cockpit {
         const color = bus === "safety" ? css("--d-obstacle", "#C45A00") : bus === "ambient" ? "#6E6E73" : css("--d-route", "#2160A8");
         this.room.flash(c.at ?? null, label, color);
       });
+      this.cueOff = this.ex.speech.bus.subscribe(c => this.onCue(c));
     } catch {
       const n = this.$("room3d-note"); n.hidden = false; n.textContent = "3D view not available in this browser.";
     }
@@ -111,7 +115,41 @@ export class Cockpit {
     this.timer = setInterval(() => this.tick(), 50);
   }
 
-  destroy(): void { if (this.timer) clearInterval(this.timer); this.ringOff?.(); this.room?.dispose(); }
+  destroy(): void { if (this.timer) clearInterval(this.timer); this.ringOff?.(); this.cueOff?.(); this.room?.dispose(); }
+
+  /** Each interaction's cue draws its own picture (agent5 section 5 visual grammar): blue = what the system points at, orange = bumps. */
+  private onCue(c: Cue): void {
+    const room = this.room, t = this.ex.traveller;
+    if (!room) return;
+    const css = (n: string, f: string) => getComputedStyle(this.doc.documentElement).getPropertyValue(n).trim() || f;
+    const select = (id: string | null) => { if (this.sel !== id) { this.sel = id; room.highlight(id); this.objects(); } };
+    switch (c.kind) {
+      case "sweep_item":
+        if (c.id === "end") { room.wedge(null); room.focus([]); }
+        else if (c.id === "start") room.wedge(t.heading);
+        else if (c.at) { room.wedge(bearing(t.pos, c.at)); room.focus([c.id!]); select(c.id!); }
+        break;
+      case "cone": {
+        room.cone(true, c.hit_m ?? 12, Math.round((c.hit_m ?? 12) / STEP_M)); room.focus(c.ids ?? []);
+        if (this.coneTimer) clearTimeout(this.coneTimer);
+        this.coneTimer = setTimeout(() => { room.cone(false); room.focus([]); }, 6000);
+        break;
+      }
+      case "pick":
+        if (c.id === "none" || !c.id) { select(null); this.beacon = null; room.setPath(null); room.wedge(null); }
+        else { select(c.id); if (c.ids?.includes("go") && c.at) this.beacon = { bp: c.at, target: c.at }; }
+        break;
+      case "pulse": if (c.at) { room.ripple(c.at); this.beacon = { bp: c.at, target: this.itemAt(c.id) ?? c.at }; } break;
+      case "waypoint": if (c.at) room.ripple(c.at, css("--c-ink", "#1D1D1F"), 500); break;
+      case "arrive": this.beacon = null; room.setPath(null); room.wedge(null); if (c.at) room.ripple(c.at, css("--c-ink", "#1D1D1F"), 1200); break;
+      case "bump": if (c.at) room.ripple(c.at, css("--d-obstacle", "#C45A00"), 300); break;
+      case "where": room.clockFace(true); room.focus(c.ids ?? []); setTimeout(() => room.focus([]), 5000); break;
+      case "room": room.tintRoom(c.id ?? null); break;
+      case "door": if (c.at) { const d = this.pkg.doors.find(x => x.id === c.ids?.[0]); if (d) room.glowDoor(d.a, d.b, `${(c.deg! / 100).toFixed(1)} m MP`, false); } break;
+      case "callout": if (c.id) { room.focus([c.id]); setTimeout(() => room.focus([]), 1500); } break;
+    }
+  }
+  private itemAt(id?: string): Vec2 | null { const l = this.landmarks.find(x => x.id === id); return l ? l.pos : null; }
 
   // ---- top bar ----------------------------------------------------------------------------
   private topBar(): void {
@@ -136,9 +174,22 @@ export class Cockpit {
     }
   }
 
+  /** Top view: the stage takes the building's aspect (no empty bands above and below); other views keep the full height. */
+  private fitStage(): void {
+    const cockpit = this.doc.querySelector<HTMLElement>(".cockpit"), stage = this.$("stage");
+    if (!cockpit || !this.room) return;
+    cockpit.style.removeProperty("--cockpit-h");
+    if (this.room.view !== "top") return;
+    const full = stage.clientHeight, w = stage.clientWidth;
+    if (!w || !full) return;
+    const h = Math.round(Math.min(full, Math.max(300, w / this.room.topAspect + 8)));
+    cockpit.style.setProperty("--cockpit-h", `${h}px`);
+  }
+
   private views(): void {
     this.doc.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(b => b.addEventListener("click", () => {
       this.room?.setView(b.dataset.view as ViewMode);
+      this.fitStage();
       this.doc.querySelectorAll("[data-view]").forEach(o => o.setAttribute("aria-pressed", String(o === b)));
     }));
     // [ ] and \ are free keys; the stage keeps every other binding
@@ -295,6 +346,11 @@ export class Cockpit {
     const n = route?.segments.length ?? 0;
     const seg = s.phase === "rehearse" && s.run ? s.run.current : 0;
     this.room?.setSegment(seg);
+    if (this.beacon && this.room) {            // the dashed path and the wedge follow the walker; the wedge goes solid within 15 degrees
+      this.room.setPath([t.pos, this.beacon.bp, this.beacon.target]);
+      const az = Math.abs(((bearing(t.pos, this.beacon.bp) - t.heading + 540) % 360) - 180);
+      this.room.wedge(bearing(t.pos, this.beacon.bp), az <= 15);
+    }
     if (route) {
       if (s.phase === "rehearse" && s.run) {
         this.set("strip-text", "");

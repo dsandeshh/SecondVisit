@@ -7,6 +7,7 @@ import { attachFocusGuard, attachKeys } from "./input/keyboard";
 import { MotionInput } from "./input/orientation";
 import { obs } from "./observer/bus";
 import type { ObsMsg } from "./observer/protocol";
+import { targetOrder } from "./modes/beacon";
 import { Explore, type ExploreHooks } from "./modes/explore";
 import { Session, type Phase } from "./modes/session";
 import type { QuizSession } from "./modes/quiz";
@@ -81,6 +82,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
     audioRunning: () => audio.ctx?.state === "running",
     onPhase: p => showPhase(doc, session, p),
     onQuestion: q => showQuiz(doc, session, q),
+    onKeys: () => { const k = doc.getElementById("keys-panel") as HTMLDetailsElement | null; if (!k) return; k.open = true; k.classList.add("is-flash"); setTimeout(() => k.classList.remove("is-flash"), 1500); },
   });
   app.session = session;
 
@@ -122,7 +124,23 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
     $("turn-left").addEventListener("click", () => session.turn(-15));
     $("turn-right").addEventListener("click", () => session.turn(15));
     $("repeat").addEventListener("click", () => session.repeat());
-    $("where").addEventListener("click", () => ex.where());
+    $("where").addEventListener("click", () => session.where());
+    $("around").addEventListener("click", () => session.around(false));
+    $("ahead").addEventListener("click", () => session.ahead());
+    const places = $<HTMLButtonElement>("places"), list = $("places-list");
+    const setPlaces = (running: boolean) => { places.textContent = running ? "Stop" : "Places"; places.setAttribute("aria-expanded", "false"); list.hidden = true; };
+    places.addEventListener("click", () => {
+      if (places.textContent === "Stop") { session.escape(); setPlaces(false); return; }
+      list.hidden = !list.hidden; places.setAttribute("aria-expanded", String(!list.hidden));
+      if (list.hidden) return;
+      list.replaceChildren();
+      targetOrder(ex.fx.items, ex.traveller.pos, ex.destination?.id).slice(0, 12).forEach(it => {
+        const b = doc.createElement("button"); b.type = "button"; b.className = "btn btn--secondary"; b.textContent = it.name;
+        b.addEventListener("click", () => { list.hidden = true; ex.fx.go(it.id); });
+        list.append(b);
+      });
+    });
+    speech.bus.subscribe(c => { if (c.kind === "pick" && c.ids?.includes("go")) setPlaces(true); else if (c.kind === "arrive") setPlaces(false); });
     if (audio.mode === "motion") {
       const m = new MotionInput(h => { if (session.phase !== "point") ex.face(h); }, d => ex.setCane(d));
       m.attach(ex.traveller.heading);
@@ -140,7 +158,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
   showPhase(doc, session, "explore");
   ex.begin();
   // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
-  speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press S. ${ex.intro(phone)}`, 2);
+  speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
   audio.play(1, { pan: -1, send: 0 });
   setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
 }

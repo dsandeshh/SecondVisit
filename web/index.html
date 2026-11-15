@@ -107,7 +107,7 @@
                 <ol id="say-history" class="transcript__history" aria-label="Earlier lines"></ol></section>
             </div>
           </details>
-          <details class="panel">
+          <details class="panel" id="keys-panel">
             <summary>Keys</summary>
             <section class="keys" aria-labelledby="keys-h">
               <h2 id="keys-h" class="sr-only">Keys</h2>
@@ -121,8 +121,14 @@
                 <dt>H</dt><dd>heading</dd>
                 <dt>B</dt><dd>destination hint</dd>
                 <dt>M</dt><dd>mono</dd>
-                <dt>S</dt><dd>source of this line (Rehearse); swap left and right (Explore)</dd>
-                <dt>Enter</dt><dd>start rehearsal, continue</dd>
+                <dt>Q</dt><dd>around me: the nearest things, each from where it is, clockwise from ahead. Shift+Q adds the clock and steps</dd>
+                <dt>E</dt><dd>ahead of me: what is within 30 degrees, then the wall or open space</dd>
+                <dt>Tab, Shift+Tab</dt><dd>choose the next or previous place</dd>
+                <dt>Enter</dt><dd>go to the chosen place with the beacon (Explore); hint (Rehearse); start rehearsal when no place is chosen; continue</dd>
+                <dt>Escape</dt><dd>stop the beacon or a sweep</dd>
+                <dt>S</dt><dd>source of this line</dd>
+                <dt>Shift+S</dt><dd>swap left and right</dd>
+                <dt>K</dt><dd>these keys, spoken</dd>
                 <dt>1 to 4, R</dt><dd>quiz answer, repeat options</dd>
                 <dt>+ and −</dt><dd>speech rate</dd>
               </dl>
@@ -145,7 +151,11 @@
             <button id="repeat" class="btn btn--secondary" type="button">Repeat</button>
             <button id="where" class="btn btn--secondary" type="button">Where am I</button>
             <button id="recentre" class="btn btn--secondary" type="button">Recentre</button>
+            <button id="around" class="btn btn--secondary" type="button">Around me</button>
+            <button id="ahead" class="btn btn--secondary" type="button">Ahead</button>
+            <button id="places" class="btn btn--secondary" type="button" aria-expanded="false" aria-controls="places-list">Places</button>
           </div>
+          <div id="places-list" class="phone__places" role="group" aria-label="Places" hidden></div>
         </div>
       </section>
     </main>

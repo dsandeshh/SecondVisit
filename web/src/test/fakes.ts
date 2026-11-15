@@ -74,3 +74,17 @@ export function fakeSynth(voices: unknown[] = []) {
   };
   return s;
 }
+
+/**
+ * A tiny package from ASCII rows (top row = highest y), 1 m cells, origin (0,0):
+ * '.' free, '#' wall, 'g' glass, 's' stairs, 'o' fixed obstacle. For geometry tests.
+ */
+export function gridPkg(rows: string[], extra: Partial<BuildingPackage> = {}): BuildingPackage {
+  const h = rows.length, w = rows[0].length;
+  const code: Record<string, number> = { ".": 0, "#": 1, o: 2, m: 3, g: 4, s: 5 };
+  const cells = new Uint8Array(w * h);
+  rows.forEach((row, i) => { for (let c = 0; c < w; c++) cells[(h - 1 - i) * w + c] = code[row[c]] ?? 0; });
+  const base = fixturePkg();
+  return { ...base, grid: { res: 1, width: w, height: h, origin: [0, 0], cells_b64: Buffer.from(cells).toString("base64") },
+    rooms: [], doors: [], landmarks: [], entrances: [], routes: [], ...extra };
+}

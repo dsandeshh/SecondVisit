@@ -19,8 +19,20 @@ export interface KeyActions {
   digit?(n: number): void;
   /** R: repeat the quiz options. */
   options?(): void;
-  /** Every handled key, first (resumes a paused AudioContext). */
-  any(): void;
+  /** Q / Shift+Q: around me, with clock and steps after each name when `detail`. */
+  around?(detail: boolean): void;
+  /** E: ahead of me (the 60 degree cone and the free distance). */
+  ahead?(): void;
+  /** Tab / Shift+Tab: next or previous place. */
+  pick?(dir: 1 | -1): void;
+  /** Escape: stop the beacon, cut a sweep. */
+  escape?(): void;
+  /** S: where the current line comes from. Shift+S is swap(). */
+  source?(): void;
+  /** K: the keys, spoken and shown. */
+  keys?(): void;
+  /** Every handled key, first (cuts speech, resumes a paused AudioContext). `key` is the lower cased key. */
+  any(key?: string): void;
 }
 
 export const STEP_GAP_MS = 400;
@@ -33,10 +45,10 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
   const down = (e: KeyboardEvent) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (k.startsWith("Arrow") || k === " ") e.preventDefault();
+    if (k.startsWith("Arrow") || k === " " || k === "Tab") e.preventDefault(); // only while the stage has focus (the listener is on it)
     if (e.repeat && !REPEATABLE.has(k)) return;
     const t = now();
-    const handled = () => a.any();
+    const handled = () => a.any(k);
     switch (k) {
       case "ArrowUp": case "ArrowDown":
         handled();
@@ -55,7 +67,12 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
       case "w": handled(); a.where(); return;
       case "b": handled(); a.hint(); return;
       case "m": handled(); a.mono(); return;
-      case "s": handled(); a.swap(); return;
+      case "s": handled(); if (e.shiftKey) a.swap(); else (a.source ?? a.swap).call(a); return;
+      case "q": handled(); a.around?.(e.shiftKey); return;
+      case "e": handled(); a.ahead?.(); return;
+      case "Tab": handled(); a.pick?.(e.shiftKey ? -1 : 1); return;
+      case "Escape": handled(); a.escape?.(); return;
+      case "k": handled(); a.keys?.(); return;
       case "1": case "2": case "3": case "4": case "5": case "6": case "7": case "8": case "9":
         handled(); a.digit?.(Number(k)); return;
       case "+": case "=": handled(); a.rate(0.15); return;

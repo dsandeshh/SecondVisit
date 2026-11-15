@@ -104,6 +104,8 @@ export class Speech {
   }
 
   get speaking(): boolean { return this.current !== null; }
+  /** Priority of the line being said now, or null. */
+  get busyPri(): Priority | null { return this.current; }
 
   /** A line interrupts only lines of equal or lower priority; a lower one is dropped. */
   say(text: string, pri: Priority = 2, opts: SayOpts = {}): void { this.sayInner(text, pri, opts); }

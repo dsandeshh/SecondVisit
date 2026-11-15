@@ -44,7 +44,7 @@ main { max-width: 72rem; padding: var(--sp-section) var(--gutter); }
 .keys dd { margin: 0; }
 
 /* Phone: full screen Step button and a bottom bar; no swipes. */
-:root { --bottom-bar-h: calc(72px + 2 * var(--sp-2)); }
+:root { --bottom-bar-h: calc(2 * 72px + 3 * var(--sp-2)); }
 .step-button { position: fixed; inset: 0 0 var(--bottom-bar-h) 0; width: 100%; border: 0; border-radius: 0;
   background: var(--c-accent); color: var(--c-on-accent); font: inherit; font-size: var(--fs-step);
   font-weight: var(--fw-heavy); display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -215,3 +215,9 @@ body[data-phase]:not(.is-phone) main { max-width: 112rem; padding: var(--sp-4) v
 .facts-list { padding-left: var(--sp-4); font-size: var(--fs-small); margin: 0 0 var(--sp-3); }
 .trace { padding-left: var(--sp-4); font-size: var(--fs-small); max-height: 12rem; overflow: auto; }
 .cockpit .keys dl { grid-template-columns: auto 1fr; font-size: var(--fs-small); }
+
+/* Phone: the Places list opens above the bar as real buttons (no swipes). */
+.phone__places { position: fixed; left: 0; right: 0; bottom: var(--bottom-bar-h); max-height: 50vh; overflow-y: auto; display: grid; gap: var(--target-gap);
+  padding: var(--sp-2); background: var(--c-paper); z-index: calc(var(--z-sticky) + 1); }
+.phone__places .btn { min-height: var(--target-primary); justify-content: flex-start; }
+.panel.is-flash { outline: 4px solid var(--d-route); outline-offset: 2px; }

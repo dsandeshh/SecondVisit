@@ -11,6 +11,8 @@ import { possiblyOpts, spokenOf } from "../names";
 import type { Entrance, Landmark, Vec2 } from "../types";
 import { bearing, dist, Traveller, wrap180, type World } from "../world";
 import { HesitationTimer } from "./hesitation";
+import { Interact } from "./interact";
+import { echoSeconds } from "./rooms";
 
 const SWEEP_DEG_PER_S = 120;
 const FRAME_MS = 16;
@@ -35,6 +37,9 @@ export class Explore implements KeyActions {
   readonly entrance: Entrance;
   readonly timer = new HesitationTimer();
   readonly destination: Landmark | null;
+  /** The Top 8 interactions (around me, ahead, picker, beacon, bump, where, room entry, doorways, callouts). */
+  readonly fx: Interact;
+  private prev: Vec2 = [0, 0];
   active = false;
   /** Rehearse: no destination beacon, no landmark callouts (the run speaks the cues). */
   rehearse = false;
@@ -49,6 +54,8 @@ export class Explore implements KeyActions {
   private stairsWarned = false;
   private sounds: LandmarkSounds | null = null;
   private now: () => number;
+  clock(): number { return this.now(); }
+  logHint(): void { this.hooks.onHint?.(this.traveller); }
 
   constructor(readonly world: World, readonly audio: AudioEngine, readonly speech: Speech, private hooks: ExploreHooks = {}) {
     const pkg = world.pkg;
@@ -57,6 +64,8 @@ export class Explore implements KeyActions {
     const toId = pkg.routes[0]?.to;
     this.destination = pkg.landmarks.find(l => l.id === toId) ?? pkg.landmarks.find(l => l.kind === "desk") ?? null;
     this.now = hooks.now ?? (() => performance.now());
+    this.fx = new Interact(this);
+    this.prev = [this.entrance.pos[0], this.entrance.pos[1]];
     if (audio.ctx && audio.buses) {
       if (new URLSearchParams(globalThis.location?.search ?? "").get("pan") === "eq") audio.panning = "equalpower";
       this.sounds = new LandmarkSounds(audio, this.destination?.id);
@@ -78,11 +87,12 @@ export class Explore implements KeyActions {
     this.active = false;
     this.timer.stop();
     this.sounds?.stop();
+    this.fx.stop();
     if (this.anim) clearInterval(this.anim);
     if (this.held) clearInterval(this.held);
   }
 
-  any(): void {}
+  any(_key?: string): void {}
 
   /** Put the traveller somewhere (start of a run, back at the entrance). */
   place(pos: Vec2, heading: number): void {
@@ -90,6 +100,8 @@ export class Explore implements KeyActions {
     this.traveller.setHeading(heading);
     this.traveller.setCane(0);
     this.heard.clear();
+    this.fx.reset();
+    this.prev = [pos[0], pos[1]];
     this.moved(false);
   }
 
@@ -99,10 +111,10 @@ export class Explore implements KeyActions {
     const r = t.step(dir);
     this.timer.reset();
     if (r === "bump") {
-      this.audio.play("bump", { gain: 1, send: 0.3 });
-      const ahead = this.world.raycast(t.pos, dir > 0 ? t.heading : t.heading + 180, CANE_M);
-      if (ahead) this.audio.play(ahead.code, { dist: ahead.dist, pan: 0 });
-      pulse(PULSE.bump);
+      if (!this.fx.bump(dir)) {                    // no ray hit found (should not happen): the old tap
+        this.audio.play("bump", { gain: 1, send: 0.3 });
+        pulse(PULSE.bump);
+      }
       this.hooks.onBump?.(t);
       return;
     }
@@ -150,13 +162,7 @@ export class Explore implements KeyActions {
     this.speech.say(h === 12 ? "Facing into the building, 12 o'clock." : `Facing ${h} o'clock. 12 o'clock is into the building from the entrance.`, 2);
   }
 
-  where(): void {
-    const t = this.traveller;
-    const room = this.world.roomAt(t.pos)?.label ?? this.world.pkg.name;
-    const near = [...this.world.pkg.landmarks].sort((a, b) => dist(t.pos, a.pos) - dist(t.pos, b.pos))[0];
-    const tail = near ? ` ${cap(lmName(near))} at ${this.clockTo(near.pos)} o'clock.` : "";
-    this.speech.say(`${room}.${tail}`, 2);
-  }
+  where(rehearse?: Parameters<Interact["where"]>[0]): void { this.fx.where(rehearse); }
 
   hint(): void {
     if (!this.destination) { this.speech.say("No destination in this building.", 2); return; }
@@ -191,20 +197,13 @@ export class Explore implements KeyActions {
     if (room) this.audio.echo?.setArea(room.area_m2);
     else if (this.room === null) this.audio.echo?.setArea(this.world.areaAt(t.pos)); // doorway keeps the last room
     this.sounds?.update(this.world.pkg.landmarks, t.pos, t.heading, !this.rehearse);
-    if (announce) {
-      if (room && room.id !== this.room) this.speech.say(`You are entering the ${room.label.toLowerCase()}.`, 1);
-      for (const l of this.rehearse ? [] : this.world.pkg.landmarks) {
-        if (dist(t.pos, l.pos) <= ARRIVE_M && !this.heard.has(l.id)) {
-          this.heard.add(l.id);
-          this.speech.say(spokenOf(l), 1, { at: l.pos, ...possiblyOpts(l) }); // its name, from where it is
-          pulse(PULSE.landmark);
-        } else if (dist(t.pos, l.pos) > ARRIVE_M * 2) this.heard.delete(l.id);
-      }
-    }
+    // room entry with jamb clicks, doorway cues and landmark callouts (one per step, never over an instruction)
+    if (this.prev[0] !== t.pos[0] || this.prev[1] !== t.pos[1] || announce) this.fx.onStep(this.prev, room, announce);
+    this.prev = [t.pos[0], t.pos[1]];
     if (room) this.room = room.id;
     const label = this.world.roomAt(t.pos)?.label;
     const el = globalThis.document?.getElementById("room-label");
-    if (el) el.textContent = `Room: ${label ?? "not named"}`;
+    if (el) el.textContent = label ? `Room: ${label} \u00b7 echo ${echoSeconds(room!)} s CALC` : "Room: not named";
     this.hooks.onMove?.(t);
   }
 

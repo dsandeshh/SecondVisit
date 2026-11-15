@@ -110,3 +110,7 @@ CoStar kit is a local zip and the join to property 5615020 works. A second model
   `text`, `line` (voice line id), `pri`, `seq`, `prefix`, `sound`, `bus`; kinds beyond agent5: `say` (every spoken line) and `sound`
   (every positioned non speech sound). Web `events.ts` `CueBus` publishes them; audio (`audio/voice.ts`, `AudioEngine.playBuf`),
   captions (`ui/captions.ts`), the 3D sound ring and the observer all subscribe. No package contract change.
+- Stream 2 web, step 4 (keymap per agent5 section 6): Q / Shift+Q around me, E ahead, Tab / Shift+Tab place picker, Enter beacon (Explore, when a
+  place is chosen; with none chosen it still starts the rehearsal; in Rehearse it is the B hint), Esc stops, W where am I (room size, facing,
+  nearest door), K keys, S source of the line, Shift+S swap channels (S used to swap outside Rehearse). Automatic: bump thud plus name from the
+  contact point, room entry with jamb clicks and echo crossfade, doorway clicks, approach callouts. Phones: Around me, Ahead, Places buttons.

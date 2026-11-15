@@ -8,6 +8,7 @@ import { tapGain } from "./cane";
 import { placeListener } from "./space";
 import { HrtfBudget, spatialChain } from "./spatial";
 import type { Output, Speech } from "./speech";
+import { renderRecipes, type RecipeName } from "./recipes";
 import { renderTaps, type TapKind } from "./taps";
 
 export type StartReport = { audio: "running" | "failed"; motion: Motion; vibrate: boolean; latencyMs: number };
@@ -28,7 +29,7 @@ const REVERB_SEND = dbToGain(-10);
 export type PlayOpts = {
   bus: BusName; at?: Vec2; pri?: number; gain?: number; rate?: number; send?: number; label?: string;
   /** Publish a `sound` cue for the ring (speech lines are announced by their own `say` cue). */
-  announce?: boolean; spatialOnly?: boolean; sound?: string; onEnd?: () => void; panning?: PanningModelType;
+  announce?: boolean; spatialOnly?: boolean; sound?: string; when?: number; rolloff?: number; ref?: number; onEnd?: () => void; panning?: PanningModelType;
 };
 export type Playing = { stop(): void; spatial: boolean };
 
@@ -39,6 +40,7 @@ export class AudioEngine {
   mono = false;
   swapped = false;
   taps: Record<TapKind, AudioBuffer> | null = null;
+  recipes: Record<RecipeName, AudioBuffer> | null = null;
   echo: Echo | null = null;
   buses: Record<BusName, GainNode> | null = null;
   /** Aliases kept for the older callers: taps are the safety bus, beacons the cue bus. */
@@ -131,6 +133,7 @@ export class AudioEngine {
     this.tapBus = this.buses.safety; this.beaconBus = this.buses.cue;
     this.echo = new Echo(ctx, pre);
     this.taps = renderTaps(ctx);
+    this.recipes = renderRecipes(ctx);
   }
 
   private applyMatrix(): void {
@@ -165,7 +168,7 @@ export class AudioEngine {
     if (o.at) {
       release = this.budget.acquire(o.pri ?? 1, stop);
       if (release) {
-        chain = spatialChain(c, o.at, this.pose, { panning: o.panning ?? this.panning });
+        chain = spatialChain(c, o.at, this.pose, { panning: o.panning ?? this.panning, rolloff: o.rolloff, ref: o.ref });
         g.connect(chain.input); out = chain.output; spatial = true;
       } else if (o.spatialOnly) { g.disconnect(); return null; }
     }
@@ -179,11 +182,19 @@ export class AudioEngine {
       o.onEnd?.();
     };
     if (o.at && o.announce !== false) this.bus.publish({ kind: "sound", at: o.at, label: o.label, sound: o.sound, bus: o.bus });
-    src.start();
+    src.start(o.when ?? 0);
     return { stop, spatial };
   }
 
   panning: PanningModelType = "HRTF";
+
+  /** A sound recipe (pulse, thud, jamb, chime ...) with a little pitch and level variation (agent5 4.3). */
+  cue(name: RecipeName, o: PlayOpts): Playing | null {
+    if (!this.recipes) return null;
+    const vary = o.rate === undefined && name !== "chime";
+    return this.playBuf(this.recipes[name], { ...o, sound: name,
+      rate: vary ? 1 + (Math.random() - 0.5) * 0.06 : o.rate, gain: (o.gain ?? 1) * (vary ? Math.pow(10, ((Math.random() - 0.5) * 3) / 20) : 1) });
+  }
 
   /** Play a pre rendered tap now. pan -1..1, dist inside the cane for falloff, echo send amount. */
   play(kind: TapKind, opts: { pan?: number; dist?: number; gain?: number; send?: number; at?: Vec2; label?: string } = {}): void {

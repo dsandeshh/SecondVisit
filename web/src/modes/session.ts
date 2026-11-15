@@ -1,7 +1,7 @@
 // Session: Explore -> Rehearse -> point -> quiz -> pocket summary -> run 2 (Tasks 9 and 10 web).
 // One KeyActions for the stage; phases decide what each key means.
 import { spokenOf } from "../names";
-import { sourceLine } from "../ui/prov";
+import { describeProv, sourceLine } from "../ui/prov";
 import type { Priority, Speech } from "../audio/speech";
 import { pulse, PULSE } from "../audio/haptics";
 import type { KeyActions } from "../input/keyboard";
@@ -9,6 +9,7 @@ import type { ObsMsg } from "../observer/protocol";
 import type { BuildingPackage, Landmark, RunEvent } from "../types";
 import { fetchCoach as realFetchCoach, scriptedCoach, type CoachResult } from "./coach";
 import type { Explore, ExploreHooks } from "./explore";
+import { KEYS_LINE } from "./interact";
 import { PointTask, POINT_TURN_DEG, pointFeedback } from "./point";
 import { buildQuiz, QuizSession } from "./quiz";
 import { PLAIN_PLAN, RehearsalRun } from "./rehearse";
@@ -25,6 +26,8 @@ export type SessionDeps = {
   onQuestion?: (q: QuizSession | null) => void;
   fetchCoach?: typeof realFetchCoach;
   audioRunning?: () => boolean;
+  /** K: show the keys panel. */
+  onKeys?: () => void;
 };
 
 const TICK_MS = 250;
@@ -196,6 +199,7 @@ export class Session implements KeyActions {
   enter(): void {
     switch (this.phase) {
       case "explore":
+        if (this.ex.fx.picked) { this.ex.fx.startBeacon(); return; }   // a place was chosen with Tab: go there
         if (!this.hasRoute) { this.say("No route found in this building. Rehearse needs a route.", 2); return; }
         this.runNo = 1;
         this.startRun();
@@ -210,6 +214,7 @@ export class Session implements KeyActions {
         if (this.quiz!.finished) this.finishRun(); else this.quiz!.ask();
         this.deps.onQuestion?.(this.quiz!.finished ? null : this.quiz);
         return;
+      case "rehearse": this.ex.hint(); return;      // no beacon in Rehearse: Enter is the B hint
       case "summary":
         if (this.runNo === 1) { this.runNo = 2; this.startRun(this.coach?.plan ?? PLAIN_PLAN); }
         else this.say("Both runs are done. Press Space to hear the summary again.", 2);
@@ -255,17 +260,32 @@ export class Session implements KeyActions {
     if (this.phase === "point" && this.point) { this.say(`You are facing ${this.point.clock()} o'clock.`, 2); return; }
     this.ex.heading();
   }
-  where(): void { this.ex.where(); }
+  where(): void {
+    const run = this.phase === "rehearse" ? this.run : null, seg = run?.segment;
+    this.ex.where(run && seg ? { i: run.current, n: this.route!.segments.length, steps: seg.steps, wall: seg.wall_side } : undefined);
+  }
   hint(): void {
     if (this.phase === "explore" || this.phase === "rehearse") this.ex.hint();
   }
   mono(): void { this.ex.mono(); }
-  /** S: source of the current instruction while rehearsing (Task 19), else swap left and right (ear check). */
-  swap(): void {
-    if (this.phase === "rehearse" && this.run) this.say(sourceLine(this.pkg, this.route!, this.run.current), 2);
-    else this.ex.swap();
+  /** S: the source of the current line (Task 19): the instruction while rehearsing, else the last place named. Shift+S swaps channels. */
+  source(): void {
+    if (this.phase === "rehearse" && this.run) { this.say(sourceLine(this.pkg, this.route!, this.run.current), 2); return; }
+    const it = this.ex.fx.lastItem, p = it ? this.pkg.prov?.[`landmark:${it.id}`] : null;
+    this.say(p ? `${it!.name}. ${describeProv(p, this.pkg.prov)}.` : "No source for this line.", 2);
   }
+  swap(): void { this.ex.swap(); }
+  around(detail: boolean): void { if (this.live) void this.ex.fx.around(detail); }
+  ahead(): void { if (this.live) void this.ex.fx.ahead(); }
+  pick(dir: 1 | -1): void { if (this.live) this.ex.fx.pick(dir); }
+  escape(): void { this.ex.fx.escape(); }
+  keys(): void { this.say(KEYS_LINE, 2); this.deps.onKeys?.(); }
+  private get live(): boolean { return this.phase === "explore" || this.phase === "rehearse"; }
   rate(d: number): void { this.ex.rate(d); }
   /** Any key interrupts speech (CLAUDE.md rule 7), then resumes a paused AudioContext. */
-  any(): void { this.speech.stop(); this.ex.any(); }
+  any(key?: string): void {
+    this.speech.stop();
+    if (key !== undefined && !key.startsWith("Arrow")) this.ex.fx.cancel();   // walking keeps a sweep going
+    this.ex.any(key);
+  }
 }

@@ -78,6 +78,12 @@ export class Room3D {
   private taps: { m: THREE.Mesh; t0: number }[] = [];
   private ringGrp = new THREE.Group();
   private flashes: { g: THREE.Group; t0: number; life: number; head: boolean }[] = [];
+  private wedgeM: THREE.Mesh; private coneM: THREE.Mesh; private rayM: THREE.Mesh; private rayLabel: THREE.Sprite | null = null;
+  private pathLine: THREE.Line | null = null;
+  private focusIds = new Set<string>();
+  private timed: { o: THREE.Object3D; until: number }[] = [];
+  private roomTint: THREE.Mesh | null = null;
+  private clockGrp: THREE.Group | null = null;
   private lookAt = new THREE.Vector3();
   private orbitA = 0.6;
   private raf = 0;
@@ -116,6 +122,16 @@ export class Room3D {
     this.walker.add(cap, nose);
     this.scene.add(this.walker);
     this.buildRing();
+    const fan = (deg: number, r: number, color: string, op: number) => {
+      const m = new THREE.Mesh(new THREE.CircleGeometry(r, 40, (90 - deg / 2) * Math.PI / 180, deg * Math.PI / 180),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; const g = new THREE.Group(); g.add(m); g.position.y = 0.05; g.visible = false; this.scene.add(g);
+      return g as unknown as THREE.Mesh;
+    };
+    this.wedgeM = fan(30, 4.2, this.accent, 0.22);
+    this.coneM = fan(60, 1, this.accent, 0.16);
+    this.rayM = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, 1), new THREE.MeshBasicMaterial({ color: this.accent }));
+    this.rayM.visible = false; this.scene.add(this.rayM);
     this.cane = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 1), new THREE.MeshBasicMaterial({ color: this.ink }));
     this.scene.add(this.cane);
     this.hi = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 40), new THREE.MeshBasicMaterial({ color: this.accent, side: THREE.DoubleSide }));
@@ -147,6 +163,9 @@ export class Room3D {
     const [cx, , cz] = toThree([(x0 + x1) / 2, (y0 + y1) / 2]);
     return { cx, cz, w: x1 - x0 + 1.2, d: y1 - y0 + 1.2 };
   }
+
+  /** Width over depth of what the top view frames; the page sizes the stage to it so there are no empty bands. */
+  get topAspect(): number { return this.bounds.w / this.bounds.d; }
 
   private lights(): void {
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0xd2d2d7, 1.5));
@@ -257,7 +276,7 @@ export class Room3D {
       .map(([id, p]) => [id, Math.hypot(p.pos[0] - this.pos[0], p.pos[1] - this.pos[1])] as const)
       .filter(([, d]) => d < 5).sort((a, b) => a[1] - b[1]).slice(0, 1).map(([id]) => id);
     this.pins.forEach((p, id) => {
-      const on = p.dest || id === this.selId || near.includes(id);
+      const on = p.dest || id === this.selId || near.includes(id) || this.focusIds.has(id);
       p.full.visible = on; p.dot.visible = !on;
       p.full.children[3]?.scale.set(this.view === "top" ? 4.4 : 2.1, this.view === "top" ? 0.83 : 0.4, 1);
     });
@@ -361,6 +380,96 @@ export class Room3D {
     this.flashes = this.flashes.filter(x => x !== f);
   }
 
+  private placeFan(g: THREE.Object3D, bearingDeg: number): void {
+    const [x, , z] = toThree(this.pos);
+    g.position.set(x, 0.05, z); g.rotation.y = headingToYaw(bearingDeg);
+  }
+
+  /** Around me: a 30 degree wedge at an absolute bearing (null hides it). `solid` when facing the target within 15 degrees. */
+  wedge(bearingDeg: number | null, solid = false): void {
+    this.wedgeM.visible = bearingDeg !== null;
+    if (bearingDeg === null) return;
+    this.placeFan(this.wedgeM, bearingDeg);
+    this.wedgeM.traverse(o => { const m = (o as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined; if (m) m.opacity = solid ? 0.6 : 0.22; });
+  }
+
+  /** Pins that are called out (sweep item, cone items) show their label and grow a little. */
+  focus(ids: string[]): void {
+    this.focusIds = new Set(ids);
+    this.pins.forEach((p, id) => p.grp.scale.setScalar(this.focusIds.has(id) || id === this.selId ? 1.3 : 1));
+    this.refreshPins();
+  }
+
+  /** Ahead of me: a 60 degree cone in front of the walker, and a ray to the first thing hit with its step count. */
+  cone(on: boolean, hitM = 0, steps = 0): void {
+    this.coneM.visible = this.rayM.visible = on;
+    if (this.rayLabel) { this.scene.remove(this.rayLabel); this.rayLabel = null; }
+    if (!on) return;
+    const r = Math.max(0.5, Math.min(12, hitM || 12));
+    this.coneM.scale.set(r, 1, r); this.placeFan(this.coneM, this.heading);
+    const d = headingDir3(this.heading), [x, , z] = toThree(this.pos);
+    this.rayM.scale.z = r; this.rayM.position.set(x + d[0] * r / 2, 0.08, z + d[2] * r / 2); this.rayM.rotation.y = headingToYaw(this.heading);
+    this.rayLabel = labelSprite(`${steps} steps CALC`, this.ink);
+    this.rayLabel.position.set(x + d[0] * r, 0.9, z + d[2] * r); this.rayLabel.scale.multiplyScalar(this.view === "top" ? 1.6 : 0.8);
+    this.scene.add(this.rayLabel);
+  }
+
+  /** An expanding ring at a point: a beacon pulse, a corner tick or a bump. */
+  ripple(at: Vec2, color = this.accent, life = 700, now = performance.now()): void {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.24, 32), new THREE.MeshBasicMaterial({ color, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; const [x, , z] = toThree(at); m.position.set(x, 0.07, z);
+    const g = new THREE.Group(); g.add(m); this.scene.add(g);
+    this.flashes.push({ g, t0: now, life, head: false });
+    m.scale.setScalar(this.reduced ? 3 : 1);
+    (g as any).grow = true;
+  }
+
+  /** The dashed path from the walker to the beacon point and on to the target (null clears it). */
+  setPath(pts: Vec2[] | null): void {
+    if (this.pathLine) { this.scene.remove(this.pathLine); this.pathLine.geometry.dispose(); (this.pathLine.material as THREE.Material).dispose(); this.pathLine = null; }
+    if (!pts || pts.length < 2) return;
+    const g = new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(...toThree(p, 0.09))));
+    const l = new THREE.Line(g, new THREE.LineDashedMaterial({ color: this.accent, dashSize: 0.3, gapSize: 0.2 }));
+    l.computeLineDistances(); this.pathLine = l; this.scene.add(l);
+  }
+
+  /** Where am I: a clock face of 12 numbers around the walker, aligned to the heading. */
+  clockFace(on: boolean, now = performance.now()): void {
+    if (this.clockGrp) { this.scene.remove(this.clockGrp); this.clockGrp = null; }
+    if (!on) return;
+    const g = new THREE.Group(), [wx, , wz] = toThree(this.pos);
+    for (let h = 1; h <= 12; h++) {
+      const d = headingDir3(this.heading + (h % 12) * 30), sp = labelSprite(String(h), this.ink);
+      sp.scale.set(0.5, 0.1, 1); sp.position.set(wx + d[0] * (RING_M + 0.55), 0.5, wz + d[2] * (RING_M + 0.55));
+      sp.scale.multiplyScalar(this.view === "top" ? 3 : 2);
+      g.add(sp);
+    }
+    this.scene.add(g); this.clockGrp = g;
+    this.timed.push({ o: g, until: now + 5000 });
+  }
+
+  /** Room entry: the room's floor tints in; null clears it. */
+  tintRoom(id: string | null): void {
+    if (this.roomTint) { this.scene.remove(this.roomTint); this.roomTint.geometry.dispose(); this.roomTint = null; }
+    const r = this.pkg.rooms.find(x => x.id === id);
+    if (!r || r.polygon.length < 3) return;
+    const shape = new THREE.Shape(r.polygon.map(p => new THREE.Vector2(p[0], p[1])));
+    const geo = new THREE.ShapeGeometry(shape); geo.rotateX(-Math.PI / 2);
+    this.roomTint = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: this.accent, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }));
+    this.roomTint.position.y = 0.012; this.scene.add(this.roomTint);
+  }
+
+  /** A door frame glows for a few seconds with its width. */
+  glowDoor(a: Vec2, b: Vec2, label: string, glass: boolean, now = performance.now()): void {
+    const col = glass ? "#008A7E" : this.ink, g = new THREE.Group();
+    for (const p of [a, b]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.1, 10), new THREE.MeshBasicMaterial({ color: col })); const [x, , z] = toThree(p); post.position.set(x, 1.05, z); g.add(post); }
+    const [ax, , az] = toThree(a), [bx, , bz] = toThree(b), len = Math.hypot(bx - ax, bz - az);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, len), new THREE.MeshBasicMaterial({ color: col }));
+    beam.position.set((ax + bx) / 2, 2.1, (az + bz) / 2); beam.rotation.y = Math.atan2(bx - ax, bz - az); g.add(beam);
+    const sp = labelSprite(label, this.ink); sp.position.set((ax + bx) / 2, 2.5, (az + bz) / 2); sp.scale.multiplyScalar(this.view === "top" ? 1.2 : 0.7); g.add(sp);
+    this.scene.add(g); this.timed.push({ o: g, until: now + 3000 });
+  }
+
   tap(at: Vec2, now = performance.now()): void {
     const m = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.16, 32), new THREE.MeshBasicMaterial({ color: this.ink, transparent: true, side: THREE.DoubleSide }));
     m.rotation.x = -Math.PI / 2;
@@ -418,7 +527,9 @@ export class Room3D {
       if (a >= 1) { this.dropFlash(f); continue; }
       f.g.traverse(o => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m) m.opacity = this.reduced ? 1 - a * a : Math.max(0, 1 - a); });
       if (f.head && !this.reduced) f.g.scale.setScalar(1 + a * 3);
+      if ((f.g as any).grow && !this.reduced) f.g.children[0].scale.setScalar(1 + a * 5);
     }
+    this.timed = this.timed.filter(t => { if (now < t.until) return true; this.scene.remove(t.o); if (t.o === this.clockGrp) this.clockGrp = null; return false; });
     for (const tp of this.taps) {
       const a = (now - tp.t0) / 700;
       tp.m.scale.setScalar(this.reduced ? 3 : 1 + a * 4);
