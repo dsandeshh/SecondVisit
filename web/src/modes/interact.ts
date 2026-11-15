@@ -22,6 +22,14 @@ export const KEYS_LINE = "Arrows walk and turn. Tab: choose a place. Enter: go t
 export const TARGET_ARRIVE_M = 1.0;
 /** Beacon path hysteresis: re-plan only when more than REPLAN_M off the planned path; move on from a corner within CORNER_M. */
 export const REPLAN_M = 1.0, CORNER_M = 0.5;
+/** A straight walkable line with LINE_MARGIN_M to spare either side, so a step does not lose it again (no flicker). */
+const LINE_MARGIN_M = 0.1;
+function wideClear(world: World, p: Vec2, q: Vec2): boolean {
+  const d = dist(p, q) || 1, nx = -(q[1] - p[1]) / d * LINE_MARGIN_M, ny = (q[0] - p[0]) / d * LINE_MARGIN_M;
+  return clearLine(world, p, q) && clearLine(world, [p[0] + nx, p[1] + ny], q) && clearLine(world, [p[0] - nx, p[1] - ny], q);
+}
+/** Just outside the beacon's 0.3 m mute: the aim always moves on by here. */
+export const CORNER_MIN_M = 0.35;
 /** Distance from p to the segment a-b. */
 function segDist(p: Vec2, a: Vec2, b: Vec2): number {
   const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
@@ -149,7 +157,7 @@ export class Interact {
    *  furniture and through doors), else the target itself. Null once reached. The path is planned once per target and kept
    *  (no flipping between routes); it is re-planned only when the walker strays more than REPLAN_M from it; when the corner
    *  aimed at is out of sight, only the way to that corner is re-planned. The aim moves on to the next corner once
-   *  within CORNER_M of it or once a later one is in a straight walkable line, so only the target itself is ever close enough to mute. A corner that
+   *  within CORNER_M of it or once the next one is in a straight walkable line (always the NEXT corner, never a further one), so only the target itself is ever close enough to mute. A corner that
    *  turns out of sight after that move gets its way round on the next frame. */
   beaconAim(): Vec2 | null {
     const tg = this.beaconTarget;
@@ -166,8 +174,13 @@ export class Interact {
       const sub = findPath(this.world, p, c.path[c.i]);
       if (sub) c = this.aimCache = { id: tg.id, path: [[p[0], p[1]], ...sub.slice(0, -1), c.path[c.i], ...c.path.slice(c.i + 1)], i: 1 };
     }
-    for (let j = c.path.length - 1; j > c.i; j--) if (clearLine(this.world, p, c.path[j])) { c.i = j; break; }
-    while (c.i < c.path.length - 1 && dist(p, c.path[c.i]) <= CORNER_M) c.i++;
+    // passing a corner: on to the next one once it is in a straight walkable line (step by step, never past one out of line)
+    // (the stretch now walked starts here, so the >REPLAN_M check measures from the walker, not a skipped corner: no flip)
+    while (c.i < c.path.length - 1 && wideClear(this.world, p, c.path[c.i + 1])) { c.path[c.i] = [p[0], p[1]]; c.i++; }
+    // within CORNER_M of a corner: on to the next once it is in sight (else no sooner than just outside the mute radius, so
+    // cutting a corner short never loops between a way round and the corner)
+    while (c.i < c.path.length - 1 && dist(p, c.path[c.i]) <= CORNER_M
+      && (clearLine(this.world, p, c.path[c.i + 1]) || dist(p, c.path[c.i]) <= CORNER_MIN_M)) c.i++;
     return c.path[c.i];
   }
   /** The persistent on screen line. */

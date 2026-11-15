@@ -50,3 +50,44 @@ export function pulseRate(d: number): number {
   if (d <= 2) return 4;
   return d >= 5 ? 1 + (10 - d) / 5 : 2 + (5 - d) * 2 / 3;
 }
+
+// ---- the continuous hum (human decision 15 Nov 06:30, replaces the pulse in Explore) ----------------------------------
+// One voice started once and kept alive: five detuned partials plus a little band-limited noise, through the HRTF panner
+// at the corner of the path aimed at. Distance is the amplitude wobble rate; aim is brightness (low-pass) and steadiness.
+/** Partials (Hz), their levels and detune (cents). */
+export const HUM_PARTIALS: { hz: number; level: number; cents: number }[] = [
+  { hz: 220, level: 1, cents: -4 }, { hz: 440, level: 0.6, cents: 3 }, { hz: 660, level: 0.4, cents: -2 },
+  { hz: 880, level: 0.3, cents: 5 }, { hz: 1320, level: 0.2, cents: -3 },
+];
+/** Band-limited noise: a band-pass at 2.6 kHz, at 20 % of the hum's level. */
+export const HUM_NOISE_HZ = 2600, HUM_NOISE_Q = 2, HUM_NOISE_LEVEL = 0.2;
+/** Brightness: off axis (> 20 deg) 1.2 kHz, on axis 6 kHz (swept log-linearly 20 -> 5 deg), behind 1 kHz. */
+export const HUM_DARK_HZ = 1200, HUM_BRIGHT_HZ = 6000, HUM_BEHIND_HZ = 1000;
+/** Wobble depth (0..1 of the level): 50 % off axis, 15 % at 5 deg, 10 % on axis (nearly steady). */
+export const WOBBLE_DEPTH = 0.5, WOBBLE_NEAR_DEPTH = 0.15, WOBBLE_ON_DEPTH = 0.1;
+/** Behind: about -4 dB, the wobble 25 % slower. */
+export const HUM_BEHIND_LEVEL = 10 ** (-4 / 20), HUM_BEHIND_RATE = 0.75;
+/** On axis: one faint click per second. */
+export const HUM_CLICK_PER_S = 1, HUM_CLICK_LEVEL = 0.35;
+/** Every parameter ramps with this time constant (setTargetAtTime: ~80 ms to settle); the source glides over ~250 ms. */
+export const HUM_RAMP_TAU = 0.08 / 3, HUM_GLIDE_TAU = 0.25 / 3;
+
+/** Wobble (AM) rate in Hz at `d` metres: 1.5 beyond 10 m, 3 at 5 m, 6 within 2 m, linear between those knots. */
+export function wobbleHz(d: number): number {
+  if (!Number.isFinite(d) || d >= 10) return 1.5;
+  if (d <= 2) return 6;
+  return d >= 5 ? 1.5 + (10 - d) * 1.5 / 5 : 3 + (5 - d);
+}
+
+export type HumParams = { cue: Cue; lpHz: number; depth: number; rateHz: number; level: number; click: boolean };
+
+/** The hum at azimuth `az` (deg, + right) with `d` metres to go: low-pass, wobble depth and rate, level, the on axis click. */
+export function humParams(az: number, d: number): HumParams {
+  const cue = cueOf(az), a = Math.abs(az), rate = wobbleHz(d);
+  if (cue === "behind") return { cue, lpHz: HUM_BEHIND_HZ, depth: WOBBLE_DEPTH, rateHz: rate * HUM_BEHIND_RATE, level: HUM_BEHIND_LEVEL, click: false };
+  if (cue === "plain") return { cue, lpHz: HUM_DARK_HZ, depth: WOBBLE_DEPTH, rateHz: rate, level: 1, click: false };
+  if (cue === "on") return { cue, lpHz: HUM_BRIGHT_HZ, depth: WOBBLE_ON_DEPTH, rateHz: rate, level: 1, click: true };
+  const k = (NEAR_AXIS_DEG - a) / (NEAR_AXIS_DEG - ON_AXIS_DEG);   // 0 at 20 deg .. 1 at 5 deg
+  return { cue, lpHz: HUM_DARK_HZ * (HUM_BRIGHT_HZ / HUM_DARK_HZ) ** k, depth: WOBBLE_DEPTH + (WOBBLE_NEAR_DEPTH - WOBBLE_DEPTH) * k,
+    rateHz: rate, level: 1, click: false };
+}

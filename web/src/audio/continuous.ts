@@ -1,4 +1,5 @@
-// The two continuous sounds (human decision 15 Nov 04:28): a soft target beacon from the target's true direction, and
+// The two continuous sounds (human decision 15 Nov 04:28; the beacon a continuous hum since 06:30): a hum from the next
+// corner of the walkable path to the target (beacon_cue.humParams: wobble rate = distance, brightness = aim), and
 // an obstacle proximity tick for the nearest solid thing in the 60 degree cone ahead within 3 m. They are the only two
 // sounds that play without a key; each has one persistent HRTF chain (outside the one shot budget) that is moved every
 // animation frame (~60 fps, a 40 ms interval as the fallback) from the walker's pose with the smoothed ear heading, so the
@@ -10,7 +11,8 @@ import { bearing, dirOf, dist, wrap180, type World } from "../world";
 import type { AudioEngine } from "./engine";
 import { toAudio } from "./space";
 import { BEHIND_DEG, spatialChain } from "./spatial";
-import { CLICK_HZ, CLICK_S, cueParams, heard, pulseRate, type Cue } from "./beacon_cue";
+import { CLICK_HZ, CLICK_S, cueParams, heard, HUM_CLICK_LEVEL, HUM_CLICK_PER_S, HUM_GLIDE_TAU, HUM_NOISE_HZ, HUM_NOISE_LEVEL,
+  HUM_NOISE_Q, HUM_PARTIALS, HUM_RAMP_TAU, humParams, pulseRate, type Cue, type HumParams } from "./beacon_cue";
 
 export const BEACON_FAR_M = 10, BEACON_NEAR_M = 2, BEACON_SLOW_HZ = 1, BEACON_FAST_HZ = 4;
 /** The beacon's panner sits this far from the walker, in the target's true direction: a steady level at any range. */
@@ -80,12 +82,14 @@ export type ContinuousDeps = {
   /** The ear: the walker's position with the smoothed heading (mid turn); the beacon's direction and the audio listener
    *  follow it. Default: pose. */
   ear?: () => { pos: Vec2; heading: number };
-  /** Metres to the real target (the rate carries distance), when the beacon sounds from a corner of the path. Default:
-   *  the straight distance to target(). */
-  range?: () => number;
   /** The frame clock (tests pass a fake); default requestAnimationFrame when there is one. */
   raf?: (f: () => void) => unknown;
 };
+
+/** The continuous hum: every node made once, started once, then only its parameters move. */
+type Hum = { srcs: (OscillatorNode | AudioBufferSourceNode)[]; nodes: AudioNode[]; lfo: OscillatorNode; lfoDepth: GainNode;
+  am: GainNode; level: GainNode; panner: PannerNode; lp: BiquadFilterNode; click: { osc: OscillatorNode; env: GainNode };
+  nextClick: number; phase: number; lastT: number; at: Vec2 | null };
 
 type Voice = { osc: OscillatorNode; env: GainNode; panner: PannerNode; lp: BiquadFilterNode; next: number;
   click?: { osc: OscillatorNode; env: GainNode } };
@@ -94,7 +98,7 @@ type Voice = { osc: OscillatorNode; env: GainNode; panner: PannerNode; lp: Biqua
 export class ContinuousSounds {
   /** Explore's B toggles it; on by default. Rehearse leaves it alone, so back in Explore the choice is restored. */
   beaconOn = true;
-  private beacon: Voice | null = null;
+  private beacon: Hum | null = null;
   /** A Rehearse B burst: its own voice, the destination, pulses still to schedule, when it began. */
   private burstV: Voice | null = null;
   private burstState: { at: Vec2; left: number; t0: number; last: number } | null = null;
@@ -107,6 +111,10 @@ export class ContinuousSounds {
   frames = 0;
   /** The cue of the last beacon pulse scheduled (null: none yet), for tests and the observer. */
   lastCue: Cue | null = null;
+  /** The hum's parameters on the last frame (null: silent), for tests and the observer. */
+  lastHum: (HumParams & { az: number; d: number; at: Vec2 }) | null = null;
+  /** Source nodes the hum has created and started (tests: it is made once, never restarted). */
+  humStarts = 0;
 
   constructor(private audio: AudioEngine, private world: World, private deps: ContinuousDeps) {}
 
@@ -133,7 +141,8 @@ export class ContinuousSounds {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    for (const v of [this.beacon, this.prox, this.burstV]) this.kill(v);
+    this.killHum();
+    for (const v of [this.prox, this.burstV]) this.kill(v);
     this.beacon = this.prox = this.burstV = null;
     this.burstState = null;
   }
@@ -142,20 +151,27 @@ export class ContinuousSounds {
     if (v) { try { v.env.gain.cancelScheduledValues?.(0); v.osc.stop(); v.osc.disconnect(); v.env.disconnect(); v.panner.disconnect(); v.lp.disconnect(); v.click?.osc.stop(); v.click?.osc.disconnect(); v.click?.env.disconnect(); } catch { /* gone */ } }
   }
 
-  /** What the continuous beacon sounds like right now (cue and ear side, from the same pure function the pulses use),
-   *  or null while it is silent. The headless bot navigates by this alone. */
-  hearing(): ReturnType<typeof heard> | null {
+  private killHum(): void {
+    const h = this.beacon;
+    if (h) { try { for (const n of [...h.srcs, h.lfo, h.click.osc]) n.stop(); for (const n of h.nodes) n.disconnect(); } catch { /* gone */ } }
+    this.beacon = null;
+  }
+
+  /** What the continuous hum sounds like right now (ear side, brightness, wobble, from the same pure function the hum
+   *  plays), or null while it is silent. The headless bot navigates by this alone. */
+  hearing(): (ReturnType<typeof heard> & HumParams) | null {
     if (!this.deps.live() || !this.beaconOn || this.deps.rehearse?.()) return null;
     const target = this.deps.target(), e = (this.deps.ear ?? this.deps.pose)();
     if (!target || dist(e.pos, target) <= BEACON_MUTE_M) return null;
-    return heard(beaconAz(e.pos, e.heading, target));
+    const az = beaconAz(e.pos, e.heading, target);
+    return { ...humParams(az, dist(e.pos, target)), ...heard(az) };
   }
 
   /** True while a continuous beacon source exists (it is created on the first pulse and dropped in Rehearse). */
   get beaconRunning(): boolean { return !!this.beacon; }
 
   /** Stop the continuous beacon now (entering Rehearse), pulses already scheduled included. */
-  silenceBeacon(): void { this.kill(this.beacon); this.beacon = null; }
+  silenceBeacon(): void { this.killHum(); }
 
   /** True while a burst is playing or inside its hold time. */
   get bursting(): boolean {
@@ -199,6 +215,62 @@ export class ContinuousSounds {
     return { osc, env, panner: chain.panner, lp: chain.output as BiquadFilterNode, next: 0, click };
   }
 
+  /** The hum, built and started once: partials and noise -> AM gain (an LFO on its gain) -> level -> HRTF panner -> low-pass. */
+  private hum(): Hum | null {
+    const a = this.audio, c = a.ctx, b = a.buses;
+    if (!c || !b) return null;
+    const chain = spatialChain(c, a.pose.pos, a.pose, { panning: a.panning, ref: BEACON_R_M, rolloff: 0 });
+    const lp = chain.output as BiquadFilterNode;
+    const am = c.createGain(), level = c.createGain(), mix = c.createGain();
+    level.gain.value = 0;
+    const norm = 1 / HUM_PARTIALS.reduce((s, p) => s + p.level, 0);
+    const srcs: Hum["srcs"] = [], nodes: AudioNode[] = [mix, am, level, chain.panner, lp];
+    for (const p of HUM_PARTIALS) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = "sine"; o.frequency.value = p.hz; o.detune.value = p.cents; g.gain.value = p.level * norm;
+      o.connect(g); g.connect(mix); srcs.push(o); nodes.push(o, g);
+    }
+    const len = Math.round(c.sampleRate * 2), buf = c.createBuffer(1, len, c.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+    const noise = c.createBufferSource(), bp = c.createBiquadFilter(), ng = c.createGain();
+    noise.buffer = buf; noise.loop = true; bp.type = "bandpass"; bp.frequency.value = HUM_NOISE_HZ; bp.Q.value = HUM_NOISE_Q;
+    ng.gain.value = HUM_NOISE_LEVEL;
+    noise.connect(bp); bp.connect(ng); ng.connect(mix); srcs.push(noise); nodes.push(noise, bp, ng);
+    const lfo = c.createOscillator(), lfoDepth = c.createGain();
+    lfo.type = "sine"; lfo.frequency.value = 1.5; lfoDepth.gain.value = 0.25; am.gain.value = 0.75;
+    lfo.connect(lfoDepth); lfoDepth.connect(am.gain); nodes.push(lfo, lfoDepth);
+    mix.connect(am); am.connect(level); level.connect(chain.input); lp.connect(b.cue);
+    const co = c.createOscillator(), ce = c.createGain();
+    co.type = "sine"; co.frequency.value = CLICK_HZ; ce.gain.value = 0;
+    co.connect(ce); ce.connect(chain.input); nodes.push(co, ce);
+    for (const n of [...srcs, lfo, co]) { try { n.start(); } catch { /* fake context */ } this.humStarts++; }
+    return { srcs, nodes, lfo, lfoDepth, am, level, panner: chain.panner, lp, click: { osc: co, env: ce }, nextClick: 0, phase: 0,
+      lastT: c.currentTime, at: null };
+  }
+
+  /** One frame of the hum: glide the source to `at`, ramp brightness, wobble and level (every change ~80 ms). */
+  private humFrame(h: Hum, at: Vec2, q: HumParams, t: number): void {
+    const [x, y, z] = toAudio(at);
+    const glide = h.at ? HUM_GLIDE_TAU : 0.005;   // the first placement is immediate, every later move a ~250 ms glide
+    h.panner.positionX.setTargetAtTime(x, t, glide);
+    h.panner.positionY.setTargetAtTime(y, t, glide);
+    h.panner.positionZ.setTargetAtTime(z, t, glide);
+    h.at = [at[0], at[1]];
+    h.lp.frequency.setTargetAtTime(q.lpHz, t, HUM_RAMP_TAU);
+    h.lfo.frequency.setTargetAtTime(q.rateHz, t, HUM_RAMP_TAU);
+    h.lfoDepth.gain.setTargetAtTime(q.depth / 2, t, HUM_RAMP_TAU);   // the gain swings 1 - depth .. 1
+    h.am.gain.setTargetAtTime(1 - q.depth / 2, t, HUM_RAMP_TAU);
+    h.level.gain.setTargetAtTime(BEACON_GAIN * q.level, t, HUM_RAMP_TAU);
+    if (q.click && h.nextClick <= t + LOOKAHEAD_S) {
+      const s = Math.max(t + 0.02, h.nextClick), g = h.click.env.gain;
+      g.setValueAtTime(0, s); g.linearRampToValueAtTime(BEACON_GAIN * HUM_CLICK_LEVEL, s + 0.001); g.setTargetAtTime(0, s + 0.002, CLICK_S / 3);
+      h.nextClick = s + 1 / HUM_CLICK_PER_S;
+    }
+    // one wobble cycle = one "pulse" for the ring and the observer
+    h.phase += Math.max(0, t - h.lastT) * q.rateHz; h.lastT = t;
+    if (h.phase >= 1 || this.pulses === 0) { h.phase %= 1; this.pulses++; this.deps.onPulse?.(at); }
+  }
+
   private place(v: Voice, at: Vec2, az: number, t: number, lpHz?: number): void {
     const [x, y, z] = toAudio(at);
     v.panner.positionX.setTargetAtTime(x, t, 0.02);
@@ -235,19 +307,16 @@ export class ContinuousSounds {
     const target = live && this.beaconOn && !rehearse ? this.deps.target() : null;
     const d = target ? dist(pos, target) : Infinity;
     if (target && d > BEACON_MUTE_M) {
-      const v = this.beacon ?? (this.beacon = this.voice("beacon"));
-      if (v) {
-        const spot = beaconSpot(pos, target), az = beaconAz(pos, ear.heading, target);
-        this.place(v, spot, az, t, cueParams(az).lpHz);
-        const range = this.deps.range?.() ?? d;
-        if (v.next < t) v.next = t + 0.02;
-        while (v.next < t + LOOKAHEAD_S) {
-          const k = this.pulse(v, v.next, az);
-          this.pulses++; this.deps.onPulse?.(spot);
-          v.next += 1 / (beaconRate(range) * k);
-        }
+      const h = this.beacon ?? (this.beacon = this.hum());
+      if (h) {
+        const az = beaconAz(pos, ear.heading, target), q = humParams(az, d);
+        this.lastCue = q.cue; this.lastHum = { ...q, az, d, at: target };
+        this.humFrame(h, target, q, t);
       }
-    } else if (this.beacon) this.beacon.next = 0;
+    } else {
+      this.lastHum = null;
+      if (this.beacon) { this.beacon.level.gain.setTargetAtTime(0, t, HUM_RAMP_TAU); this.beacon.lastT = t; }
+    }
     // ---- a Rehearse B burst: a fixed count of pulses, then the voice is dropped
     const b = this.burstState;
     if (b) {

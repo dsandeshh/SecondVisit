@@ -8,6 +8,7 @@ import { World } from "../world";
 import { AudioEngine } from "./engine";
 import { Speech } from "./speech";
 import { azimuth, forwardFor } from "./space";
+import { humParams, wobbleHz, HUM_BEHIND_LEVEL, HUM_PARTIALS, HUM_NOISE_HZ, HUM_NOISE_LEVEL, HUM_RAMP_TAU, HUM_GLIDE_TAU } from "./beacon_cue";
 import { BEACON_HZ, BEHIND_LEVEL, BEHIND_LP_HZ, BEHIND_RATE, CLICK_HZ, CLICK_S, cueOf, cueParams, heard, pulseRate } from "./beacon_cue";
 import { beaconAz, beaconSpot, ContinuousSounds } from "./continuous";
 import { HeadingSmoother, TURN_GLIDE_MS } from "./heading_smooth";
@@ -99,10 +100,11 @@ describe("the 60 fps update path", () => {
     const frames: (() => void)[] = [];
     let now = 0;
     const turn = new HeadingSmoother(0);
+    let target: Vec2 = [8, 5];
     const pose = { pos: [5, 5] as Vec2, heading: 0 };
     const c = new ContinuousSounds(audio, w, {
       pose: () => pose, ear: () => ({ pos: pose.pos, heading: turn.at(now) }),
-      target: () => [8, 5], live: () => true, raf: f => { frames.push(f); },
+      target: () => target, live: () => true, raf: f => { frames.push(f); },
     });
     c.start();
     const run = () => { const f = frames.shift()!; f(); };
@@ -116,9 +118,10 @@ describe("the 60 fps update path", () => {
     expect(new Set(fwd.map(f => f.toFixed(4))).size).toBeGreaterThan(5);          // the ear swept, frame by frame
     expect(fwd.at(-1)!).toBeCloseTo(forwardFor(15)[0], 6);                         // and arrived on the stepped heading
     expect(c.frames).toBe(13);
-    pose.pos = [5.5, 5];                          // walking moves the panner on the next frame (no tick, no key)
+    target = [8, 7];                              // the next corner: the source glides there on the next frame (no tick, no key)
     run();
-    expect(xs.at(-1)).not.toBe(xs[0]);
+    expect(xs.at(-1)).toBe(8);
+    expect(audio.ctx!.listener.forwardX.value).toBeCloseTo(forwardFor(15)[0], 6);
     c.stop();
   });
   it("the pulse shape follows the cue: on axis pulses get the click, off axis ones do not", () => {
@@ -131,5 +134,51 @@ describe("the 60 fps update path", () => {
     c.tick(); expect(c.lastCue).toBe("on");
     pose.heading = 0; (audio.ctx as any).currentTime = 2; c.tick(); expect(c.lastCue).toBe("plain");
     pose.heading = 270; (audio.ctx as any).currentTime = 4; c.tick(); expect(c.lastCue).toBe("behind");
+  });
+});
+
+describe("the continuous hum (replaces the pulse)", () => {
+  it("distance is the wobble rate: 1.5 Hz at 12 m, 3 Hz at 5 m, 6 Hz at 1.5 m, interpolated, depth about 50 % off axis", () => {
+    expect(wobbleHz(12)).toBe(1.5); expect(wobbleHz(5)).toBeCloseTo(3); expect(wobbleHz(1.5)).toBe(6);
+    expect(wobbleHz(7.5)).toBeCloseTo(2.25); expect(wobbleHz(3.5)).toBeCloseTo(4.5);
+    for (const d of [12, 5, 1.5]) { const q = humParams(45, d); expect(q.rateHz).toBeCloseTo(wobbleHz(d)); expect(q.depth).toBeCloseTo(0.5); expect(q.level).toBe(1); }
+  });
+  it("aim is brightness: 30 deg dull and wobbling, 10 deg brighter and steadier, 2 deg brightest, nearly steady, the click", () => {
+    const a = humParams(30, 5), b = humParams(-10, 5), c = humParams(2, 5);
+    expect(a).toMatchObject({ cue: "plain", lpHz: 1200, depth: 0.5, click: false });
+    expect(b.cue).toBe("near"); expect(b.lpHz).toBeCloseTo(1200 * 5 ** (2 / 3), 3); expect(b.depth).toBeCloseTo(0.5 - 0.35 * 2 / 3, 6); expect(b.click).toBe(false);
+    expect(c).toMatchObject({ cue: "on", lpHz: 6000, depth: 0.1, click: true });
+    expect(humParams(20, 5).lpHz).toBeCloseTo(1200); expect(humParams(5.001, 5).lpHz).toBeCloseTo(6000, -1); expect(humParams(5.001, 5).depth).toBeCloseTo(0.15, 3);
+    expect(humParams(-30, 1.5).rateHz).toBe(6);
+  });
+  it("behind: 1 kHz low-pass, about -4 dB, the wobble 25 % slower", () => {
+    const q = humParams(150, 5);
+    expect(q).toMatchObject({ cue: "behind", lpHz: 1000, depth: 0.5, click: false });
+    expect(q.rateHz).toBeCloseTo(3 * 0.75); expect(20 * Math.log10(q.level)).toBeCloseTo(-4); expect(q.level).toBe(HUM_BEHIND_LEVEL);
+  });
+  it("timbre and timing: 220..1320 Hz partials slightly detuned, noise at 2.6 kHz at 20 %, 80 ms ramps, 250 ms glide", () => {
+    expect(HUM_PARTIALS.map(p => p.hz)).toEqual([220, 440, 660, 880, 1320]);
+    expect(HUM_PARTIALS.every(p => p.cents !== 0 && Math.abs(p.cents) <= 6)).toBe(true);
+    expect(HUM_NOISE_HZ).toBe(2600); expect(HUM_NOISE_LEVEL).toBe(0.2);
+    expect(HUM_RAMP_TAU * 3).toBeCloseTo(0.08); expect(HUM_GLIDE_TAU * 3).toBeCloseTo(0.25);
+  });
+  it("the hum's filter, wobble and level follow the mapping on every frame, from one voice", () => {
+    const rows = ["##########", ...Array(8).fill("#........#"), "##########"];
+    const w = new World(gridPkg(rows));
+    const audio = new AudioEngine(new Speech({ doc: document, raf: f => f() }));
+    audio.ctx = new FakeAudioContext() as unknown as AudioContext; (audio as any).build(audio.ctx);
+    const pose = { pos: [5, 5] as Vec2, heading: 90 };
+    const c = new ContinuousSounds(audio, w, { pose: () => pose, target: () => [8, 5], live: () => true, raf: () => {} });
+    c.tick();
+    const v = (c as any).beacon, got: Record<string, number> = {};
+    const spy = (name: string, p: any) => { p.setTargetAtTime = (x: number) => { got[name] = x; return p; }; };
+    spy("lp", v.lp.frequency); spy("rate", v.lfo.frequency); spy("half", v.lfoDepth.gain); spy("level", v.level.gain);
+    for (const [h, az] of [[90 - 30, 30], [90 - 10, 10], [90 - 2, 2], [270, 180]] as const) {
+      pose.heading = h; (audio.ctx as any).currentTime += 0.016; c.tick();
+      const q = humParams(az, 3);
+      expect(got.lp).toBeCloseTo(q.lpHz, 3); expect(got.rate).toBeCloseTo(q.rateHz, 6); expect(got.half * 2).toBeCloseTo(q.depth, 6);
+      expect(got.level / 0.16).toBeCloseTo(q.level, 6);
+    }
+    expect((c as any).beacon).toBe(v);
   });
 });

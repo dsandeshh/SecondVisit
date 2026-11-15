@@ -86,7 +86,6 @@ export class Explore implements KeyActions {
       pose: () => this.traveller,
       ear: () => this.ear(),
       target: () => this.fx.beaconAim(),
-      range: () => { const b = this.fx.beaconTarget; return b ? dist(this.traveller.pos, b.at) : Infinity; },
       live: () => this.active && !this.locked && (page() === undefined || page() === "inside"),
       rehearse: () => this._rehearse,
       onPulse: at => speech.bus.publish({ kind: "pulse", at, id: this.fx.beaconTarget?.id }),
@@ -208,7 +207,7 @@ export class Explore implements KeyActions {
    *  logged as a hint; ignored while a burst is still playing, so holding B never becomes a beacon. */
   hint(): void {
     if (!this.destination) { this.speech.say("No destination in this building.", 2); return; }
-    if (this.rehearse) { if (this.cont.bursting) return; this.cont.burst(this.destination.pos); }   // no audio: still a hint
+    if (this.rehearse) { if (this.cont.bursting) return; this.cont.burst(this.fx.beaconAim() ?? this.destination.pos); }   // from the same corner point   // no audio: still a hint
     else this.sounds?.chirps(this.destination.pos);
     this.hooks.onHint?.(this.traveller);
   }

@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { ContinuousSounds } from "../audio/continuous";
-import { heard } from "../audio/beacon_cue";
+import { heard, HUM_BEHIND_HZ, HUM_BRIGHT_HZ, HUM_DARK_HZ, type Cue } from "../audio/beacon_cue";
 import { AudioEngine } from "../audio/engine";
 import { azimuth } from "../audio/space";
 import { Speech } from "../audio/speech";
@@ -44,7 +44,10 @@ function byEar(ex: Explore, clock: { t: number }, max = 800): { ups: number; tur
   const turn = (deg: number) => { ex.turn(deg); turns += Math.abs(deg) / 15; clock.t += PRESS_MS; };
   const step = (): boolean => { const p = t.pos; ex.step(1); ups++; clock.t += PRESS_MS; return t.pos !== p; };
   for (let i = 0; i < max; i++) {
-    const h = ex.cont.hearing(); 
+    const hh = ex.cont.hearing();
+    // what the ear can tell: which side, and the brightness band (bright and steady, brightening, dull, dull and muffled)
+    const band = (lp: number): Cue => lp >= HUM_BRIGHT_HZ - 1 ? "on" : lp > HUM_DARK_HZ + 1 ? "near" : lp <= HUM_BEHIND_HZ + 1 ? "behind" : "plain";
+    const h = hh && { side: hh.side, cue: band(hh.lpHz) };
     if (!h && !ex.fx.beaconTarget) return { ups, turns, silent };   // silent and reached: arrived
     if (!h) { silent++; if (!step()) return { ups: Infinity, turns }; continue; }   // on top of a path corner: walk on
     // aim, then commit: once on axis (or a near cue has crossed sides) keep stepping while it stays on or near
@@ -95,15 +98,15 @@ describe.skipIf(!hasClinic)("the beacon sounds from the visible path point (agen
     let spot: [number, number] | null = null;
     let used: [number, number] | null = null;   // the beacon point the tick sounded from
     const c = new ContinuousSounds(ex.audio, ex.world, { pose: () => ex.traveller, ear: () => ex.ear(), target: () => (used = ex.fx.beaconAim()),
-      live: () => true, raf: () => {}, onPulse: p => { spot = [p[0], p[1]]; } });
+      live: () => true, raf: () => {} });
     let viaCorner = 0, direct = 0;
     for (let i = 0; i < 300 && ex.fx.beaconTarget; i++) {
       const t = ex.traveller;
-      spot = null; (ex.audio.ctx as any).currentTime = i * 2; c.tick();
+      (ex.audio.ctx as any).currentTime = i * 2; c.tick(); spot = c.lastHum!.at;
       const aim = used!;
       const az = azimuth(t.pos, t.heading, spot!);
       expect(Math.abs(wrap180(az - wrap180(bearing(t.pos, aim) - t.heading)))).toBeLessThan(1);
-      expect(c.hearing()).toEqual(heard(wrap180(bearing(t.pos, aim) - t.heading)));
+      expect(c.hearing()).toMatchObject(heard(wrap180(bearing(t.pos, aim) - t.heading)));
       if (aim[0] === at[0] && aim[1] === at[1]) { direct++; expect(Math.abs(wrap180(az - wrap180(bearing(t.pos, at) - t.heading)))).toBeLessThan(1); }
       else viaCorner++;
       ex.turn(15 * Math.sign(az || 1) * Math.min(1, Math.round(Math.abs(az) / 15))); clock.t += 200;   // a crude walk to visit both cases
@@ -175,5 +178,57 @@ describe.skipIf(!hasClinic)("the beacon on the lab door -> main entrance leg", (
     expect(dist(ex.traveller.pos, ent)).toBeLessThanOrEqual(TARGET_ARRIVE_M);
     expect(flips).toBe(0);
     expect(changes).toBeLessThanOrEqual(plan.length + 3);   // a fresh route per frame would churn far more
+  });
+});
+
+describe.skipIf(!hasClinic)("the continuous hum along the lab door -> main entrance leg", () => {
+  it("sounds from the next path corner, advances corner by corner, its panner on that corner's true bearing; made and started once", () => {
+    const pkg: BuildingPackage = JSON.parse(readFileSync(CLINIC, "utf8"));
+    const { s, ex } = make(pkg);
+    while (ex.fx.picked !== "ent_main") s.pick(1);
+    s.enter();
+    const lab = ex.fx.places().find(i => i.id === "door_3")!.at, ent = ex.fx.places().find(i => i.id === "ent_main")!.at;
+    ex.traveller.pos = [lab[0], lab[1]];
+    const ctx = ex.audio.ctx as any;
+    let oscs = 0, starts = 0;
+    const mk = ctx.createOscillator.bind(ctx), mkb = ctx.createBufferSource.bind(ctx);
+    const counted = (n: any) => { const st = n.start; n.start = (...a: any[]) => { starts++; return st(...a); }; return n; };
+    ctx.createOscillator = () => { oscs++; return counted(mk()); };
+    ctx.createBufferSource = () => counted(mkb());
+    const c = ex.cont;
+    const aimOf = ex.fx.beaconAim.bind(ex.fx);
+    let aimed: [number, number] | null = null;   // what the frame's own target() call returned
+    ex.fx.beaconAim = () => (aimed = aimOf() as [number, number] | null);
+    ctx.currentTime = 0; c.tick();
+    const v = (c as any).beacon;
+    expect(c.humStarts).toBe(8);    // five partials, the noise, the wobble, the on axis click: each started once
+    let restarts = 0;
+    for (const n of [...v.srcs, v.lfo, v.click.osc]) n.start = () => { restarts++; };
+    const made = oscs - (c as any).prox ? 1 : 0;
+    let px = 0, pz = 0;
+    v.panner.positionX.setTargetAtTime = (x: number) => { px = x; return v.panner.positionX; };
+    v.panner.positionZ.setTargetAtTime = (z: number) => { pz = z; return v.panner.positionZ; };
+    const plan = [ex.traveller.pos, ...findPath(ex.world, ex.traveller.pos, ent)!];
+    const seen: [number, number][] = [];
+    for (let i = 1; i < 3000 && ex.fx.beaconTarget && dist(ex.traveller.pos, ent) > TARGET_ARRIVE_M; i++) {
+      ctx.currentTime = i / 60; c.tick();
+      const at = c.lastHum!.at, t = ex.traveller, e = ex.ear();
+      expect(dist(at, aimed!)).toBeLessThan(1e-9);                     // the next corner of the path
+      expect(Math.abs(wrap180(azimuth(e.pos, e.heading, [px, -pz]) - wrap180(bearing(e.pos, at) - e.heading)))).toBeLessThan(1);
+      if (!seen.length || dist(seen.at(-1)!, at) > 1e-9) seen.push([at[0], at[1]]);
+      const d = dist(t.pos, at), k = Math.min(1, 0.05 / Math.max(d, 1e-6));     // walk the line at 3 m/s
+      t.pos = [t.pos[0] + (at[0] - t.pos[0]) * k, t.pos[1] + (at[1] - t.pos[1]) * k];
+    }
+    expect(dist(ex.traveller.pos, ent)).toBeLessThanOrEqual(TARGET_ARRIVE_M);
+    expect(seen.length).toBeGreaterThan(1);                                         // corner by corner
+    // the planned corners come in route order (a corner cut short may add its way round in between), ending on the target
+    const ks = seen.map(q => plan.findIndex(p => dist(p, q) < 1e-6)).filter(j => j >= 0);
+    expect(new Set(ks).size).toBeGreaterThan(1);
+    for (let n = 1; n < ks.length; n++) expect(ks[n]).toBeGreaterThanOrEqual(ks[n - 1]);   // never back to one passed
+    expect(dist(seen.at(-1)!, ent)).toBeLessThan(1e-6);
+    expect(restarts).toBe(0); expect(c.humStarts).toBe(8);                         // never restarted, never made again
+    expect(oscs).toBeLessThanOrEqual(9);                                             // the hum's 7 plus the obstacle tick's one
+    void made; void starts;
+    expect((c as any).beacon).toBe(v);
   });
 });
