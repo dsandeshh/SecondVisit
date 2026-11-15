@@ -164,5 +164,8 @@ def test_voice_lines_cover_the_beacon_target_lines():
     assert {"Beacon on.", "Beacon off.", "Target cleared."} <= got
     for lm in pkg.landmarks:
         assert f"Target set, {lm.spoken}." in got
+        assert f"Heading to the {lm.spoken.lower()}." in got       # Tab auto-commit (web interact.ts headingLine)
+    for e in pkg.entrances:
+        assert f"Heading to the {e.label.lower()}." in got
     dest = pkg.landmarks[0]
     assert f"Target cleared. Heading to {dest.spoken}." in got

@@ -8,6 +8,7 @@ import type { Cue } from "../events";
 import { fixturePkg, FakeAudioContext, gridPkg } from "../test/fakes";
 import { World } from "../world";
 import { Explore } from "./explore";
+import { AUTO_COMMIT_MS } from "./interact";
 import { Session } from "./session";
 import { BURST_HOLD_S, BURST_PULSES } from "../audio/continuous";
 import type { BuildingPackage } from "../types";
@@ -183,6 +184,83 @@ describe("Tab, Enter, Escape in Explore: the beacon's target", () => {
     expect(said.at(-1)).toBe("Beacon on.");
     (ex.audio.ctx as any).currentTime = 3; ex.cont.tick();
     expect(ex.cont.pulses).toBeGreaterThan(n1);
+  });
+});
+
+describe("Tab auto-commit: a highlighted place left for 3 s becomes the target", () => {
+  const two = () => { const pkg = fixturePkg(); pkg.landmarks.push({ ...pkg.landmarks[0], id: "lift", kind: "elevator", label: "Elevator", spoken: "Elevator", confidence: 0.4, pos: [3, 6] }); return pkg; };
+  const heading = (said: string[]) => said.filter(t => t.startsWith("Heading to the"));
+  it("fires once at 3 s and says \"Heading to the <name>.\"", () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ex, said } = make(two());
+      s.pick(1); s.pick(1); s.pick(1);
+      expect(ex.fx.picked).toBe("lift");
+      vi.advanceTimersByTime(AUTO_COMMIT_MS - 1);
+      expect(ex.fx.target).toBeNull();
+      vi.advanceTimersByTime(1);
+      expect(ex.fx.beaconTarget?.id).toBe("lift");
+      expect(ex.fx.picked).toBeNull();
+      expect(said.at(-1)).toBe("Heading to the elevator.");
+      expect(said.some(t => t.startsWith("Target set"))).toBe(false);
+      vi.advanceTimersByTime(10_000);
+      expect(heading(said)).toEqual(["Heading to the elevator."]);
+      expect(s.phase).toBe("explore");
+    } finally { vi.useRealTimers(); }
+  });
+  it("does not fire while cycling: Tab every 1 s for 10 s commits nothing", () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ex, said } = make(two());
+      for (let i = 0; i < 10; i++) { s.pick(i % 3 === 2 ? -1 : 1); vi.advanceTimersByTime(1000); }
+      expect(ex.fx.target).toBeNull();
+      expect(heading(said)).toEqual([]);
+      vi.advanceTimersByTime(AUTO_COMMIT_MS);                 // then left alone: one commit
+      expect(heading(said)).toHaveLength(1);
+    } finally { vi.useRealTimers(); }
+  });
+  it("Enter commits at once and nothing follows at 3 s", () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ex, said } = make(two());
+      s.pick(1); s.pick(1); s.pick(1);
+      s.enter();
+      expect(said.at(-1)).toBe("Target set, Elevator.");
+      expect(ex.fx.beaconTarget?.id).toBe("lift");
+      const n = said.length;
+      vi.advanceTimersByTime(10_000);
+      expect(said.length).toBe(n);
+      expect(heading(said)).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
+  it("Escape cancels the pending commit", () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ex, said } = make(two());
+      s.pick(1); s.pick(1); s.pick(1);
+      vi.advanceTimersByTime(2000);
+      s.escape();
+      vi.advanceTimersByTime(10_000);
+      expect(ex.fx.target).toBeNull();
+      expect(ex.fx.picked).toBeNull();
+      expect(heading(said)).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
+  it("Rehearse: Tab still announces, but no auto-commit and no beacon target", () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ex, said } = make(two()); ex.place([3, 3], 0);
+      s.enter();
+      expect(s.phase).toBe("rehearse");
+      const n = said.length;
+      s.pick(1);
+      expect(ex.fx.picked).not.toBeNull();
+      expect(said.length).toBeGreaterThan(n);
+      vi.advanceTimersByTime(10_000);
+      expect(ex.fx.target).toBeNull();
+      expect(heading(said)).toEqual([]);
+      expect(said.some(t => t.startsWith("Target set"))).toBe(false);
+    } finally { vi.useRealTimers(); }
   });
 });
 

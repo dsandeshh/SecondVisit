@@ -147,6 +147,7 @@ def collect(pkg: BuildingPackage) -> set[str]:
         out.add(sp)
         out.add(f"Target set, {sp}.")                      # web interact.ts setTarget (Tab, then Enter)
         out.add(f"You have reached the {sp.lower()}.")     # web interact.ts arrivedLine (Explore arrival at a target)
+        out.add(f"Heading to the {sp.lower()}.")           # web interact.ts headingLine (Tab auto-commit after 3 s)
     for r in pkg.rooms:
         if r.label:
             out.add(r.label)
@@ -159,6 +160,7 @@ def collect(pkg: BuildingPackage) -> set[str]:
         out.add(e.label)
         out.add(f"Target set, {e.label}.")                 # the entrance is a Tab target too (web interact.ts places)
         out.add(f"You have reached the {e.label.lower()}.")
+        out.add(f"Heading to the {e.label.lower()}.")
     spoken = {lm.id: (lm.spoken or names.spoken_name(lm.label, lm.kind)) for lm in pkg.landmarks}
     for rt in pkg.routes:
         n = len(rt.segments)

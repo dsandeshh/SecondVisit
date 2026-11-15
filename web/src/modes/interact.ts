@@ -37,6 +37,9 @@ function segDist(p: Vec2, a: Vec2, b: Vec2): number {
   return dist(p, [a[0] + t * dx, a[1] + t * dy]);
 }
 export const arrivedLine = (name: string): string => `You have reached the ${name.toLowerCase()}.`;
+/** Tab's auto-commit: a highlighted place left unchanged this long becomes the beacon target (Explore only). */
+export const AUTO_COMMIT_MS = 3000;
+export const headingLine = (name: string): string => `Heading to the ${name.toLowerCase()}.`;
 
 export class Interact {
   readonly items: Item[];
@@ -63,7 +66,7 @@ export class Interact {
 
   /** A key or a new request cancels a running sweep, ahead or where. */
   cancel(): void { this.token++; if (this.sweeping) { this.sweeping = false; this.pub({ kind: "sweep_item", id: "end" }); } }
-  stop(): void { this.cancel(); }
+  stop(): void { this.cancel(); this.cancelAuto(); }
   reset(): void { this.arrived = false; this.callouts.reset(); this.doorways.reset(); this.rooms = new RoomTracker(); }
 
   private logHint(): void { if (this.ex.rehearse) this.ex.logHint(); }
@@ -129,6 +132,23 @@ export class Interact {
     this.picked = it.id; this.lastItem = it; this.cursor = null;
     this.pub({ kind: "pick", id: it.id, at: it.at, label: it.name });
     this.speech.say(this.placeLine(it), 1, this.nameOpts(it));
+    this.armAuto(it.id);
+  }
+
+  /** The pending Tab auto-commit, restarted by every Tab, cancelled by Enter, Escape or a target being set. */
+  private autoTimer: ReturnType<typeof setTimeout> | null = null;
+  private cancelAuto(): void { if (this.autoTimer !== null) { clearTimeout(this.autoTimer); this.autoTimer = null; } }
+  /** Explore: if `id` is still highlighted AUTO_COMMIT_MS from now, it becomes the target, said as "Heading to the <name>.".
+   *  Rehearse never: there is no continuous beacon and Enter is the hint (CLAUDE.md rule 7). */
+  private armAuto(id: string): void {
+    this.cancelAuto();
+    if (this.ex.rehearse) return;
+    this.autoTimer = setTimeout(() => {
+      this.autoTimer = null;
+      if (this.ex.rehearse || this.ex.locked || this.picked !== id) return;
+      const it = this.byId(id); if (!it) return;
+      this.setTarget(it, headingLine(it.name));
+    }, AUTO_COMMIT_MS);
   }
 
   /** Phone "Places": this place becomes the beacon target (Explore); in Rehearse it is only named, never a target. */
@@ -194,16 +214,18 @@ export class Interact {
     if (el) el.textContent = this.targetText();
   }
 
-  setTarget(it: Item): void {
+  setTarget(it: Item, line = `Target set, ${it.name}.`): void {
+    this.cancelAuto();
     this.target = it.id === this.ex.destination?.id ? null : it;
     this.picked = null; this.cursor = null; this.arrived = false; this.lastItem = it;
     this.pub({ kind: "pick", id: it.id, at: it.at, label: it.name, ids: ["go"] });
     this.showTarget();
-    this.speech.say(`Target set, ${it.name}.`, 2, { at: it.at });
+    this.speech.say(line, 2, { at: it.at });
   }
 
   /** Enter with a place highlighted (Tab): it becomes the beacon target. */
   startBeacon(): void {
+    this.cancelAuto();
     if (this.ex.rehearse) return;   // Rehearse: Enter is the hint, never a target
     const it = this.byId(this.picked) ?? this.places()[0];
     if (!it) { this.speech.say("No places in this building.", 2); return; }
@@ -215,12 +237,12 @@ export class Interact {
   get beaconOn(): boolean { return !!this.target; }
 
   /** Back to Explore: no chosen target, nothing highlighted, nothing reached; nothing said. */
-  escapeQuiet(): void { this.cancel(); this.picked = null; this.cursor = null; this.target = null; this.arrived = false; this.showTarget(); }
+  escapeQuiet(): void { this.cancel(); this.cancelAuto(); this.picked = null; this.cursor = null; this.target = null; this.arrived = false; this.showTarget(); }
 
   /** Esc: back to the route destination, forget the highlighted place, cut a sweep. */
   escape(): void {
     const had = !!this.target;
-    this.cancel();
+    this.cancel(); this.cancelAuto();
     this.picked = null;
     this.target = null; this.arrived = false;
     this.showTarget();
