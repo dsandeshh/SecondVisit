@@ -42,6 +42,38 @@ def _dist_to_path(p: Vec2, path: list[Vec2]) -> float:
     return best
 
 
+_SLIDE_CODES = (1, 2, 4)  # walls, fixed furniture, glass: a cane trails along these; code 5 never
+
+
+def _blocked(grid: OccGrid, x: float, y: float) -> int | None:
+    """None when free, else the cell code (-1 outside the grid)."""
+    h, w = grid.cells.shape
+    if not (0 <= (y - grid.origin[1]) / grid.res < h and 0 <= (x - grid.origin[0]) / grid.res < w):
+        return -1
+    r, c = grid.world_to_cell((x, y))
+    v = int(grid.cells[r, c])
+    return v or None
+
+
+def slide_step(grid: OccGrid, pos: Vec2, step: float, heading_deg: float, target: Vec2) -> Vec2 | None:
+    """A blocked step turns into a lateral deflection (+-45 then +-90 degrees, this step only), the way a cane
+    user trails a wall. Keeps the free deflection that gets closest to `target`, and only if it makes progress.
+    None when nothing helps (a bump stays a bump). Behaviour only: no error model constant is used."""
+    here = math.dist(pos, target)
+    for off in (45.0, 90.0):
+        best = None
+        for sgn in (1.0, -1.0):
+            hd = math.radians(heading_deg + sgn * off)
+            nx, ny = pos[0] + step * math.sin(hd), pos[1] + step * math.cos(hd)
+            if _blocked(grid, nx, ny) is None:
+                d = math.dist((nx, ny), target)
+                if d < here and (best is None or d < best[0]):
+                    best = (d, (nx, ny))
+        if best:
+            return best[1]
+    return None
+
+
 def simulate(grid: OccGrid, route: Route, runs: int = 300, seed: int = 0,
              err: ErrorModel = ErrorModel()) -> SimResult:
     rng = np.random.default_rng(seed)
@@ -75,6 +107,10 @@ def simulate(grid: OccGrid, route: Route, runs: int = 300, seed: int = 0,
                             0 <= (nx - grid.origin[0]) / grid.res < w) or grid.cells[r, c] != 0
                 if not bump:
                     x, y = nx, ny
+                elif _blocked(grid, nx, ny) in _SLIDE_CODES:
+                    sl = slide_step(grid, (x, y), step, heading + bias, seg.end)
+                    if sl:
+                        x, y = sl
                 if _dist_to_path((x, y), path) > LOST_M:
                     r, c = _rc(grid, x, y, h, w)
                     lost[r, c] += 1

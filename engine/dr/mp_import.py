@@ -479,6 +479,7 @@ class Overrides(BaseModel):
     door_type: Literal["automatic_sliding", "automatic_swing", "push", "pull", "unknown"] | None = None
     oblique_dir: Literal["north", "south", "east", "west"] | None = None  # which cached raw/oblique_<dir>.png shows the entrance
     canopy: list[Vec2] | None = None  # canopy polygon in plan metres (HAND)
+    street_confirmed: bool = False  # HAND: the CoStar frontage street name may be spoken
     second_destination: OverrideDestination | None = None  # second demo route target (R5 extension)
 
     @property

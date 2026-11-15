@@ -71,3 +71,19 @@ def test_simulate_package_keyed_by_route():
     pkg, _, r = _route()
     out = simulate_package(pkg, 20)
     assert set(out) == {r.id} and out[r.id].runs == 20
+
+
+def test_traveller_slides_along_a_wall_it_bumps():
+    """A cane user trails a wall they clip: headed 15 degrees into the left wall, the walker still gets to the end."""
+    _, g, r = _route()
+    s1 = r.segments[0].model_copy(update={"heading_deg": 345.0, "wall_side": "none", "turn_deg": 0.0})
+    one = r.model_copy(update={"segments": [s1], "path": [s1.start, s1.end]})
+    perfect = ErrorModel(step_sd=0.0, heading_bias_sd=0.0, heading_noise_sd=0.0, count_sd_frac=0.0, vague_count_sd_frac=0.0)
+    assert simulate(g, one, 20, 0, perfect).arrival_rate > 0.9
+
+
+def test_slide_never_goes_through_a_wall():
+    from dr.simulate import slide_step
+    _, g, _ = _route()
+    # facing straight into the west wall at x=0: no deflection can make progress toward a goal that is also into the wall
+    assert slide_step(g, (0.55, 8.0), 0.7, 270.0, (-5.0, 8.0)) is None

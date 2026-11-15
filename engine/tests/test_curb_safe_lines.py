@@ -30,3 +30,23 @@ def test_reference_confirmed_is_hand_and_canopy_lonlat_line():
     assert s["ref_src"] == "hand"
     assert "You are under the canopy now. The door is straight ahead." in s["lines"]
     assert len(s["cues"]) and any(c.kind == "canopy" and len(c.plan) == 4 for c in s["cues"])
+
+
+def _costar():
+    # frontage line 20 m south of the curb in a north-up plan: traffic is behind a person facing the building (west of curb)
+    return {"property": {"propertyRetail": {"frontage": [{"streetName": "Breton Ridge", "footprint": {"shape": {
+        "coordinates": [[-95.5396, 29.96630], [-95.5394, 29.96630]]}}}]}}}
+
+
+def _script_costar(ov):
+    a = GeoAnchor(lat=29.9665, lon=-95.5395, plan_pos=(2.9, 0.1), plan_north_deg=0.0)
+    ent = type("E", (), {"pos": (2.9, 0.1), "heading_deg": 0.0})()
+    curb = (2.9, 0.1 - 5.0)
+    return arrival.curb_script(a, ent, curb, [2.9, 0.1], ov, "south", _costar())
+
+
+def test_traffic_line_is_generic_unless_street_confirmed():
+    line = next(x for x in _script_costar({})["lines"] if x.startswith("Traffic"))
+    assert "Breton" not in line and line.startswith("Traffic from the street is ")
+    line2 = next(x for x in _script_costar({"street_confirmed": True})["lines"] if x.startswith("Traffic"))
+    assert "Breton Ridge" in line2

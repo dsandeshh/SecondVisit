@@ -182,8 +182,8 @@ def curb_script(anchor: GeoAnchor, entrance, curb_plan, door_plan, ov: dict, sid
                 traffic_rel = (geo.plan_bearing(anchor, nx - curb_plan[0], ny - curb_plan[1]) - ref + 540) % 360 - 180
                 where = ("behind you" if abs(traffic_rel) >= 120 else "ahead of you" if abs(traffic_rel) <= 60
                          else "on your right" if traffic_rel > 0 else "on your left")
-                street = f.get("streetName")
-                line = f"Traffic from {street if street else 'the road'} is {where}."
+                street = f.get("streetName") if ov.get("street_confirmed") else None
+                line = f"Traffic from {street or 'the street'} is {where}."
                 lines.append(line)
                 cues.append(ArrivalCue(id="traffic", kind="traffic", plan=[(round(nx, 2), round(ny, 2))],
                                        prov=prov("costar", "propertyRetail.frontage[] nearest point; sound simulated", 0.5), line=line))
