@@ -158,6 +158,8 @@ class DrEngine:
             raise NoRoute(str(exc)) from exc
         segs = instructions.write(segment(path, grid, pkg.landmarks), pkg.landmarks, pkg.entrances,
                                   dest=to_id if any(l.id == to_id for l in pkg.landmarks) else None)
+        from dr.doorway import add_doorways
+        segs = add_doorways(segs, path, grid, pkg.landmarks)
         sc = score_route(segs, grid, pkg.landmarks)
         route = Route(id=f"{from_id}__{to_id}", **{"from": from_id}, to=to_id, path=path, segments=segs,
                       score=Score(total=sc["total"], parts=sc["parts"]))

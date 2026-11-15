@@ -108,7 +108,7 @@ def simulate(grid: OccGrid, route: Route, runs: int = 300, seed: int = 0,
                 if not bump:
                     x, y = nx, ny
                 elif _blocked(grid, nx, ny) in _SLIDE_CODES:
-                    sl = slide_step(grid, (x, y), step, heading + bias, seg.end)
+                    sl = slide_step(grid, (x, y), step, math.degrees(hd), seg.end)
                     if sl:
                         x, y = sl
                 if _dist_to_path((x, y), path) > LOST_M:

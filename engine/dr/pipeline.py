@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 from scipy.ndimage import label
 
-from dr import instructions, names, voice_lines
+from dr import doorway, instructions, names, voice_lines
 from dr.grid import OccGrid
 from dr.mp_import import DATA, build_from_matterport, load_overrides, second_destination
 from dr.mp_client import ROOT
@@ -124,6 +124,7 @@ def add_route(pkg: BuildingPackage, from_id: str | None = None, to_id: str | Non
         raise SystemExit(f"{e}. Try --clearance 0.25 --drop-specks 0.10") from e
     segs = instructions.write(segment(pr.path, grid, pkg.landmarks), pkg.landmarks, pkg.entrances,
                               dest=to_id if any(lm.id == to_id for lm in pkg.landmarks) else None)
+    segs = doorway.add_doorways(segs, pr.path, grid, pkg.landmarks)
     sc = score_route(segs, grid, pkg.landmarks)
     rid = f"{from_id}__{to_id}"
     if append and pkg.routes:
