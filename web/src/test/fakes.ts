@@ -1,0 +1,75 @@
+// Test doubles for Web Audio, speechSynthesis and the fixture package (vitest only).
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { BuildingPackage } from "../types";
+
+export function fixturePkg(): BuildingPackage {
+  const p = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "public", "buildings", "fixture", "package.json");
+  return JSON.parse(readFileSync(p, "utf8"));
+}
+
+const param = () => ({
+  value: 0, setValueAtTime() { return this; }, linearRampToValueAtTime() { return this; },
+  setTargetAtTime() { return this; }, exponentialRampToValueAtTime() { return this; },
+  cancelScheduledValues() { return this; },
+});
+
+/** Any AudioNode: connect/disconnect/start/stop, and any other property reads as an AudioParam. */
+function node(): any {
+  const base: any = { connect: (n: any) => n, disconnect() {}, start() {}, stop() {}, onended: null };
+  return new Proxy(base, {
+    get(t, k) { if (!(k in t) && typeof k === "string") t[k] = param(); return t[k]; },
+    set(t, k, v) { t[k] = v; return true; },
+  });
+}
+
+export class FakeAudioContext {
+  static instances: FakeAudioContext[] = [];
+  state: string = "suspended";
+  sampleRate = 48000;
+  currentTime = 0;
+  baseLatency = 0.01;
+  outputLatency = 0.02;
+  destination = node();
+  listener = node();
+  onstatechange: (() => void) | null = null;
+  constructor(public opts?: unknown) { FakeAudioContext.instances.push(this); }
+  resume() { this.state = "running"; return Promise.resolve(); }
+  createBuffer(ch: number, len: number, sr: number) {
+    const data = Array.from({ length: ch }, () => new Float32Array(len));
+    return { numberOfChannels: ch, length: len, sampleRate: sr, duration: len / sr,
+      getChannelData: (i: number) => data[i] };
+  }
+  createBufferSource() { return node(); }
+  createGain() { return node(); }
+  createChannelSplitter() { return node(); }
+  createChannelMerger() { return node(); }
+  createDynamicsCompressor() { return node(); }
+  createConvolver() { return node(); }
+  createStereoPanner() { return node(); }
+  createPanner() { return node(); }
+  createBiquadFilter() { return node(); }
+  createOscillator() { return node(); }
+}
+
+export class FakeUtterance {
+  rate = 1; voice: unknown = null; lang = ""; onend: any = null; onerror: any = null; onstart: any = null;
+  constructor(public text: string) {}
+}
+
+export function fakeSynth(voices: unknown[] = []) {
+  const calls: string[] = [];
+  const spoken: FakeUtterance[] = [];
+  const s: any = {
+    calls, spoken, speaking: false, paused: false, pending: false, onvoiceschanged: null,
+    listeners: {} as Record<string, (() => void)[]>,
+    speak(u: FakeUtterance) { calls.push("speak"); spoken.push(u); s.speaking = true; },
+    cancel() { calls.push("cancel"); s.speaking = false; },
+    resume() { calls.push("resume"); },
+    getVoices: () => voices,
+    addEventListener(k: string, f: () => void) { (s.listeners[k] ??= []).push(f); },
+    fire(k: string) { (s.listeners[k] ?? []).forEach((f: () => void) => f()); s["on" + k]?.(); },
+  };
+  return s;
+}

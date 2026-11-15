@@ -1,0 +1,74 @@
+// Keyboard for the rehearsal stage, plus the focus guard (agent3 0.3, 0.4; Task 8 amendments).
+import type { Priority } from "../audio/speech";
+
+export interface KeyActions {
+  step(dir: 1 | -1): void;
+  turn(deg: number): void;
+  /** -1 left, 1 right, 0 released */
+  sweep(dir: -1 | 0 | 1): void;
+  repeat(): void;
+  heading(): void;
+  where(): void;
+  hint(): void;
+  mono(): void;
+  swap(): void;
+  rate(delta: number): void;
+  /** Every handled key, first (resumes a paused AudioContext). */
+  any(): void;
+}
+
+export const STEP_GAP_MS = 400;
+export const TURN_GAP_MS = 150;
+export const TURN_DEG = 15;
+const REPEATABLE = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number = () => performance.now()): () => void {
+  let lastStep = -Infinity, lastTurn = -Infinity;
+  const down = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (k.startsWith("Arrow") || k === " ") e.preventDefault();
+    if (e.repeat && !REPEATABLE.has(k)) return;
+    const t = now();
+    const handled = () => a.any();
+    switch (k) {
+      case "ArrowUp": case "ArrowDown":
+        handled();
+        if (t - lastStep < STEP_GAP_MS) return;
+        lastStep = t; a.step(k === "ArrowUp" ? 1 : -1); return;
+      case "ArrowLeft": case "ArrowRight":
+        handled();
+        if (e.repeat && t - lastTurn < TURN_GAP_MS) return;
+        lastTurn = t; a.turn(k === "ArrowLeft" ? -TURN_DEG : TURN_DEG); return;
+      case "a": handled(); a.sweep(-1); return;
+      case "d": handled(); a.sweep(1); return;
+      case " ": handled(); a.repeat(); return;
+      case "h": handled(); a.heading(); return;
+      case "w": handled(); a.where(); return;
+      case "b": handled(); a.hint(); return;
+      case "m": handled(); a.mono(); return;
+      case "s": handled(); a.swap(); return;
+      case "+": case "=": handled(); a.rate(0.15); return;
+      case "-": case "_": handled(); a.rate(-0.15); return;
+    }
+  };
+  const up = (e: KeyboardEvent) => {
+    const k = e.key.toLowerCase();
+    if (k === "a" || k === "d") a.sweep(0);
+  };
+  stage.addEventListener("keydown", down);
+  stage.addEventListener("keyup", up);
+  return () => { stage.removeEventListener("keydown", down); stage.removeEventListener("keyup", up); };
+}
+
+type Guard = { say: (t: string, p: Priority) => void; timer: { stop(): void; start(): void }; active: () => boolean };
+
+/** Window blur pauses the run and says so; focus resumes it. */
+export function attachFocusGuard(win: Window, g: Guard): () => void {
+  let paused = false;
+  const blur = () => { if (!g.active() || paused) return; paused = true; g.timer.stop(); g.say("Paused. Focus lost.", 3); };
+  const focus = () => { if (!paused) return; paused = false; g.say("Resumed.", 2); g.timer.start(); };
+  win.addEventListener("blur", blur);
+  win.addEventListener("focus", focus);
+  return () => { win.removeEventListener("blur", blur); win.removeEventListener("focus", focus); };
+}
