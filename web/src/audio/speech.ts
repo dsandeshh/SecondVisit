@@ -43,6 +43,8 @@ export class Speech {
   lastPri: Priority = 2;
   onDuck: (on: boolean) => void = () => {};
   onSpeakingChange: (on: boolean) => void = () => {};
+  /** Every line actually said or written (observer feed). */
+  onSay: (text: string, pri: Priority) => void = () => {};
   private current: Priority | null = null;
   private synth: Synth | null;
   private U: typeof SpeechSynthesisUtterance | undefined;
@@ -95,6 +97,7 @@ export class Speech {
     if (this.output === "app" && this.current !== null && pri < this.current) return;
     this.last = text; this.lastPri = pri;
     this.write(text, pri);
+    try { this.onSay(text, pri); } catch { /* observer must never break speech */ }
     if (this.output !== "app" || !this.synth || !this.U) return;
     this.synth.cancel();
     this.live = [];

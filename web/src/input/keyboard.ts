@@ -13,6 +13,12 @@ export interface KeyActions {
   mono(): void;
   swap(): void;
   rate(delta: number): void;
+  /** Enter: continue to the next phase. */
+  enter?(): void;
+  /** Keys 1 to 9 (quiz answers). */
+  digit?(n: number): void;
+  /** R: repeat the quiz options. */
+  options?(): void;
   /** Every handled key, first (resumes a paused AudioContext). */
   any(): void;
 }
@@ -43,11 +49,15 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
       case "a": handled(); a.sweep(-1); return;
       case "d": handled(); a.sweep(1); return;
       case " ": handled(); a.repeat(); return;
+      case "Enter": handled(); a.enter?.(); return;
+      case "r": handled(); a.options?.(); return;
       case "h": handled(); a.heading(); return;
       case "w": handled(); a.where(); return;
       case "b": handled(); a.hint(); return;
       case "m": handled(); a.mono(); return;
       case "s": handled(); a.swap(); return;
+      case "1": case "2": case "3": case "4": case "5": case "6": case "7": case "8": case "9":
+        handled(); a.digit?.(Number(k)); return;
       case "+": case "=": handled(); a.rate(0.15); return;
       case "-": case "_": handled(); a.rate(-0.15); return;
     }

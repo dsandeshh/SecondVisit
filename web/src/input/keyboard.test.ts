@@ -17,6 +17,15 @@ const key = (el: Element, k: string, repeat = false) => {
 };
 
 describe("keyboard", () => {
+  it("Enter, digits and R reach the optional actions", () => {
+    const stage = document.createElement("div");
+    const a = actions();
+    const seen: string[] = [];
+    a.enter = () => seen.push("enter"); a.digit = (n) => seen.push("d" + n); a.options = () => seen.push("opts");
+    attachKeys(stage, a, () => 0);
+    key(stage, "Enter"); key(stage, "3"); key(stage, "r");
+    expect(seen).toEqual(["enter", "d3", "opts"]);
+  });
   it("key repeat throttled", () => {
     const stage = document.createElement("div");
     let t = 0;

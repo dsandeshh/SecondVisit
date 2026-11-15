@@ -34,9 +34,14 @@
 
       <section id="rehearsal" class="screen" aria-labelledby="place" hidden>
         <h1 id="place" class="title"></h1>
-        <p class="lede">Explore by sound. Walk, turn and listen. Nothing is scored.</p>
+        <p id="lede" class="lede">Explore by sound. Walk, turn and listen. Nothing is scored.</p>
         <nav aria-label="Rehearsal steps" class="steps">
-          <ol><li><span aria-current="step" class="steps__now">Explore <span class="steps__word">now</span></span></li></ol>
+          <ol id="steps-list">
+            <li><span aria-current="step" class="steps__now">1 Explore</span></li>
+            <li><span>2 Rehearse</span></li>
+            <li><span>3 Check yourself</span></li>
+            <li><span>4 Pocket summary</span></li>
+          </ol>
         </nav>
         <div class="stage-row">
           <div id="stage" class="stage" role="application" tabindex="0"
@@ -63,11 +68,17 @@
               <dt>B</dt><dd>destination hint</dd>
               <dt>M</dt><dd>mono</dd>
               <dt>S</dt><dd>swap left and right</dd>
+              <dt>Enter</dt><dd>start rehearsal, continue</dd>
+              <dt>1 to 4, R</dt><dd>quiz answer, repeat options</dd>
               <dt>+ and −</dt><dd>speech rate</dd>
             </dl>
           </section>
         </div>
         <p id="status" class="status"></p>
+        <div class="actions"><button id="go" class="btn btn--primary" type="button" hidden>Start rehearsal</button></div>
+        <section id="quiz" class="quiz" aria-label="Quiz" hidden></section>
+        <p id="coach-line" class="coach" hidden></p>
+        <section id="summary" class="summary" aria-label="Pocket summary" hidden></section>
 
         <div id="phone" class="phone" hidden>
           <button id="step" class="step-button" type="button">Step<span class="step-button__hint" aria-hidden="true">Tap to take one step</span></button>

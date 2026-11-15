@@ -82,3 +82,5 @@ CoStar kit is a local zip and the join to property 5615020 works. A second model
   "not scanned": `mark_unscanned` carves a 0.9 m doorway (`door_ns_*`, prov `calc`), then blocks the room
   interior (code 1) so routes never enter. Overrides gain `drop_diagonal_walls` (clinic: true, drops 14
   diagonal scan edges). Clinic: 15 rooms not scanned.
+- Task 9 (web): Rehearse mode (`RehearsalRun`), pocket summary, Session flow Explore, Rehearse, point, quiz, summary, run 2. Contract change (rule 2, R3): `RunLog`, `RunPlan`, `PointResult`, `RunLogKind`, `RunEvent`, `QuizEntry` added to `web/src/types.ts` (RunLog identified by `thread_id` + `route_id`, `point: PointResult[]`, PointResult has `target_bearing`). The engine pydantic mirror is still to come (Task 10 engine, stream D); until then `hint` is sent to `/api/coach` as `hesitate`.
+- Task 10 (web): pointing task, 3 question quiz, coach handoff with a clearly labelled "scripted" fallback (`/api/coach` is not on main yet). Fixture package now carries a hand written 3 stretch route (`engine/scripts/export_fixture.py`).

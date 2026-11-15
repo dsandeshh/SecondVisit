@@ -3,11 +3,15 @@ import { AudioEngine, type StartReport } from "./audio/engine";
 import { Speech, type Output } from "./audio/speech";
 import { attachFocusGuard, attachKeys } from "./input/keyboard";
 import { MotionInput } from "./input/orientation";
-import { Explore } from "./modes/explore";
+import { obs } from "./observer/bus";
+import { Explore, type ExploreHooks } from "./modes/explore";
+import { Session, type Phase } from "./modes/session";
+import type { QuizSession } from "./modes/quiz";
+import { floorPlanAvailable, renderSummary } from "./modes/summary";
 import type { BuildingPackage } from "./types";
 import { World } from "./world";
 
-export type App = { audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null };
+export type App = { audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
 
 const FOCUSABLE = "a[href],button,input,select,textarea,[tabindex]";
 
@@ -29,7 +33,7 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
   const speech = new Speech({ doc });
   try { const r = Number(localStorage.getItem("sv.rate")); if (r) speech.setRate(r); } catch { /* none */ }
   const audio = new AudioEngine(speech);
-  const app: App = { audio, speech, pkg: null, explore: null };
+  const app: App = { audio, speech, pkg: null, explore: null, session: null };
   const op = params.get("op") === "1";
   if (op) $("op").hidden = false;
 
@@ -65,8 +69,17 @@ function enter(app: App, doc: Document, output: Output, r: StartReport, op: bool
   const { audio, speech } = app;
   const pkg = app.pkg!;
   const phone = audio.mode !== "keys";
-  const ex = new Explore(new World(pkg), audio, speech);
+  const hooks: ExploreHooks = {};
+  const ex = new Explore(new World(pkg), audio, speech, hooks);
   app.explore = ex;
+  const session = new Session(ex, pkg, speech, hooks, {
+    threadId: globalThis.crypto?.randomUUID?.() ?? `run-${Date.now()}`,
+    publish: m => obs.publish(m),
+    audioRunning: () => audio.ctx?.state === "running",
+    onPhase: p => showPhase(doc, session, p),
+    onQuestion: q => showQuiz(doc, session, q),
+  });
+  app.session = session;
 
   $("home").hidden = true;
   $("rehearsal").hidden = false;
@@ -84,14 +97,14 @@ function enter(app: App, doc: Document, output: Output, r: StartReport, op: bool
   }
 
   const stage = $("stage");
-  attachKeys(stage, ex);
+  attachKeys(stage, session);
   stage.addEventListener("mousemove", (e: MouseEvent) => {
     const b = stage.getBoundingClientRect();
     if (b.width > 0) ex.setCane(((e.clientX - b.left) / b.width * 2 - 1) * 50);
   });
-  attachFocusGuard(window, { say: (t, p) => speech.say(t, p), timer: ex.timer, active: () => ex.active });
-  audio.onPause = () => ex.timer.stop();
-  audio.onResume = () => { ex.timer.start(); speech.say("Sound on.", 2); };
+  attachFocusGuard(window, { say: (t, p) => speech.say(t, p), timer: session.timer, active: () => ex.active });
+  audio.onPause = () => session.timer.stop();
+  audio.onResume = () => { session.timer.start(); speech.say("Sound on.", 2); };
 
   if (phone) {
     doc.body.classList.add("is-phone");
@@ -101,14 +114,14 @@ function enter(app: App, doc: Document, output: Output, r: StartReport, op: bool
     step.addEventListener("click", () => {
       step.classList.add("is-pressed");
       setTimeout(() => step.classList.remove("is-pressed"), 120);
-      ex.step(1);
+      session.stepButton();
     });
-    $("turn-left").addEventListener("click", () => ex.turn(-15));
-    $("turn-right").addEventListener("click", () => ex.turn(15));
-    $("repeat").addEventListener("click", () => ex.repeat());
+    $("turn-left").addEventListener("click", () => session.turn(-15));
+    $("turn-right").addEventListener("click", () => session.turn(15));
+    $("repeat").addEventListener("click", () => session.repeat());
     $("where").addEventListener("click", () => ex.where());
     if (audio.mode === "motion") {
-      const m = new MotionInput(h => ex.face(h), d => ex.setCane(d));
+      const m = new MotionInput(h => { if (session.phase !== "point") ex.face(h); }, d => ex.setCane(d));
       m.attach(ex.traveller.heading);
       $("recentre").addEventListener("click", () => { m.recentre(ex.traveller.heading); speech.say("Recentred.", 2); });
     } else {
@@ -119,9 +132,86 @@ function enter(app: App, doc: Document, output: Output, r: StartReport, op: bool
     stage.focus();
   }
 
+  $("go").addEventListener("click", () => session.enter());
+  $("go").hidden = !session.hasRoute;
+  showPhase(doc, session, "explore");
   ex.begin();
   // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
   speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press S. ${ex.intro(phone)}`, 2);
   audio.play(1, { pan: -1, send: 0 });
   setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
+}
+
+const STEP_NAMES: Record<Phase, number> = { explore: 0, rehearse: 1, point: 2, quiz: 2, summary: 3 };
+const LEDE: Record<Phase, string> = {
+  explore: "Explore by sound. Walk, turn and listen. Nothing is scored.",
+  rehearse: "Rehearse the way in, one stretch at a time. Follow the spoken directions.",
+  point: "Check yourself. Turn to face the destination, then confirm.",
+  quiz: "Check yourself. Three questions about the route.",
+  summary: "Pocket summary. Take it with you.",
+};
+const GO: Partial<Record<Phase, string>> = {
+  explore: "Start rehearsal", point: "Continue", quiz: "Next question", summary: "Start run 2",
+};
+
+function showPhase(doc: Document, s: Session, p: Phase): void {
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => doc.getElementById(id) as T;
+  doc.body.dataset.phase = p;
+  doc.querySelectorAll("#steps-list li").forEach((li, i) => {
+    const on = i === STEP_NAMES[p];
+    const span = li.firstElementChild as HTMLElement;
+    if (on) span.setAttribute("aria-current", "step"); else span.removeAttribute("aria-current");
+    span.classList.toggle("steps__now", on);
+  });
+  $("lede").textContent = LEDE[p];
+  const go = $<HTMLButtonElement>("go");
+  const label = p === "summary" && s.runNo === 2 ? undefined : GO[p];
+  go.hidden = !label || (p === "explore" && !s.hasRoute);
+  if (label) go.textContent = label;
+  const step = doc.getElementById("step");
+  if (step) step.firstChild!.textContent = p === "point" ? "Confirm" : p === "quiz" || p === "summary" ? "Continue" : "Step";
+  const hint = doc.querySelector(".step-button__hint");
+  if (hint) hint.textContent = p === "point" ? "Tap to confirm where you point" : "Tap to take one step";
+  $("summary").hidden = p !== "summary";
+  if (p === "summary") {
+    const draw = (fp: boolean) => renderSummary($("summary"), s.pkg, s.route!, { floorPlan: fp });
+    draw(false);
+    void floorPlanAvailable(s.pkg.id).then(draw);
+    const c = s.coach;
+    const line = $("coach-line");
+    line.hidden = !c || s.runNo !== 1;
+    if (c) line.textContent = `${c.line} (${c.source === "agent" ? "coach" : "scripted"})`;
+  } else $("coach-line").hidden = true;
+}
+
+function showQuiz(doc: Document, s: Session, q: QuizSession | null): void {
+  const host = doc.getElementById("quiz")!;
+  host.replaceChildren();
+  host.hidden = !q || q.finished;
+  if (!q || q.finished) return;
+  const cur = q.current!;
+  const h = doc.createElement("h2");
+  h.textContent = `Question ${q.i + 1} of ${q.questions.length}`;
+  const p = doc.createElement("p");
+  p.textContent = cur.q;
+  host.append(h, p);
+  cur.options.forEach((text, k) => {
+    const b = doc.createElement("button");
+    b.type = "button"; b.className = "btn btn--secondary quiz__opt";
+    const num = doc.createElement("span"); num.className = "quiz__num"; num.setAttribute("aria-hidden", "true"); num.textContent = String(k + 1);
+    b.append(num, doc.createTextNode(text));
+    b.addEventListener("click", () => {
+      const ok = q.answer(k + 1);
+      if (q.isAnswered) {
+        host.querySelectorAll("button").forEach((x, i) => {
+          (x as HTMLButtonElement).setAttribute("aria-disabled", "true");
+          if (i === cur.answer) x.append(doc.createTextNode(i === k ? " Correct" : " Correct answer"));
+          else if (i === k && !ok) x.append(doc.createTextNode(" Not this one"));
+        });
+      }
+    });
+    host.append(b);
+  });
+  const rp = doc.createElement("p"); rp.className = "note"; rp.textContent = "Keys 1 to 4 answer. R repeats the options. Enter goes on.";
+  host.append(rp);
 }

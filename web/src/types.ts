@@ -85,3 +85,30 @@ export interface BuildingPackage {
   frames: Frames;
   map_date: string;
 }
+
+// RunLog, RunPlan, PointResult (ruling R3). Engine mirror: engine/dr/package.py (Task 10 engine side).
+export type RunLogKind = "start" | "advance" | "off_route" | "bump" | "hesitate" | "hint" | "arrive";
+
+export interface RunEvent { t: number; seg: number; kind: RunLogKind; pos: Vec2; }
+
+export interface QuizEntry { q: string; seg: number; correct: boolean; }
+
+export interface PointResult {
+  at: Vec2; target: string; heading: number; target_bearing: number; error_deg: number; time_s: number;
+}
+
+/** Identified by thread_id + route_id; building_id goes in the /api/coach request body only. */
+export interface RunLog {
+  thread_id: string;
+  route_id: string;
+  events: RunEvent[];
+  quiz: QuizEntry[];
+  point: PointResult[];
+}
+
+export interface RunPlan {
+  start_segment: number;
+  repeat_segment: number | null;
+  extra_cues: boolean;
+  speech_rate: number;
+}

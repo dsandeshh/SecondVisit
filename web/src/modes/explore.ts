@@ -18,6 +18,9 @@ export type ExploreHooks = {
   onMove?: (t: Traveller) => void;
   onBump?: (t: Traveller) => void;
   onHint?: (t: Traveller) => void;
+  /** After every successful step (Rehearse reads this). */
+  onStep?: (t: Traveller) => void;
+  onTap?: (at: Vec2, code: number) => void;
   now?: () => number;
 };
 
@@ -31,6 +34,10 @@ export class Explore implements KeyActions {
   readonly timer = new HesitationTimer();
   readonly destination: Landmark | null;
   active = false;
+  /** Rehearse: no destination beacon, no landmark callouts (the run speaks the cues). */
+  rehearse = false;
+  /** Pointing and quiz: walking is off. */
+  locked = false;
   private gate = new TapGate();
   private steps = 0;
   private anim: ReturnType<typeof setInterval> | null = null;
@@ -74,7 +81,17 @@ export class Explore implements KeyActions {
 
   any(): void {}
 
+  /** Put the traveller somewhere (start of a run, back at the entrance). */
+  place(pos: Vec2, heading: number): void {
+    this.traveller.pos = [pos[0], pos[1]];
+    this.traveller.setHeading(heading);
+    this.traveller.setCane(0);
+    this.heard.clear();
+    this.moved(false);
+  }
+
   step(dir: 1 | -1): void {
+    if (this.locked) return;
     const t = this.traveller;
     const r = t.step(dir);
     this.timer.reset();
@@ -89,6 +106,7 @@ export class Explore implements KeyActions {
     this.steps++;
     this.audio.play("step", { pan: this.steps % 2 ? 0.2 : -0.2, gain: 0.8, send: 1 });
     this.moved();
+    this.hooks.onStep?.(t);
     if (dir > 0) this.autoSweep();
   }
 
@@ -169,10 +187,10 @@ export class Explore implements KeyActions {
     const room = this.world.roomAt(t.pos);
     if (room) this.audio.echo?.setArea(room.area_m2);
     else if (this.room === null) this.audio.echo?.setArea(this.world.areaAt(t.pos)); // doorway keeps the last room
-    this.sounds?.update(this.world.pkg.landmarks, t.pos, t.heading, true);
+    this.sounds?.update(this.world.pkg.landmarks, t.pos, t.heading, !this.rehearse);
     if (announce) {
       if (room && room.id !== this.room) this.speech.say(`You are entering the ${room.label.toLowerCase()}.`, 1);
-      for (const l of this.world.pkg.landmarks) {
+      for (const l of this.rehearse ? [] : this.world.pkg.landmarks) {
         if (dist(t.pos, l.pos) <= ARRIVE_M && !this.heard.has(l.id)) {
           this.heard.add(l.id);
           this.speech.say(`${cap(lmName(l))} at ${this.clockTo(l.pos)} o'clock.`, 1);
@@ -197,6 +215,7 @@ export class Explore implements KeyActions {
     } else if (!hit) this.stairsWarned = false;
     if (ev) {
       this.audio.play(ev.code, { dist: ev.dist, pan: Math.sin(ev.caneDeg * Math.PI / 180) });
+      this.hooks.onTap?.(ev.at, ev.code);
       pulse(PULSE.contact);
     }
     return !!hit;

@@ -41,11 +41,109 @@
    "heading_deg": 90.0
   }
  ],
- "routes": [],
+ "routes": [
+  {
+   "id": "r1",
+   "from": "ent_w",
+   "to": "desk",
+   "path": [
+    [
+     0.5,
+     6.0
+    ],
+    [
+     8.0,
+     6.0
+    ],
+    [
+     8.0,
+     10.8
+    ],
+    [
+     17.5,
+     10.8
+    ]
+   ],
+   "segments": [
+    {
+     "id": "s1",
+     "start": [
+      0.5,
+      6.0
+     ],
+     "end": [
+      8.0,
+      6.0
+     ],
+     "heading_deg": 90.0,
+     "length_m": 7.5,
+     "steps": 11,
+     "wall_side": "none",
+     "open_m": 7.5,
+     "landmarks_passed": [],
+     "turn_after": "left",
+     "turn_deg": 90.0,
+     "instruction": "Walk about 11 steps. Then turn left."
+    },
+    {
+     "id": "s2",
+     "start": [
+      8.0,
+      6.0
+     ],
+     "end": [
+      8.0,
+      10.8
+     ],
+     "heading_deg": 0.0,
+     "length_m": 4.8,
+     "steps": 7,
+     "wall_side": "none",
+     "open_m": 4.8,
+     "landmarks_passed": [],
+     "turn_after": "right",
+     "turn_deg": 90.0,
+     "instruction": "Walk about 7 steps. Then turn right."
+    },
+    {
+     "id": "s3",
+     "start": [
+      8.0,
+      10.8
+     ],
+     "end": [
+      17.5,
+      10.8
+     ],
+     "heading_deg": 90.0,
+     "length_m": 9.5,
+     "steps": 14,
+     "wall_side": "left",
+     "open_m": 0.0,
+     "landmarks_passed": [],
+     "turn_after": "none",
+     "turn_deg": 0.0,
+     "instruction": "Wall on your left. Walk about 14 steps to the reception desk."
+    }
+   ],
+   "score": {
+    "total": 60.0,
+    "parts": {
+     "length_m": 21.8,
+     "wall_share": 0.4,
+     "open_m": 12.3,
+     "turns": 2.0,
+     "decisions": 0.0,
+     "hazards": 0.0,
+     "landmarks_per_10m": 0.0
+    }
+   }
+  }
+ ],
  "sim": {},
  "arrival": null,
  "notes": [
-  "Invented 20 x 12 m lobby for tests; not a real building."
+  "Invented 20 x 12 m lobby for tests; not a real building. Route is hand written."
  ],
  "prov": {},
  "frames": {
