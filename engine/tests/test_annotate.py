@@ -72,6 +72,15 @@ def test_parse_vision_tolerant():
     assert r["room"] == {"label": "exam", "confidence": 0.8}
 
 
+def test_parse_vision_salvages_truncated_reply():
+    text = ('{"room": {"label": "reception", "confidence": 0.8}, "items": [{"kind": "door", "label": "d", '
+            '"x_px": 100, "confidence": 0.9, "built_in": true}, {"kind": "desk", "label": "L-shaped desk", "x_px": 1166,')
+    r = parse_vision(text)
+    assert r["room"] == {"label": "reception", "confidence": 0.8}
+    assert [i["kind"] for i in r["items"]] == ["door", "desk"]
+    assert r["items"][0]["confidence"] == 0.9 and r["items"][1]["x_px"] == 1166 and r["items"][1]["confidence"] == 0.5
+
+
 def test_fixed_check():
     furn = [_obs("p1", "desk", (5, 5)), _obs("p2", "desk", (5.2, 5)),
             _obs("p1", "seating", (2, 2)), _obs("p2", "seating", (2.1, 2))]

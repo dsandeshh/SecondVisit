@@ -171,10 +171,35 @@ def _find_json(text: str) -> dict | None:
     return found[0] if found else None
 
 
+def _salvage(text: str) -> dict | None:
+    """A reply cut off by max_tokens: pull the room and every item that still has a kind and an x_px.
+    A missing confidence becomes 0.5 (so it is shown as "possibly"); a missing built_in becomes false."""
+    if '"items"' not in text:
+        return None
+    room = None
+    m = re.search(r'"room"\s*:\s*\{[^{}]*?"label"\s*:\s*"([^"]*)"(?:[^{}]*?"confidence"\s*:\s*([\d.]+))?', text)
+    if m:
+        room = {"label": m.group(1), "confidence": m.group(2) or 0.5}
+    items = []
+    for chunk in re.split(r'(?=\{\s*"kind")', text):
+        k = re.match(r'\{\s*"kind"\s*:\s*"([^"]*)"', chunk)
+        x = re.search(r'"x_px"\s*:\s*"?([\d.]+)', chunk)
+        if not (k and x):
+            continue
+        lab = re.search(r'"label"\s*:\s*"([^"]*)"', chunk)
+        conf = re.search(r'"confidence"\s*:\s*([\d.]+)', chunk)
+        built = re.search(r'"built_in"\s*:\s*(true|false)', chunk)
+        items.append({"kind": k.group(1), "label": lab.group(1) if lab else "", "x_px": x.group(1),
+                      "confidence": conf.group(1) if conf else 0.5, "built_in": built.group(1) if built else False})
+    return {"room": room, "items": items} if (room or items) else None
+
+
 def parse_vision(text: str) -> dict:
     """Tolerant parse of the vision answer: {room: {label, confidence} | None, items: [...]}."""
     empty = {"room": None, "items": []}
     obj = _find_json(text or "")
+    if (obj is None or "items" not in obj) and '"items"' in (text or ""):
+        obj = _salvage(text) or obj
     if obj is None:
         return empty
     room = None

@@ -99,7 +99,7 @@ def add_route(pkg: BuildingPackage, from_id: str | None = None, to_id: str | Non
         desks = [lm for lm in pkg.landmarks if lm.kind == "desk"]
         if not desks:
             raise SystemExit("no desk landmark: set a destination in overrides.json or pass --to")
-        to_id = desks[0].id
+        to_id = "dest" if any(lm.id == "dest" for lm in desks) else desks[0].id  # a human pinned destination wins
     for i in (from_id, to_id):
         if i not in by_id:
             raise SystemExit(f"unknown id {i!r}; known: {', '.join(sorted(by_id))}")
