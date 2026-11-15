@@ -103,3 +103,44 @@ export function aheadLine(world: World, pos: Vec2, heading: number, nearName?: (
 
 export const ARRIVED_M = ARRIVE_M;
 export const clockWords = (az: number): string => `${clockHour(az)} o'clock`;
+
+// ---- the minimal E line and Q list (human decision 15 Nov 04:28) -------------------------------------------------
+/** "under 1 metre", "1 metre", "4 metres" (rounded, measured). */
+export const metresWords = (d: number): string => { const m = Math.round(d); return m < 1 ? "under 1 metre" : m === 1 ? "1 metre" : `${m} metres`; };
+const RAY_WORD: Record<number, string> = { 1: "Wall", 2: "Obstacle", 3: "Obstacle", 4: "Glass", 5: "Stairs" };
+export type AheadThing = { word: string; az: number; d: number };
+export const AHEAD_THINGS = 3;
+
+/**
+ * E, one short line of a fixed shape: "Clear 4 metres. Wall at 11 o'clock, 2 metres. Doorway at 1 o'clock, 3 metres."
+ * Open distance straight ahead first, then up to 3 notable things in the 60 degree cone (the nearest wall, glass,
+ * obstacle or stairs from the rays, the nearest doorway, the nearest fixed landmark), nearest first. Spoken names
+ * only: never "possibly" here.
+ */
+export function aheadSummary(world: World, pos: Vec2, heading: number, items: Item[], doors: { a: Vec2; b: Vec2 }[] = []): { text: string; clear_m: number; things: AheadThing[] } {
+  const hit = world.raycast(pos, heading, AHEAD_R_M);
+  const clear_m = hit ? hit.dist : AHEAD_R_M;
+  const head = hit ? `Clear ${metresWords(hit.dist)}.` : `Clear over ${AHEAD_R_M} metres.`;
+  const best = new Map<string, AheadThing>();
+  const keep = (t: AheadThing) => { const b = best.get(t.word); if (!b || t.d < b.d) best.set(t.word, t); };
+  for (let a = -AHEAD_HALF_DEG; a <= AHEAD_HALF_DEG; a += 5) {
+    const h = world.raycast(pos, heading + a, AHEAD_R_M);
+    if (h && RAY_WORD[h.code]) keep({ word: RAY_WORD[h.code], az: a, d: h.dist });
+  }
+  const inCone = (p: Vec2) => dist(pos, p) <= AHEAD_R_M && Math.abs(azOf(pos, heading, p)) <= AHEAD_HALF_DEG && (sameRoom(world, pos, p) || los(world, pos, p));
+  for (const d of doors) {
+    const m: Vec2 = [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2];
+    if (inCone(m)) keep({ word: "Doorway", az: azOf(pos, heading, m), d: dist(pos, m) });
+  }
+  const lm = items.filter(i => i.fixed && !["entrance", "door", "glass_door"].includes(i.kind) && inCone(i.at))
+    .sort((x, y) => dist(pos, x.at) - dist(pos, y.at))[0];
+  if (lm) best.set("lm", { word: lm.name.charAt(0).toUpperCase() + lm.name.slice(1), az: azOf(pos, heading, lm.at), d: dist(pos, lm.at) });
+  const things = [...best.values()].sort((x, y) => x.d - y.d).slice(0, AHEAD_THINGS);
+  const text = [head, ...things.map(t => `${t.word} at ${clockHour(t.az)} o'clock, ${metresWords(t.d)}.`)].join(" ");
+  return { text, clear_m, things };
+}
+
+/** Q: the nearest `n` places (landmarks), nearest first. */
+export function nearestPlaces(items: Item[], pos: Vec2, n = 4): Item[] {
+  return [...items].sort((a, b) => dist(pos, a.at) - dist(pos, b.at)).slice(0, n);
+}

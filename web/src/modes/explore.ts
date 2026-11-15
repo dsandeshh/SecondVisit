@@ -172,9 +172,11 @@ export class Explore implements KeyActions {
     this.held = setInterval(() => this.setCane(this.traveller.caneDeg + dir * SWEEP_DEG_PER_S * FRAME_MS / 1000), FRAME_MS);
   }
 
+  /** Space: the last line again, nothing added (Rehearse repeats the instruction in the session). */
   repeat(): void {
-    if (this.speech.last) this.speech.repeat();
-    else this.where();
+    if (this.speech.last) { this.speech.repeat(); return; }
+    const b = this.fx.beaconTarget;
+    this.speech.say(b ? this.fx.placeLine(b) : "No places in this building.", 2);
   }
 
   heading(): void {

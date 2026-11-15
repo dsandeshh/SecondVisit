@@ -11,7 +11,7 @@ import { nextPick, targetOrder } from "./beacon";
 import { BumpGate, bumpOf } from "./bump";
 import type { Explore } from "./explore";
 import { ApproachTracker, crossesDoor, echoSeconds, RoomTracker, roomLine, roomSize } from "./rooms";
-import { aheadItems, aheadLine, azOf, itemsOf, los, sameRoom, stepsWords, sweepItems, SWEEP_GAP_MS, type Item } from "./sweep";
+import { aheadSummary, azOf, itemsOf, los, nearestPlaces, sameRoom, stepsWords, SWEEP_GAP_MS, type Item } from "./sweep";
 
 type Pub = Omit<Cue, "v" | "t" | "ts">;
 
@@ -49,51 +49,36 @@ export class Interact {
 
   private logHint(): void { if (this.ex.rehearse) this.ex.logHint(); }
 
-  // ---- Q: around me ------------------------------------------------------------------------------------------
-  async around(detail: boolean): Promise<void> {
+  // ---- Q: around me: the nearest 4 places, "<name>, <clock> o'clock, <N> steps." each from where it is ----------------
+  async around(_detail: boolean): Promise<void> {
     if (this.ex.locked) return;
     this.cancel();
     const tk = ++this.token;
     this.sweeping = true;
     this.logHint();
-    const list = sweepItems(this.items, this.t.pos, this.t.heading, this.world);
+    const list = nearestPlaces(this.places(), this.t.pos, 4);
     this.pub({ kind: "sweep_item", id: "start", deg: 0 });
     this.audio.cue("sweepStart", { bus: "cue", pri: 1 });
-    if (!list.length) { this.sweeping = false; this.pub({ kind: "sweep_item", id: "end" }); this.speech.say("Nothing within 8 metres. Try E for ahead.", 2); return; }
-    await sleep(150);
+    if (!list.length) { this.sweeping = false; this.pub({ kind: "sweep_item", id: "end" }); this.speech.say("No places in this building.", 2); return; }
     for (const it of list) {
       if (tk !== this.token) return;
       this.lastItem = it;
-      this.pub({ kind: "sweep_item", id: it.id, at: it.at, label: it.name, deg: Math.round(it.az) });
-      await this.speech.sayAsync(it.name, 1, this.nameOpts(it));
+      this.pub({ kind: "sweep_item", id: it.id, at: it.at, label: it.name, deg: Math.round(azOf(this.t.pos, this.t.heading, it.at)) });
+      await this.speech.sayAsync(this.placeLine(it), 1, { at: it.at });   // the spoken name only: no "possibly" in this list
       if (tk !== this.token) return;
-      if (detail) { await this.speech.sayAsync(`${this.clock(it.at)} o'clock, ${stepsWords(dist(this.t.pos, it.at))}.`, 1); await sleep(150); }
       await sleep(SWEEP_GAP_MS);
     }
     if (tk === this.token) { this.sweeping = false; this.pub({ kind: "sweep_item", id: "end" }); }
   }
 
-  // ---- E: ahead of me ---------------------------------------------------------------------------------------
-  async ahead(): Promise<void> {
+  // ---- E: ahead of me, one line: "Clear 4 metres. Wall at 11 o'clock, 2 metres. Doorway at 1 o'clock, 3 metres." -------
+  ahead(): void {
     if (this.ex.locked) return;
     this.cancel();
-    const tk = ++this.token;
     this.logHint();
-    const list = aheadItems(this.items, this.t.pos, this.t.heading, this.world);
-    const line = aheadLine(this.world, this.t.pos, this.t.heading, p => {
-      const n = this.items.filter(i => dist(i.at, p) <= 1).sort((a, b) => dist(a.at, p) - dist(b.at, p))[0];
-      return n ? n.name.charAt(0).toUpperCase() + n.name.slice(1) : null;
-    });
-    this.pub({ kind: "cone", deg: 60, ids: list.map(i => i.id), hit_m: Math.round(line.hit_m * 10) / 10 });
-    for (const it of list) {
-      if (tk !== this.token) return;
-      this.lastItem = it;
-      await this.speech.sayAsync(it.name, 1, this.nameOpts(it));
-      if (tk !== this.token) return;
-      await this.speech.sayAsync(`${stepsWords(it.d)}.`, 1);
-      await sleep(150);
-    }
-    if (tk === this.token) this.speech.say(line.text, line.pri);
+    const a = aheadSummary(this.world, this.t.pos, this.t.heading, this.items, this.world.pkg.doors ?? []);
+    this.pub({ kind: "cone", deg: 60, hit_m: Math.round(a.clear_m * 10) / 10 });
+    this.speech.say(a.text, 2);
   }
 
   // ---- Tab: place picker (landmarks and the destination) -------------------------------------------------------

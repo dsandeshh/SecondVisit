@@ -173,3 +173,22 @@ describe("callouts and doorways", () => {
     expect(possiblyOpts({ confidence: 0.6 })).toEqual({});
   });
 });
+
+describe("aheadSummary (E line)", () => {
+  it("corridor: clear distance to the end wall, then the nearest wall and a doorway in the cone, measured", async () => {
+    const { aheadSummary } = await import("./sweep");
+    // 3 m wide corridor running north, 10 m long; a door in the east wall 3 m ahead
+    const rows = Array.from({ length: 12 }, (_, i) => i === 0 || i === 11 ? "#####" : "#...#");
+    const w = new World(gridPkg(rows));
+    const a = aheadSummary(w, [2.5, 1.5], 0, [], [{ a: [4, 4], b: [4, 5] }]);
+    expect(a.text.startsWith(`Clear ${Math.round(a.clear_m)} metres.`)).toBe(true);
+    expect(a.clear_m).toBeGreaterThan(9); expect(a.clear_m).toBeLessThan(10);
+    expect(a.text).toMatch(/Wall at (11|1) o'clock, \d+ metres?\./);
+    expect(a.text).toMatch(/Doorway at 1 o'clock, 3 metres\./);
+    expect(a.things.length).toBeLessThanOrEqual(3);
+  });
+  it("open floor says over 12 metres", async () => {
+    const { aheadSummary } = await import("./sweep");
+    expect(aheadSummary(open, [15, 3], 0, []).text).toBe("Clear over 12 metres.");
+  });
+});

@@ -85,28 +85,50 @@ describe("Tab, Enter, Escape in Explore: the beacon's target", () => {
   });
 });
 
-describe("Q around me", () => {
-  it("publishes the sweep cues in order and says the names from their positions", async () => {
-    const { ex, said, cues } = make();
+describe("Q around me: the nearest 4 places", () => {
+  const many = () => {
+    const pkg = fixturePkg();
+    const base = pkg.landmarks[0];
+    for (const [i, p] of ([[3, 6], [6, 3], [9, 9], [12, 4], [2, 14]] as [number, number][]).entries())
+      pkg.landmarks.push({ ...base, id: `x${i}`, kind: "sign", label: `Sign ${i}`, spoken: `Sign ${i}`, confidence: 0.3, pos: p });
+    return pkg;
+  };
+  it("says each as '<name>, <clock> o'clock, <N> steps.' from its position, nearest first, at most 4", async () => {
+    const { ex, said, cues } = make(many());
     ex.place([16.6, 10.8], 90);
+    const n = said.length;
     await ex.fx.around(false);
+    const lines = said.slice(n);
+    expect(lines).toHaveLength(4);
+    for (const l of lines) expect(l).toMatch(/^[A-Z][^,]*, \d+ o'clock, (\d+ steps?|within reach)\.$/);
+    expect(lines[0]).toMatch(/^Reception desk, /);
     const kinds = cues.filter(c => c.kind === "sweep_item").map(c => c.id);
     expect(kinds[0]).toBe("start"); expect(kinds).toContain("desk"); expect(kinds.at(-1)).toBe("end");
-    const say = cues.find(c => c.kind === "say" && c.text === "Reception desk")!;
+    const say = cues.find(c => c.kind === "say" && c.text?.startsWith("Reception desk"))!;
     expect(say.at).toEqual([18.5, 10.8]);
-    expect(said).toContain("Reception desk");
   });
-  it("Shift+Q adds the clock and steps after each name", async () => {
-    const { ex, said } = make();
-    ex.place([16.6, 10.8], 90);
+  it("never says or shows 'possibly' in the Q list or the E line, even for low confidence places", async () => {
+    const { ex, said, cues } = make(many());
+    ex.place([4, 5], 45);
+    const n = said.length, nc = cues.length;
     await ex.fx.around(true);
-    expect(said.some(t => /^\d+ o'clock, (\d+ steps?|within reach)\.$/.test(t))).toBe(true);
+    ex.fx.ahead();
+    const out = said.slice(n);
+    expect(out.length).toBeGreaterThan(4);
+    for (const t of out) expect(t).not.toMatch(/possibly/i);
+    for (const c of cues.slice(nc).filter(c => c.kind === "say")) { expect(c.prefix).toBeUndefined(); }
+    expect(document.getElementById("say-polite")!.textContent).not.toMatch(/possibly/i);
   });
-  it("nothing in range says so", async () => {
+});
+
+describe("E ahead: one line, fixed shape", () => {
+  it("open distance first, then up to 3 things as '<thing> at <clock> o'clock, <N> metres.'", () => {
     const { ex, said } = make();
-    ex.place([19.5, 0.5], 0);
-    await ex.fx.around(false);
-    expect(said.at(-1)).toBe("Nothing within 8 metres. Try E for ahead.");
+    ex.place([3, 3], 0);
+    ex.fx.ahead();
+    const t = said.at(-1)!;
+    expect(t).toMatch(/^Clear (over 12 metres|under 1 metre|1 metre|\d+ metres)\.( [A-Z][^.]* at \d+ o'clock, (under 1 metre|1 metre|\d+ metres)\.){0,3}$/);
+    for (const clause of t.split(". ")) expect(clause.split(" ").length).toBeLessThan(12);
   });
 });
 
