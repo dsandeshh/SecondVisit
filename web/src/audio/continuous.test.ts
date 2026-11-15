@@ -10,10 +10,10 @@ import { FakeAudioContext } from "../test/fakes";
 import { beaconAz, beaconRate, beaconSpot, ContinuousSounds, nearestAhead, proxGain, proxRate } from "./continuous";
 
 describe("continuous beacon", () => {
-  it("pulses about 1/s beyond 10 m, 2/s at 5 m, 4/s within 2 m, interpolated in between", () => {
-    expect(beaconRate(25)).toBe(1); expect(beaconRate(10)).toBe(1); expect(beaconRate(12)).toBe(1);
-    expect(beaconRate(5)).toBeCloseTo(2); expect(beaconRate(1.5)).toBe(4);
-    expect(beaconRate(2)).toBe(4); expect(beaconRate(0.5)).toBe(4);
+  it("wobbles about 1.5/s beyond 10 m, 3/s at 5 m, 6/s within 2 m, interpolated in between", () => {
+    expect(beaconRate(25)).toBe(1.5); expect(beaconRate(10)).toBe(1.5); expect(beaconRate(12)).toBe(1.5);
+    expect(beaconRate(5)).toBeCloseTo(3); expect(beaconRate(1.5)).toBe(6);
+    expect(beaconRate(2)).toBe(6); expect(beaconRate(0.5)).toBe(6);
     expect(beaconRate(8)).toBeLessThan(beaconRate(4));
   });
   it("the panner angle equals the target's true bearing from the walker's pose", () => {

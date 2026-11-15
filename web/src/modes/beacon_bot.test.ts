@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// The three demo legs on the clinic walked by the beacon alone: a bot that hears only the beacon's cue (on axis, near,
-// plain, behind, and which ear it leans to, from the same pure function the pulses use; never the target's coordinates)
+// The three demo legs on the clinic walked by the beacon alone: a bot that hears only the hum's aim band (on axis =
+// brightest and steady, near = brightening, plain = dull, behind = dark and slower) and which ear it leans to, from the
+// same pure function the hum's nodes are set by; never the target's coordinates;
 // turns until on axis (or until a near cue crosses sides, the best a 15 degree turn can do), then steps, and keeps
 // stepping while the cue stays on axis or near (aim, then commit); it turns again only on a plain or behind cue. Bumps are met
 // as a walker would: the cane finds the opening either side.
@@ -11,10 +12,10 @@ import { describe, expect, it } from "vitest";
 import { ContinuousSounds } from "../audio/continuous";
 import { heard } from "../audio/beacon_cue";
 import { AudioEngine } from "../audio/engine";
-import { azimuth } from "../audio/space";
+import { azimuth, toAudio } from "../audio/space";
 import { Speech } from "../audio/speech";
-import { FakeAudioContext } from "../test/fakes";
-import type { BuildingPackage } from "../types";
+import { fakeCounts, FakeAudioContext } from "../test/fakes";
+import type { BuildingPackage, Vec2 } from "../types";
 import { bearing, dist, wrap180, World } from "../world";
 import { Explore } from "./explore";
 import { findPath } from "./beacon";
@@ -175,5 +176,42 @@ describe.skipIf(!hasClinic)("the beacon on the lab door -> main entrance leg", (
     expect(dist(ex.traveller.pos, ent)).toBeLessThanOrEqual(TARGET_ARRIVE_M);
     expect(flips).toBe(0);
     expect(changes).toBeLessThanOrEqual(plan.length + 3);   // a fresh route per frame would churn far more
+  });
+
+  it("the hum advances corner by corner along the route, one voice the whole way, its panner on the corner's bearing", () => {
+    const { ex, ent } = setup();
+    const plan = findPath(ex.world, ex.traveller.pos, ent)!;
+    const idx = (q: number[]) => plan.findIndex(c => same(c, q));
+    const ctx = ex.audio.ctx as any;
+    ctx.currentTime += 1; ex.cont.tick();
+    const h = (ex.cont as any).beacon, s0 = fakeCounts.starts;
+    expect(h).toBeTruthy();
+    const seen: number[][] = [];
+    let k0 = -1, back = 0, prox = (ex.cont as any).prox;
+    for (let i = 0; i < 2000 && ex.fx.beaconTarget && dist(ex.traveller.pos, ent) > TARGET_ARRIVE_M; i++) {
+      ctx.currentTime += 1 / 60;
+      const p = ex.traveller.pos, want = ex.fx.beaconAim()!;
+      ex.traveller.heading = bearing(p, want) + 20 * Math.sin(i / 9);   // walking roughly towards it, swaying
+      ex.cont.tick();
+      const aim: Vec2 = h.aim;   // the corner the hum sounded from on this frame
+      if (!prox && (ex.cont as any).prox) { prox = (ex.cont as any).prox; }
+      expect((ex.cont as any).beacon).toBe(h);
+      const e = ex.ear(), spot = ex.cont.lastSpot!;
+      expect([h.panner.positionX.target, h.panner.positionY.target, h.panner.positionZ.target]).toEqual(toAudio(spot));
+      expect(Math.abs(wrap180(azimuth(e.pos, e.heading, spot) - wrap180(bearing(e.pos, aim) - e.heading)))).toBeLessThan(1);
+      if (!seen.length || !same(seen.at(-1)!, aim)) {
+        seen.push([aim[0], aim[1]]);
+        const k = idx(aim);
+        if (k >= 0) { if (k < k0) back++; k0 = Math.max(k0, k); }
+      }
+      const d = dist(p, aim), f = Math.min(1, 0.05 / Math.max(d, 1e-6));
+      ex.traveller.pos = [p[0] + (aim[0] - p[0]) * f, p[1] + (aim[1] - p[1]) * f];
+    }
+    expect(dist(ex.traveller.pos, ent)).toBeLessThanOrEqual(TARGET_ARRIVE_M + 0.05);
+    expect(seen.length).toBeGreaterThan(2);                 // passed several corners
+    expect(same(seen.at(-1)!, ent)).toBe(true);             // the final stretch aims at the target itself
+    expect(back).toBe(0);                                   // never back to a corner already passed
+    const proxStarts = prox ? 1 : 0;
+    expect(fakeCounts.starts - s0).toBeLessThanOrEqual(proxStarts);   // the hum never restarted (only the obstacle tick may start)
   });
 });

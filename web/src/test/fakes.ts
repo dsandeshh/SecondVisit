@@ -11,13 +11,17 @@ export function fixturePkg(): BuildingPackage {
 
 const param = () => ({
   value: 0, setValueAtTime() { return this; }, linearRampToValueAtTime() { return this; },
-  setTargetAtTime() { return this; }, exponentialRampToValueAtTime() { return this; },
+  setTargetAtTime(v: number, _t?: number, tc?: number) { (this as any).target = v; (this as any).tc = tc; return this; }, exponentialRampToValueAtTime() { return this; },
   cancelScheduledValues() { return this; },
 });
 
-/** Any AudioNode: connect/disconnect/start/stop, and any other property reads as an AudioParam. */
+/** How many source nodes were started (every fake context): a test can check a sound is never restarted. */
+export const fakeCounts = { starts: 0 };
+
+/** Any AudioNode: connect/disconnect/start/stop, and any other property reads as an AudioParam
+ *  (setTargetAtTime records its last `target` and time constant `tc`). */
 function node(): any {
-  const base: any = { connect: (n: any) => n, disconnect() {}, start() {}, stop() {}, onended: null };
+  const base: any = { connect: (n: any) => n, disconnect() {}, start() { fakeCounts.starts++; }, stop() {}, onended: null };
   return new Proxy(base, {
     get(t, k) { if (!(k in t) && typeof k === "string") t[k] = param(); return t[k]; },
     set(t, k, v) { t[k] = v; return true; },

@@ -204,11 +204,12 @@ export class Explore implements KeyActions {
 
   where(rehearse?: Parameters<Interact["where"]>[0]): void { this.fx.where(rehearse); }
 
-  /** The hint. In Rehearse (B or Enter): one burst of BURST_PULSES beacon pulses from the destination's true direction,
+  /** The hint. In Rehearse (B or Enter): one burst of BURST_PULSES swells of the hum from the next corner of the walkable
+   *  path to the destination (the same point the Explore beacon would use),
    *  logged as a hint; ignored while a burst is still playing, so holding B never becomes a beacon. */
   hint(): void {
     if (!this.destination) { this.speech.say("No destination in this building.", 2); return; }
-    if (this.rehearse) { if (this.cont.bursting) return; this.cont.burst(this.destination.pos); }   // no audio: still a hint
+    if (this.rehearse) { if (this.cont.bursting) return; this.cont.burst(this.fx.beaconAim() ?? this.destination.pos); }   // no audio: still a hint
     else this.sounds?.chirps(this.destination.pos);
     this.hooks.onHint?.(this.traveller);
   }
