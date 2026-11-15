@@ -46,5 +46,15 @@ describe("v2 shell stage", () => {
     expect(seen).toContain(document.querySelector("#data-panel > summary"));
     expect(seen).toContain(document.querySelector(".objects__scroll"));
   });
+  it("F6 on the summary page never aims at the hidden stage", () => {
+    page("index.html");
+    document.body.dataset.page = "summary";
+    document.getElementById("rehearsal")!.hidden = true;
+    const off = wireRegions(document, document.getElementById("stage")!, { say: vi.fn(), stop: vi.fn() } as never, {} as never);
+    document.getElementById("result")!.tabIndex = -1;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", bubbles: true }));
+    expect(document.activeElement).toBe(document.getElementById("result"));
+    off();
+  });
 });
 

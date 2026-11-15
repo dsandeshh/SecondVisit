@@ -185,6 +185,13 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   };
   setInterval(() => { if (showcase?.ready) showcase.setPose(ex.traveller.pos, ex.traveller.heading); }, 100);
   if (!full) attach();
+  // #/check hides the stage, so its keys (arrows and Space to point, 1 to 4 to answer, Enter) are caught on the page itself;
+  // a focused button inside keeps its own Enter and Space (F6 reaches them).
+  for (const sec of [$("check"), $("result")]) {   // the summary page too (Enter starts run 2, Space repeats)
+    sec.tabIndex = -1;
+    sec.addEventListener("keydown", e => { if (e.target !== sec) e.stopPropagation(); }, true);
+    attachKeys(sec, session);
+  }
   wireRegions(doc, stage, speech, session);
   stage.addEventListener("mousemove", (e: MouseEvent) => {
     const b = stage.getBoundingClientRect();
@@ -321,7 +328,7 @@ function onPage(app: App, doc: Document, p: Page, prev: Page | null, started: bo
   const $ = (id: string) => doc.getElementById(id);
   if (p === "home") { $("start")?.focus(); return; }
   if (p === "about") { app.session?.timer.stop(); const h = $("about-h"); h?.setAttribute("tabindex", "-1"); h?.focus(); }
-  else { if (prev === "about") app.session?.timer.start(); $("stage")?.focus(); }
+  else { if (prev === "about") app.session?.timer.start(); ($(p === "check" ? "check" : p === "summary" ? "result" : "stage") as HTMLElement | null)?.focus(); }
   if (!started || p === prev) return;
   const line = PAGE_LINES[p];
   if (!line) return;
@@ -374,7 +381,7 @@ function showIntro(doc: Document, text: string | null): void {
 export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, session: Session): () => void {
   const page = () => doc.body.dataset.page ?? "inside";
   const regions: [string, () => HTMLElement | null][] = [
-    ["Rehearsal.", () => stage],
+    ["Rehearsal.", () => page() === "inside" || page() === "arrive" ? stage : doc.getElementById(page() === "check" ? "check" : page() === "summary" ? "result" : "") ],
     ["Controls.", () => page() === "home" ? doc.getElementById("start") : page() === "about" ? doc.getElementById("about-back")
       : page() === "check" ? (doc.querySelector<HTMLElement>("#quiz button") ?? doc.getElementById("go"))
       : page() === "summary" ? doc.getElementById("again") : doc.getElementById("pause")],
