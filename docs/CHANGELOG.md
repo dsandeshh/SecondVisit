@@ -6,6 +6,7 @@ RunPlan or PointResult is logged here in the same commit as the code.
 ## 2026-11-14 (Sat): solo build, task log
 
 - 23:20 Task 11 done + Task 4 fix round: `engine/dr/simulate.py` (ErrorModel, simulate, simulate_package; `--sim N` wired via pipeline.run_sim, package note labels it simulated); planner R17 (code 3 solid for clearance, not for wall trailing) and failed search timing (`PlannedRoute.failed_s`, `NoRouteError.failed_s`). No contract change.
+- 23:20 Task 13 engine done: `engine/dr/agents/deep_agent.py` (DrEngine over real modules, five subagents incl. annotator, ask_visitor interrupt, finalize, scripted fallback), `api_stream.py` SSE router mounted in `api.py` (POST /api/agent, /resume, GET /replay, /share; serves layout per R4). Grounding goes through `dr.grounding.grounded` (R7). Simulate is a labelled stub ("simulated (stub: Task 11 not present)") until `dr.simulate` lands (R14). No contract change.
 - 22:55 Task 10 engine done: `engine/dr/coach_rules.py` (tally, choose_focus, make_plan drills), pydantic RunLog/RunPlan/PointResult/RunEvent/QuizEntry in `package.py` (match types.ts, R3), `POST /api/coach` in `api.py`. **Contract change:** engine RunLog kind now includes "hint"; the web sends "hint" as is (no hesitate mapping).
 - 22:10 Task 1 done (cf0f9db..ec268b4): BuildingPackage v1 + v2 fields in `engine/dr/package.py` (contract created; `Route.from` via alias), OccGrid, lobby fixture (`ent_w`, `desk`).
 - 22:19 Task 15 fix (3614d05): one 60 m ortho size for fetch, pixel mapping and prov; side "unknown" until pinned.

@@ -156,3 +156,9 @@ def coach_endpoint(req: CoachRequest) -> dict:
         n = max([e.seg for e in req.events] + [q.seg for q in req.quiz] + [0]) + 1
         allowed = set()
     return coach(req, n, allowed)
+
+
+# --- Agent stream (Task 13): POST /api/agent, /api/agent/resume, GET /api/agent/replay, /share (R4) ---
+from dr.agents.api_stream import router as agent_router  # noqa: E402  (after _load_env so DR_* are set)
+
+app.include_router(agent_router)
