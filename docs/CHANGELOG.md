@@ -13,7 +13,7 @@ RunPlan or PointResult is logged here in the same commit as the code.
 
 - SecondVisit is for blind and low vision people visiting any building; the Houston clinic is the first
   demo building and healthcare stays the lead story. "patient(s)" replaced in CLAUDE.md, DESIGN.md and
-  DRESS_REHEARSAL.md. `review/` (archived research) left as written.
+  DRESS_REHEARSAL.md, and in UI_DESIGN.md after it arrived. `review/` (archived research) left as written.
 
 ## 2026-11-14 (Sat, about 21:45): Task 0 pull
 

@@ -671,7 +671,7 @@ draw order, and "Save pin" buttons that write `HAND` entries. No extra design wo
 **Principles**
 
 * Plain words, short sentences, sentence case, no exclamation marks.
-* Name things the way a patient or a clinic manager would: "the reception desk", "the waiting room",
+* Name things the way a visitor or a building manager would: "the reception desk", "the waiting room",
   "drop off point"; never "node", "segment" or "pano" on a user screen (say "stretch" for segment).
 * Numbers come from the package and are said with "about" when they are step counts: "about 12 steps".
 * Directions are left, right, straight on, or a clock hour from where you face.
