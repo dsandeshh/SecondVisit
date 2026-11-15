@@ -70,7 +70,7 @@ export function nextAction(c: NextCtx): string {
     case "explore":
       if (c.intro) return `Next: ${c.intro.charAt(0).toLowerCase()}${c.intro.slice(1)}`;
       if (c.picked) return "Next: press Enter to walk to the place you chose";
-      return c.hasRoute === false ? "Next: press Q to hear what is around you" : "Next: press Enter to start the rehearsal";
+      return c.hasRoute === false ? "Next: press Q to hear what is around you" : "Next: press Enter to skip the fly-in and start the walk to the door";
     case "rehearse": return "Next: follow the spoken directions. Press Space to hear them again";
     case "point": return c.pointed ? "Next: press Enter to go on" : "Next: turn with Left and Right, then press Space to confirm";
     case "quiz": return c.answered ? "Next: press Enter for the next question" : "Next: press 1 to 4 to answer";

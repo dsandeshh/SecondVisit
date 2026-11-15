@@ -58,6 +58,8 @@ FIXED_UI_LINES = [
     "How it was built. This page is for judges and companions.",
     "Controls.", "View.",
     "Paused. Press P to resume.",
+    # key card on first entry inside (stream 2): spoken once, again on the question mark
+    "Up walks. Left and Right turn. Enter asks where your goal is. Q tells you what is around you. P pauses. The question mark brings this back.",
     "Fastest.",
     "Slowest.",
     "That's close.",

@@ -142,3 +142,11 @@ body[data-page="arrive"] #help { display: none; }
 /* First person: the showcase's own compass sits at the bottom, so the caption rides above it. */
 body[data-page="inside"]:has(.stage[data-view="first"]) .capline { bottom: 6.75rem; }
 .page--text .quiz { width: min(44rem, 100%); } .page--text .quiz__opt { justify-content: flex-start; text-align: left; } .page-title { max-width: 24ch; } .page-lede { margin-inline: auto; }
+
+/* Key card: a compact strip near the top on first entry inside; any key closes it. */
+.keycard { position: fixed; top: var(--sp-5); left: 50%; transform: translateX(-50%); z-index: calc(var(--z-caption) + 1); max-width: calc(100vw - 2 * var(--gutter)); background: var(--c-surface); border: 1px solid var(--c-line, currentColor); border-radius: var(--r-md, 0.75rem); padding: var(--sp-3) var(--sp-4); text-align: center; }
+.keycard[hidden] { display: none; }
+.keycard__row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.keycard__key { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 2.5rem; padding: 0 var(--sp-3); font: inherit; font-size: var(--fs-small); background: var(--c-surface-2); border: 1px solid var(--c-line, currentColor); border-radius: 999px; color: inherit; cursor: pointer; }
+.keycard__key kbd { font-weight: var(--fw-medium, 600); }
+.keycard__hint { margin: var(--sp-2) 0 0; font-size: var(--fs-small); }

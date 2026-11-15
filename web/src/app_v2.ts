@@ -21,6 +21,7 @@ import { createRouter, type Page, type Router } from "./pages/router";
 import { PAGE_LINES } from "./pages/lines";
 import { loadShowcase, type ShowcaseHandle } from "./pages/showcase_hook";
 import { renderScore, type RunResult } from "./pages/score";
+import { cardWanted, mountKeyCard } from "./pages/keycard";
 import { OFFLINE, resolveAddress } from "./home/home";
 import { World } from "./world";
 import { loadOutdoorHook, runFlow } from "./flow";
@@ -83,18 +84,18 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
     const n = doc.createElement("strong"); n.textContent = o.name;
     const a = doc.createElement("span"); a.textContent = o.address;
     b.append(n, a);
-    b.addEventListener("click", () => { void loadId(o.sid); });
+    b.addEventListener("click", () => { $<HTMLInputElement>("addr").value = o.name; begin(o.sid); });   // a card selects that building and starts, same path as Start
     host.append(b);
   }
   if (!(await loadId(id)) && id !== "fixture") await loadId("fixture");
 
   // Always app voice (CLAUDE.md rule 7): Start is the gesture that creates the AudioContext and goes straight in.
-  $<HTMLFormElement>("home-form").addEventListener("submit", e => {
-    e.preventDefault();
-    if (audio.ctx || !app.pkg) return;
+  const begin = (pick?: string): void => {
+    if (audio.ctx || (!app.pkg && !pick)) return;
     const started0 = audio.start(); // synchronous part runs inside this click
-    const typed = $<HTMLInputElement>("addr").value.trim();
+    const typed = pick ? "" : $<HTMLInputElement>("addr").value.trim();
     void (async () => {
+      if (pick && pick !== id && !(await loadId(pick))) return;
       if (typed) {   // an address that names another building loads it first (the list below the box, or the engine resolver)
         const hit = await resolveAddress(typed);
         if (hit && hit.sid !== id) await loadId(hit.sid);
@@ -107,13 +108,14 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
         ...pkg.landmarks.map(l => spokenOf(l))];
       void store.init().then(() => store.preload([...routeLineIds(first, store), ...store.ids])).catch(() => undefined);
       started = true;
-      enter(app, doc, r, op, store, fullFlow(params));
+      enter(app, doc, r, op, store, fullFlow(params), cardWanted(params));
     })();
-  });
+  };
+  $<HTMLFormElement>("home-form").addEventListener("submit", e => { e.preventDefault(); begin(); });
   return app;
 }
 
-function enter(app: App, doc: Document, r: StartReport, op: boolean, store: ClipStore, full = false): void {
+function enter(app: App, doc: Document, r: StartReport, op: boolean, store: ClipStore, full = false, card = false): void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => doc.getElementById(id) as T;
   const { audio, speech } = app;
   const pkg = app.pkg!;
@@ -131,7 +133,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     audioRunning: () => audio.ctx?.state === "running",
     onPhase: p => showPhase(doc, session, p, app.router),
     onQuestion: q => showQuiz(doc, session, q),
-    onNext: t => { $("next-action").textContent = t; },
+    onNext: t => { $("next-action").textContent = doc.body.dataset.flow === "inside" ? t.replace("skip the fly-in and start the walk to the door", "start the rehearsal") : t; },
     onIntro: t => showIntro(doc, t),
     onHold: on => { audio.hold(on); },
     onLeave: () => { (app.router?.page === "summary" ? $("again") : $("pause")).focus(); },
@@ -245,13 +247,15 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
 
   $("go").addEventListener("click", () => session.enter());
   $("go").hidden = !session.hasRoute;
+  const keycard = mountKeyCard(doc, stage, t => speech.say(t, 1), () => speech.stop());
   const beginInterior = () => {
     if (full) { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; }
     mountFirstPerson();
     showPhase(doc, session, "explore", app.router);
     ex.begin();
     // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
-    if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
+    if (card && r.audio === "running") { keycard.show(true); }   // the key card replaces the guided intro on a first visit
+    else if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
     else speech.say(`${audio.statusLine(r)} Ear check: a tap left, then right. If that was backwards, press Shift and S. ${ex.intro(phone)}`, 2);
     audio.play(1, { pan: -1, send: 0 });
     setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
@@ -261,7 +265,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   // ?flow=full: Home, fly in, curb walk (outdoor hook), then the interior at pkg.entrances[0] (see flow.ts for the contract).
   void loadOutdoorHook().then(hook => runFlow({
     hook, pkg, stage, say: (t, p) => speech.say(t, p ?? 2), bus: speech.bus, audio, begin: beginInterior,
-    onOutdoor: on => { doc.body.dataset.flow = on ? "arrive" : "inside"; $("room3d").hidden = on; },
+    onOutdoor: on => { doc.body.dataset.flow = on ? "arrive" : "inside"; $("room3d").hidden = on; if (!on) { app.router?.go("inside", true); const n = $("next-action"); n.textContent = (n.textContent ?? "").replace("skip the fly-in and start the walk to the door", "start the rehearsal"); } },   // through the door: #/arrive becomes #/inside
   }));
 }
 

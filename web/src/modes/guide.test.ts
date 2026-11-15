@@ -47,7 +47,7 @@ describe("Intro", () => {
 
 describe("nextAction", () => {
   it("names one action per phase", () => {
-    expect(nextAction({ phase: "explore" })).toBe("Next: press Enter to start the rehearsal");
+    expect(nextAction({ phase: "explore" })).toBe("Next: press Enter to skip the fly-in and start the walk to the door");
     expect(nextAction({ phase: "explore", intro: "Press Up to take a step." })).toBe("Next: press Up to take a step.");
     expect(nextAction({ phase: "point", pointed: false })).toMatch(/Space to confirm/);
     expect(nextAction({ phase: "quiz", answered: true })).toMatch(/Enter/);

@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { boot, focusables } from "../app_v2";
-import { fixturePkg } from "../test/fakes";
+import { fixturePkg, FakeAudioContext } from "../test/fakes";
 
 const html = `<html><body data-page="home">${readFileSync(join(dirname(fileURLToPath(import.meta.url)), "shell_v2.html"), "utf8")}</body></html>`;
 
@@ -49,6 +49,27 @@ describe("index.html", () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => fixturePkg() })));
     const app = await boot(document, new URLSearchParams("b=fixture"));
     expect(app.audio.ctx).toBeNull();
+    vi.unstubAllGlobals();
+  });
+  it("the 3D view bar is not keyboard reachable in v2 (hidden and inert, so no tab stop)", () => {
+    load();
+    const bar = document.querySelector<HTMLElement>(".room3d-bar")!;
+    expect(bar.hidden).toBe(true);
+    expect(bar.hasAttribute("inert")).toBe(true);
+    for (const b of Array.from(bar.querySelectorAll("button"))) expect(focusables(document)).not.toContain(b);
+  });
+  it("activating a building card starts the journey at #/arrive with that building", async () => {
+    load();
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => /package\.json/.test(String(u)) ? ({ ok: true, json: async () => fixturePkg() }) : ({ ok: false, json: async () => ({}) })));
+    window.location.hash = "#/home";
+    const app = await boot(document, new URLSearchParams());
+    const card = document.querySelector<HTMLButtonElement>('#buildings button[data-sid="fixture"]')!;
+    expect(card).not.toBeNull();
+    card.click();
+    await vi.waitFor(() => expect(window.location.hash).toBe("#/arrive"));
+    expect(app.pkg?.id).toBe(fixturePkg().id);
+    expect(app.audio.ctx).not.toBeNull();
     vi.unstubAllGlobals();
   });
 });
