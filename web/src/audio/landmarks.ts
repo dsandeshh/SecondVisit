@@ -1,7 +1,8 @@
 // Landmark sounds: only kinds that sound in the real place, nearest two within 6 m (agent3 3.3).
 import type { Landmark, LandmarkKind, Vec2 } from "../types";
 import { dist } from "../world";
-import { toAudio } from "./space";
+import type { AudioEngine } from "./engine";
+import { spatialChain } from "./spatial";
 
 export const SOUNDING: Partial<Record<LandmarkKind, { everyS: [number, number] }>> = {
   desk: { everyS: [1.5, 3] },     // soft typing and murmur
@@ -21,13 +22,17 @@ export function audible(landmarks: Landmark[], pos: Vec2, _heading: number, opts
     .map(x => x.l);
 }
 
-type Voice = { panner: PannerNode; timer: ReturnType<typeof setTimeout> | null };
+type Voice = { at: Vec2; kind: string; timer: ReturnType<typeof setTimeout> | null };
 
-/** Plays intermittent 200 ms events through HRTF panners; panners beyond the budget are disconnected. */
+/**
+ * Plays intermittent events from landmarks. Every blip gets its own HRTF chain (created per play, disconnected
+ * when it ends, agent5 4.2) on the ambient bus; at most two HRTF sounds at once (the budget refuses the rest).
+ */
 export class LandmarkSounds {
   private voices = new Map<string, Voice>();
-  constructor(private ctx: AudioContext, private out: AudioNode, private destinationId?: string,
-    private panning: PanningModelType = "HRTF") {}
+  constructor(private audio: AudioEngine, private destinationId?: string) {}
+
+  private get ctx(): AudioContext { return this.audio.ctx!; }
 
   update(all: Landmark[], pos: Vec2, heading: number, includeDestination: boolean): void {
     const keep = audible(all, pos, heading, { max: 2, radiusM: 6, includeDestination, destinationId: this.destinationId });
@@ -38,39 +43,41 @@ export class LandmarkSounds {
 
   stop(): void { for (const v of this.voices.values()) this.stopVoice(v); this.voices.clear(); }
 
-  /** Three chirps from a point (key B destination hint). */
+  /** Three chirps from a point (key B destination hint), on the cue bus. */
   chirps(at: Vec2): void {
-    const p = this.panner(at);
-    for (let i = 0; i < 3; i++) this.blip(p, "chirp", this.ctx.currentTime + i * 0.25);
-    setTimeout(() => p.disconnect(), 1500);
-  }
-
-  private panner(at: Vec2): PannerNode {
-    const p = this.ctx.createPanner();
-    p.panningModel = this.panning; p.distanceModel = "inverse"; p.refDistance = 1; p.rolloffFactor = 1;
-    const [x, y, z] = toAudio(at);
-    p.positionX.value = x; p.positionY.value = y; p.positionZ.value = z;
-    p.connect(this.out);
-    return p;
+    for (let i = 0; i < 3; i++) setTimeout(() => this.blip(at, "chirp", 1), i * 250);
   }
 
   private startVoice(l: Landmark): Voice {
-    const v: Voice = { panner: this.panner(l.pos), timer: null };
+    const v: Voice = { at: l.pos, kind: l.kind, timer: null };
     const [lo, hi] = SOUNDING[l.kind]!.everyS;
     const tick = () => {
-      this.blip(v.panner, l.kind, this.ctx.currentTime + 0.01);
+      this.blip(v.at, v.kind, 0);
       v.timer = setTimeout(tick, 1000 * (lo + Math.random() * (hi - lo)));
     };
     v.timer = setTimeout(tick, 200 + Math.random() * 600);
     return v;
   }
 
-  private stopVoice(v: Voice): void { if (v.timer) clearTimeout(v.timer); v.panner.disconnect(); }
+  private stopVoice(v: Voice): void { if (v.timer) clearTimeout(v.timer); }
 
-  /** A distinct short event per kind: broadband transients localise better than sine tones. */
-  private blip(to: AudioNode, kind: string, t: number): void {
-    const c = this.ctx, g = c.createGain();
-    g.connect(to);
+  private blip(at: Vec2, kind: string, pri: number): void {
+    const a = this.audio, c = a.ctx, b = a.buses;
+    if (!c || !b) return;
+    const g = c.createGain();
+    const release = a.budget.acquire(pri, () => { try { g.disconnect(); } catch { /* gone */ } });
+    if (!release) { g.disconnect?.(); return; }
+    const chain = spatialChain(c, at, a.pose, { panning: a.panning });
+    const bus = kind === "chirp" ? b.cue : b.ambient;
+    g.connect(chain.input); chain.output.connect(bus);
+    const len = this.blipInto(g, kind, c.currentTime + 0.01);
+    a.bus.publish({ kind: "sound", at, label: kind === "chirp" ? "destination" : kind, sound: kind, bus: kind === "chirp" ? "cue" : "ambient" });
+    setTimeout(() => { release(); try { g.disconnect(); chain.output.disconnect(); chain.panner.disconnect(); } catch { /* gone */ } }, (len + 0.1) * 1000);
+  }
+
+  /** A distinct short event per kind: broadband transients localise better than sine tones. Returns its length in s. */
+  private blipInto(g: GainNode, kind: string, t: number): number {
+    const c = this.ctx;
     if (kind === "elevator" || kind === "chirp") {
       const o = c.createOscillator();
       o.type = kind === "chirp" ? "square" : "sine";
@@ -81,7 +88,7 @@ export class LandmarkSounds {
       g.gain.exponentialRampToValueAtTime(kind === "chirp" ? 0.25 : 0.4, t + 0.005);
       g.gain.exponentialRampToValueAtTime(0.0001, t + len);
       o.connect(g); o.start(t); o.stop(t + len + 0.05);
-      return;
+      return len;
     }
     // desk: a few key clicks; water: a short band of hiss
     const n = kind === "desk" ? 4 : 1;
@@ -94,6 +101,7 @@ export class LandmarkSounds {
       s.connect(f).connect(gg).connect(g); s.start(at);
     }
     g.gain.value = 1;
+    return kind === "desk" ? 0.6 : 0.3;
   }
 }
 

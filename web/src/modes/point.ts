@@ -1,5 +1,6 @@
 // Pointing task after arrival (Task 10 web, v2). No hint before confirm: only the heading is ever shown.
 import { clockHour } from "../clock";
+import { spokenOf } from "../names";
 import type { Landmark, PointResult, Vec2 } from "../types";
 import { bearing, wrap180, wrap360 } from "../world";
 
@@ -30,7 +31,7 @@ export class PointTask {
   /** Spoken intro. Never mentions where the target is. */
   start(say: (t: string, pri?: 0 | 1 | 2 | 3) => void, tMs = 0): void {
     this.t0 = tMs;
-    say(`You are back at the entrance, facing into the building. Turn to face the ${lower(this.target.label)}, then press Space.`, 2);
+    say(`You are back at the entrance, facing into the building. Turn to face the ${lower(spokenOf(this.target))}, then press Space.`, 2);
   }
 
   turn(deg: number): void {

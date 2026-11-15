@@ -7,6 +7,7 @@ import { pulse, PULSE } from "../audio/haptics";
 import { LandmarkSounds } from "../audio/landmarks";
 import type { Speech } from "../audio/speech";
 import type { KeyActions } from "../input/keyboard";
+import { possiblyOpts, spokenOf } from "../names";
 import type { Entrance, Landmark, Vec2 } from "../types";
 import { bearing, dist, Traveller, wrap180, type World } from "../world";
 import { HesitationTimer } from "./hesitation";
@@ -24,8 +25,9 @@ export type ExploreHooks = {
   now?: () => number;
 };
 
-export const lmName = (l: Landmark): string =>
-  (l.confidence < 0.6 ? "possibly " : "") + l.label.charAt(0).toLowerCase() + l.label.slice(1);
+/** The short spoken name, first letter lower case; "possibly" is a separate prefix, never part of the name. */
+export const lmName = (l: Landmark): string => spokenOf(l).charAt(0).toLowerCase() + spokenOf(l).slice(1);
+const TAP_WORD: Record<number, string> = { 1: "wall", 2: "obstacle", 3: "obstacle", 4: "glass", 5: "stairs" };
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export class Explore implements KeyActions {
@@ -55,9 +57,10 @@ export class Explore implements KeyActions {
     const toId = pkg.routes[0]?.to;
     this.destination = pkg.landmarks.find(l => l.id === toId) ?? pkg.landmarks.find(l => l.kind === "desk") ?? null;
     this.now = hooks.now ?? (() => performance.now());
-    if (audio.ctx && audio.beaconBus)
-      this.sounds = new LandmarkSounds(audio.ctx, audio.beaconBus, this.destination?.id,
-        new URLSearchParams(globalThis.location?.search ?? "").get("pan") === "eq" ? "equalpower" : "HRTF");
+    if (audio.ctx && audio.buses) {
+      if (new URLSearchParams(globalThis.location?.search ?? "").get("pan") === "eq") audio.panning = "equalpower";
+      this.sounds = new LandmarkSounds(audio, this.destination?.id);
+    }
   }
 
   intro(phone: boolean): string {
@@ -193,7 +196,7 @@ export class Explore implements KeyActions {
       for (const l of this.rehearse ? [] : this.world.pkg.landmarks) {
         if (dist(t.pos, l.pos) <= ARRIVE_M && !this.heard.has(l.id)) {
           this.heard.add(l.id);
-          this.speech.say(`${cap(lmName(l))} at ${this.clockTo(l.pos)} o'clock.`, 1);
+          this.speech.say(spokenOf(l), 1, { at: l.pos, ...possiblyOpts(l) }); // its name, from where it is
           pulse(PULSE.landmark);
         } else if (dist(t.pos, l.pos) > ARRIVE_M * 2) this.heard.delete(l.id);
       }
@@ -214,7 +217,7 @@ export class Explore implements KeyActions {
       if (!this.stairsWarned) { this.stairsWarned = true; this.speech.say("Stairs ahead.", 3); }
     } else if (!hit) this.stairsWarned = false;
     if (ev) {
-      this.audio.play(ev.code, { dist: ev.dist, pan: Math.sin(ev.caneDeg * Math.PI / 180) });
+      this.audio.play(ev.code, { dist: ev.dist, pan: Math.sin(ev.caneDeg * Math.PI / 180), at: ev.at, label: TAP_WORD[ev.code] ?? "tap" });
       this.hooks.onTap?.(ev.at, ev.code);
       pulse(PULSE.contact);
     }

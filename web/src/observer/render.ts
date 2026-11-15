@@ -169,6 +169,16 @@ export function start(S: new () => ObserverState, openBus: (s: string, o?: { rel
       else { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke(); if (t.code === 4) { ctx.beginPath(); ctx.arc(x, y, r + 6 * k, 0, 7); ctx.stroke(); } }
       ctx.setLineDash([]); ctx.globalAlpha = 1;
     }
+    // cue ripples: 700 ms, one ring and a short label where the sound came from
+    for (const c of st.cues) {
+      const age = now - c.rx; if (age > 700) continue;
+      const r = reducedMotion() ? 22 * k : (10 + 26 * (age / 700)) * k, x = X(c.at[0]), y = Y(c.at[1]);
+      ctx.globalAlpha = reducedMotion() ? 1 : 1 - age / 700; ctx.lineWidth = 3 * k;
+      ctx.strokeStyle = c.kind === "bump" ? P.obstacle : P.route;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
+      if (c.label) halo(c.label.slice(0, 28), x + 14 * k, y - 10 * k, 2.4);
+      ctx.globalAlpha = 1;
+    }
   }
   fitCanvas(cv);
   new ResizeObserver(() => fitCanvas(cv)).observe(cv);

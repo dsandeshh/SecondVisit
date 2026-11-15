@@ -1,9 +1,12 @@
 // Visitor app wiring: Start gate, output mode choice, Explore on laptop and phone (Task 8).
 import { AudioEngine, type StartReport } from "./audio/engine";
 import { Speech } from "./audio/speech";
+import { ClipStore, VoiceOut } from "./audio/voice";
+import { Captions } from "./ui/captions";
 import { attachFocusGuard, attachKeys } from "./input/keyboard";
 import { MotionInput } from "./input/orientation";
 import { obs } from "./observer/bus";
+import type { ObsMsg } from "./observer/protocol";
 import { Explore, type ExploreHooks } from "./modes/explore";
 import { Session, type Phase } from "./modes/session";
 import type { QuizSession } from "./modes/quiz";
@@ -12,7 +15,7 @@ import type { BuildingPackage } from "./types";
 import { Cockpit } from "./ui/cockpit";
 import { World } from "./world";
 
-export type App = { cockpit?: Cockpit | null; audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
+export type App = { voice?: VoiceOut; captions?: Captions; cockpit?: Cockpit | null; audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
 
 const FOCUSABLE = "a[href],button,input,select,textarea,[tabindex]";
 
@@ -64,6 +67,12 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean): void {
   const pkg = app.pkg!;
   const phone = audio.mode !== "keys";
   const hooks: ExploreHooks = {};
+  // One event bus: voice clips, captions and the observer all subscribe to speech.bus (the 3D ring does in the cockpit).
+  const store = new ClipStore(audio.ctx!, `/buildings/${pkg.id}`);
+  app.voice = new VoiceOut(audio, speech, store);
+  void store.init().then(() => store.preload()).catch(() => undefined);
+  app.captions = new Captions(doc, speech.bus);
+  speech.bus.subscribe(c => obs.publish(c as ObsMsg));
   const ex = new Explore(new World(pkg), audio, speech, hooks);
   app.explore = ex;
   const session = new Session(ex, pkg, speech, hooks, {

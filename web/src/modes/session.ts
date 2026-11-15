@@ -1,5 +1,6 @@
 // Session: Explore -> Rehearse -> point -> quiz -> pocket summary -> run 2 (Tasks 9 and 10 web).
 // One KeyActions for the stage; phases decide what each key means.
+import { spokenOf } from "../names";
 import { sourceLine } from "../ui/prov";
 import type { Priority, Speech } from "../audio/speech";
 import { pulse, PULSE } from "../audio/haptics";
@@ -135,7 +136,7 @@ export class Session implements KeyActions {
     this.run!.addPoint(r);
     this.pub({ v: 1, t: "point", ts: this.now(), from: r.at, heading: r.heading, target_bearing: r.target_bearing, error_deg: r.error_deg });
     const next = this.runNo === 1 ? "Press Enter for three questions." : "Press Enter for the summary.";
-    this.say(`${pointFeedback(r, task.startHeading, task.target.label)} ${next}`, 2);
+    this.say(`${pointFeedback(r, task.startHeading, spokenOf(task.target))} ${next}`, 2);
   }
 
   private startQuiz(): void {
@@ -265,5 +266,6 @@ export class Session implements KeyActions {
     else this.ex.swap();
   }
   rate(d: number): void { this.ex.rate(d); }
-  any(): void { this.ex.any(); }
+  /** Any key interrupts speech (CLAUDE.md rule 7), then resumes a paused AudioContext. */
+  any(): void { this.speech.stop(); this.ex.any(); }
 }

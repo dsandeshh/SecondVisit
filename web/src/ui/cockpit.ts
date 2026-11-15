@@ -1,6 +1,8 @@
 // The sighted watcher's view of the rehearsal: 3D room, objects list, mini floor plan, live instruction strip,
 // agent and data panel (UI_DESIGN 4.2a). Read only on the traveller's state; it never changes audio or keys.
 import { STEP_M } from "../config";
+import { ringLabel } from "../events";
+import { shownName } from "../names";
 import type { Explore, ExploreHooks } from "../modes/explore";
 import type { Session } from "../modes/session";
 import { Room3D, type ViewMode } from "../three/room3d";
@@ -67,6 +69,7 @@ export class Cockpit {
   private pointByRun: Record<number, number> = {};
   private timer: ReturnType<typeof setInterval> | null = null;
   private planCtx: CanvasRenderingContext2D | null = null;
+  private ringOff: (() => void) | null = null;
 
   constructor(private doc: Document, readonly pkg: BuildingPackage, private ex: Explore, private session: Session,
     hooks: ExploreHooks, private fetcher: typeof fetch = fetch) {
@@ -88,6 +91,14 @@ export class Cockpit {
       const prev = hooks.onTap;
       hooks.onTap = (at, code) => { prev?.(at, code); this.room?.tap(at); };
       this.room.setLandmarks(this.landmarks);
+      // The sound ring: the same cues the headphones get (one event bus), each flashed where it comes from.
+      this.ringOff = this.ex.speech.bus.subscribe(c => {
+        const label = ringLabel(c);
+        if (label === null || !this.room) return;
+        const bus = c.bus ?? "voice", css = (n: string, f: string) => getComputedStyle(this.doc.documentElement).getPropertyValue(n).trim() || f;
+        const color = bus === "safety" ? css("--d-obstacle", "#C45A00") : bus === "ambient" ? "#6E6E73" : css("--d-route", "#2160A8");
+        this.room.flash(c.at ?? null, label, color);
+      });
     } catch {
       const n = this.$("room3d-note"); n.hidden = false; n.textContent = "3D view not available in this browser.";
     }
@@ -100,7 +111,7 @@ export class Cockpit {
     this.timer = setInterval(() => this.tick(), 50);
   }
 
-  destroy(): void { if (this.timer) clearInterval(this.timer); this.room?.dispose(); }
+  destroy(): void { if (this.timer) clearInterval(this.timer); this.ringOff?.(); this.room?.dispose(); }
 
   // ---- top bar ----------------------------------------------------------------------------
   private topBar(): void {
@@ -180,7 +191,7 @@ export class Cockpit {
       const th = this.doc.createElement("th"); th.scope = "row";
       const name = this.doc.createElement("button");
       name.type = "button"; name.className = "linkbtn";
-      name.textContent = withPossibly(l.label, { src: "ai", ref: "", at: "", confidence: l.confidence } as Prov) + (l.id === destId ? " (destination)" : "");
+      name.textContent = shownName(l) + (l.id === destId ? " (destination)" : "");
       name.title = l.label; name.setAttribute("aria-pressed", String(l.id === this.sel));
       name.addEventListener("click", () => { this.sel = this.sel === l.id ? null : l.id; this.room?.highlight(this.sel); this.objects(); });
       const sub = this.doc.createElement("span"); sub.className = "objects__sub";

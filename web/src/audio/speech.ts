@@ -1,5 +1,12 @@
 // Speech with priorities, a local voice, sentence chunks, and the two output modes (CLAUDE.md rule 7).
+import { CueBus, captionText } from "../events";
+import { lineId } from "../lines";
+import type { Vec2 } from "../types";
+
 export type Priority = 0 | 1 | 2 | 3; // 0 info, 1 landmark, 2 instruction, 3 safety
+/** `at`: the line comes from that point (a name clip through the HRTF chain, a direction in the caption).
+ *  `prefix`: a separate first word, "possibly" under 0.6 confidence. */
+export type SayOpts = { at?: Vec2; prefix?: string };
 export type Output = "app" | "screenreader";
 
 type Synth = Pick<SpeechSynthesis, "speak" | "cancel" | "resume" | "getVoices" | "paused" | "speaking"> &
@@ -41,6 +48,14 @@ export class Speech {
   errors: string[] = [];
   last = "";
   lastPri: Priority = 2;
+  lastOpts: SayOpts = {};
+  /** The one event bus: every line is published here as a `say` cue (captions, audio, ring, observer). */
+  bus = new CueBus();
+  /** Set by VoiceOut: clips play the line, and it calls speakBrowser when it cannot. */
+  hasClips = false;
+  onCancel: () => void = () => {};
+  private seq = 0;
+  private waiters: (() => void)[] = [];
   onDuck: (on: boolean) => void = () => {};
   onSpeakingChange: (on: boolean) => void = () => {};
   /** Every line actually said or written (observer feed). */
@@ -91,17 +106,42 @@ export class Speech {
   get speaking(): boolean { return this.current !== null; }
 
   /** A line interrupts only lines of equal or lower priority; a lower one is dropped. */
-  say(text: string, pri: Priority = 2): void {
+  say(text: string, pri: Priority = 2, opts: SayOpts = {}): void { this.sayInner(text, pri, opts); }
+
+  /** Like say, resolves when the line has finished, was cut off, or was dropped. */
+  sayAsync(text: string, pri: Priority = 2, opts: SayOpts = {}): Promise<void> {
+    const seq = this.sayInner(text, pri, opts);
+    if (seq === 0 || this.current === null) return Promise.resolve();
+    return new Promise(r => this.waiters.push(r));
+  }
+
+  private flush(): void { const w = this.waiters; this.waiters = []; w.forEach(f => f()); }
+
+  private sayInner(text: string, pri: Priority, opts: SayOpts): number {
     // A lost onend (Chrome) must not block lower lines forever.
-    if (this.current !== null && this.synth && !this.synth.speaking && !(this.synth as any).pending) this.setCurrent(null);
-    if (this.output === "app" && this.current !== null && pri < this.current) return;
-    this.last = text; this.lastPri = pri;
-    this.write(text, pri);
-    try { this.onSay(text, pri); } catch { /* observer must never break speech */ }
-    if (this.output !== "app" || !this.synth || !this.U) return;
-    this.synth.cancel();
+    if (!this.hasClips && this.current !== null && this.synth && !this.synth.speaking && !(this.synth as any).pending) this.setCurrent(null);
+    if (this.output === "app" && this.current !== null && pri < this.current) return 0;
+    const full = captionText(text, opts.prefix);
+    this.last = text; this.lastPri = pri; this.lastOpts = opts;
+    this.write(full, pri);
+    try { this.onSay(full, pri); } catch { /* observer must never break speech */ }
+    this.flush();                       // the line before this one is superseded
+    const seq = ++this.seq;
+    this.onCancel();
+    this.bus.publish({ kind: "say", text, line: lineId(text), pri, at: opts.at, prefix: opts.prefix, seq });
+    const canSpeak = this.hasClips || (!!this.synth && !!this.U);
+    if (this.output !== "app" || !canSpeak) return seq;
+    this.synth?.cancel();
     this.live = [];
-    if (this.synth.paused) this.synth.resume();
+    if (this.synth?.paused) this.synth.resume();
+    this.current = pri;
+    if (!this.hasClips) this.speakBrowser(full, pri, seq);
+    return seq;
+  }
+
+  /** The browser voice for one line (the fallback when no clip is ready in time). */
+  speakBrowser(text: string, pri: Priority, seq = this.seq): void {
+    if (seq !== this.seq || !this.synth || !this.U) { if (seq === this.seq) this.setCurrent(null); return; }
     const parts = chunks(text);
     this.current = pri;
     parts.forEach((p, i) => {
@@ -112,9 +152,13 @@ export class Speech {
     });
   }
 
-  repeat(): void { if (this.last) this.say(this.last, Math.max(2, this.lastPri) as Priority); }
+  /** VoiceOut: the first clip of line `seq` started / the last one ended. */
+  clipStarted(seq: number, pri: Priority): void { if (seq === this.seq) this.setCurrent(pri, true); }
+  clipEnded(seq: number): void { if (seq === this.seq) this.setCurrent(null); }
 
-  stop(): void { this.synth?.cancel(); this.live = []; this.setCurrent(null); }
+  repeat(): void { if (this.last) this.say(this.last, Math.max(2, this.lastPri) as Priority, this.lastOpts); }
+
+  stop(): void { this.onCancel(); this.synth?.cancel(); this.live = []; this.setCurrent(null); this.flush(); }
 
   private configure(u: SpeechSynthesisUtterance): void {
     u.rate = this.rate; u.lang = "en-US";
@@ -137,7 +181,7 @@ export class Speech {
   }
 
   private setCurrent(p: Priority | null, started = false): void {
-    if (p === null) { if (this.current !== null) { this.current = null; this.onDuck(false); this.onSpeakingChange(false); } return; }
+    if (p === null) { if (this.current !== null) { this.current = null; this.onDuck(false); this.onSpeakingChange(false); } this.flush(); return; }
     this.current = p;
     if (started) { this.onDuck(true); this.onSpeakingChange(true); }
   }

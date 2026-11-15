@@ -35,7 +35,7 @@ main { max-width: 72rem; padding: var(--sp-section) var(--gutter); }
 
 .transcript__now { font-size: var(--fs-caption); font-weight: var(--fw-medium); color: var(--c-ink);
   border-left: 4px solid var(--c-ink); padding-left: var(--sp-4); margin: 0 0 var(--sp-5); min-height: 1.5em;
-  max-height: calc(3 * 1.3em + 0.2em); line-height: 1.3; overflow-y: auto; }
+  line-height: 1.3; }
 .transcript__label { font-size: var(--fs-small); color: var(--c-ink-2); font-weight: var(--fw-bold); margin: 0; }
 .transcript__history { font-size: var(--fs-small); color: var(--c-ink-2); padding-left: var(--sp-5); margin: var(--sp-2) 0 0; }
 
@@ -186,8 +186,14 @@ body[data-phase]:not(.is-phone) main { max-width: 112rem; padding: var(--sp-4) v
 .strip { display: grid; gap: var(--sp-4) var(--sp-6); grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start;
   border-top: var(--bw-control) solid var(--c-ink); padding-top: var(--sp-3); margin-top: var(--sp-3); }
 @media (max-width: 1099px) { .strip { grid-template-columns: 1fr; } }
+/* Captions are never cut: two rows at the normal size, one font step smaller when longer, and the box grows after that. */
 .strip .transcript__now { font-size: 1.375rem; font-weight: var(--fw-bold); line-height: 1.25;
-  border-left: 4px solid var(--c-ink); padding-left: var(--sp-4); margin: 0; min-height: 2.5em; max-height: 2.5em; overflow-y: auto; }
+  border-left: 4px solid var(--c-ink); padding-left: var(--sp-4); margin: 0; min-height: 2.5em; flex: 1 1 auto; min-width: 0; }
+.strip .transcript__now.is-long { font-size: 1.125rem; }
+.transcript__row { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.transcript__dir { flex: none; margin: 0; padding: 2px var(--sp-3); font-size: var(--fs-small); font-weight: var(--fw-bold);
+  border: var(--bw-control) solid var(--d-route); color: var(--c-ink); white-space: nowrap; display: inline-flex; align-items: center; gap: var(--sp-2); }
+.dirarrow { display: inline-block; font-size: 1.4em; line-height: 1; color: var(--d-route); transform-origin: 50% 55%; }
 .strip .stage__status { margin: var(--sp-2) 0 0 calc(var(--sp-4) + 4px); }
 .strip__side { display: grid; gap: var(--sp-1); }
 .strip__lede { margin: 0; font-size: var(--fs-small); color: var(--c-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

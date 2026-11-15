@@ -41,6 +41,7 @@ export class FakeAudioContext {
     return { numberOfChannels: ch, length: len, sampleRate: sr, duration: len / sr,
       getChannelData: (i: number) => data[i] };
   }
+  decodeAudioData() { return Promise.resolve(this.createBuffer(1, 4800, 48000)); }
   createBufferSource() { return node(); }
   createGain() { return node(); }
   createChannelSplitter() { return node(); }

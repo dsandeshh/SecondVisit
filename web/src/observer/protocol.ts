@@ -17,6 +17,11 @@ export interface EndMsg {
   v: 1; t: "end"; ts: number; run: number; arrived: boolean; time_s: number; bumps: number;
   off_route: number; quiz_correct: number; quiz_total: number; point_error_deg: number | null;
 }
+/** agent5 section 5: published at the moment each sound starts (events.ts Cue; kinds beyond agent5: say, sound). */
+export interface CueMsg {
+  v: 1; t: "cue"; ts: number; kind: string; at?: Vec2; id?: string; ids?: string[]; label?: string; deg?: number;
+  hit_m?: number; text?: string; line?: string; pri?: number; seq?: number; prefix?: string; sound?: string; bus?: string;
+}
 export type ObsMsg =
   | { v: 1; t: "hello"; session: string; building_id: string; route_id: string; run: number; mode: string }
   | { v: 1; t: "pose"; ts: number; pos: Vec2; heading: number; cane_deg: number }
@@ -26,6 +31,7 @@ export type ObsMsg =
   | { v: 1; t: "quiz"; ts: number; q: string; seg: number; correct: boolean }
   | { v: 1; t: "point"; ts: number; from: Vec2; heading: number; target_bearing: number; error_deg: number }
   | { v: 1; t: "plan"; ts: number; focus_segment: number; line: string; plan: RunPlan }
+  | CueMsg
   | EndMsg;
 
 const fin = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
@@ -42,6 +48,8 @@ export function validMsg(m: unknown): m is ObsMsg {
   switch (o.t) {
     case "pose": return pair(o.pos) && fin(o.heading) && fin(o.cane_deg);
     case "tap": return pair(o.at) && fin(o.code) && o.code >= 0 && o.code <= 5;
+    case "cue": return str(o.kind) && (o.at === undefined || pair(o.at)) && (o.text === undefined || str(o.text)) &&
+      (o.label === undefined || str(o.label)) && (o.ids === undefined || (Array.isArray(o.ids) && o.ids.every(str)));
     case "say": return str(o.text) && fin(o.pri);
     case "event": return str(o.kind) && fin(o.seg) && pair(o.pos);
     case "quiz": return str(o.q) && fin(o.seg) && typeof o.correct === "boolean";

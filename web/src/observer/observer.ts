@@ -11,6 +11,9 @@ export class ObserverState {
   lastSay = "";
   taps: { at: Vec2; code: CellCode; ts: number; rx: number }[] = [];
   summary: Record<number, EndMsg> = {};
+  /** Positioned sounds from the cue bus, drawn as short ripples (same events the headphones and the 3D ring get). */
+  cues: { at: Vec2; kind: string; label: string; ts: number; rx: number }[] = [];
+  lastCue = "";
   quiz: { q: string; seg: number; correct: boolean }[] = [];
   events: { kind: string; seg: number; pos: Vec2; ts: number }[] = [];
   points: Record<number, { from: Vec2; heading: number; target_bearing: number; error_deg: number }> = {};
@@ -37,6 +40,11 @@ export class ObserverState {
         break;
       case "tap": this.taps.push({ at: m.at, code: m.code, ts: m.ts, rx: performance.now() }); break;
       case "say": this.lastSay = m.text; break;
+      case "cue":
+        this.lastCue = m.kind;
+        if (m.at) this.cues.push({ at: m.at, kind: m.kind, label: m.label ?? m.text ?? "", ts: m.ts, rx: performance.now() });
+        this.cues = this.cues.slice(-12);
+        break;
       case "event": this.seg = m.seg; this.events.push({ kind: m.kind, seg: m.seg, pos: m.pos, ts: m.ts }); break;
       case "quiz": this.quiz.push({ q: m.q, seg: m.seg, correct: m.correct }); break;
       case "point": this.points[this.run] = { from: m.from, heading: m.heading, target_bearing: m.target_bearing, error_deg: m.error_deg }; break;
