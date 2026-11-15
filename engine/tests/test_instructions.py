@@ -1,4 +1,6 @@
+import json
 import math
+from pathlib import Path
 
 import pytest
 
@@ -8,10 +10,18 @@ from dr.fixtures import lobby_fixture
 from dr.package import Segment
 
 
-@pytest.mark.parametrize("deg,h", [(0, 12), (30, 1), (60, 2), (90, 3), (180, 6), (-90, 9),
-                                   (-30, 11), (179, 6), (-180, 6), (350, 12)])
-def test_clock(deg, h):
-    assert clock_hour(deg) == h
+CASES = json.loads((Path(__file__).parents[2] / "data/fixtures/clock_cases.json").read_text())["cases"]
+
+
+@pytest.mark.parametrize("c", CASES)
+def test_clock(c):
+    assert clock_hour(c["rel_deg"]) == c["hour"]
+
+
+def test_grounded():
+    from dr.grounding import grounded, numbers_in
+    assert numbers_in("Walk 14 steps, 2.5 m") == [14, 2.5]
+    assert grounded("Walk 14 steps", {14}) and not grounded("Walk 15 steps", [14])
 
 
 def seg(i, a, b, heading, wall="left", lms=()):

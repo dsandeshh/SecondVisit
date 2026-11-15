@@ -5,7 +5,7 @@ import math
 import re
 
 from dr import llm
-from dr.config import STEP_M
+from dr.grounding import grounded
 from dr.package import Entrance, Landmark, Segment
 
 MAX_LEN = 160
@@ -71,19 +71,17 @@ def _dirs(t: str) -> list[str]:
 
 
 def numbers_match(text: str, seg: Segment) -> bool:
-    """Walk step count equals seg.steps; every other number is a clock hour 1-12 or an
-    'about N steps' destination count; at most 160 chars."""
+    """'Walk N steps' equals seg.steps; every number is seg.steps or a clock hour 1-12 that
+    appears as 'N o'clock'; at most 160 chars."""
     if len(text) > MAX_LEN:
         return False
     walk = re.findall(r"[Ww]alk (\d+) steps?", text)
     if len(walk) != 1 or int(walk[0]) != seg.steps:
         return False
+    if not grounded(text, [seg.steps, *range(1, 13)]):
+        return False
     rest = re.sub(r"[Ww]alk \d+ steps?", "", text)
-    rest = re.sub(r"about \d+ steps?", "", rest)
-    for n in re.findall(r"\d+", rest):
-        if not 1 <= int(n) <= 12:
-            return False
-    return all(re.search(rf"{n} o'clock", rest) for n in re.findall(r"\d+", rest))
+    return all(re.search(rf"\b{n} o'clock", rest) for n in re.findall(r"\d+", rest))
 
 
 def write(segments: list[Segment], landmarks: list[Landmark], entrances: list[Entrance],
@@ -104,8 +102,7 @@ def write(segments: list[Segment], landmarks: list[Landmark], entrances: list[En
                 d = min(landmarks, key=lambda m: math.dist(m.pos, seg.end))
             if d is not None:
                 rel = wrap180(_bearing(seg.end, d.pos) - seg.heading_deg)
-                n = max(1, round(math.dist(seg.end, d.pos) / STEP_M))
-                tail = f". The {d.label} is at {clock_hour(rel)} o'clock, about {_steps(n)}"
+                tail = f". The {d.label} is at {clock_hour(rel)} o'clock"
         text = _fit(seg, prev, lms, tail)
         if smooth:
             s = llm.complete(SMOOTH_SYSTEM, text)

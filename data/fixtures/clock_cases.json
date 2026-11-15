@@ -1,0 +1,93 @@
+{
+ "rule": "hour = round(wrap(rel_deg)/30) mod 12, 0 shown as 12; rel_deg wrapped to (-180,180]; round is half-to-even (Python round), so +-15 -> 12, 45 -> 2, -45 -> 10 (TS must not use Math.round on halves); 135 -> 4 (4.5 rounds to even)",
+ "cases": [
+  {
+   "rel_deg": 0,
+   "hour": 12
+  },
+  {
+   "rel_deg": 15,
+   "hour": 12
+  },
+  {
+   "rel_deg": -15,
+   "hour": 12
+  },
+  {
+   "rel_deg": 30,
+   "hour": 1
+  },
+  {
+   "rel_deg": 45,
+   "hour": 2
+  },
+  {
+   "rel_deg": -45,
+   "hour": 10
+  },
+  {
+   "rel_deg": 60,
+   "hour": 2
+  },
+  {
+   "rel_deg": 75,
+   "hour": 2
+  },
+  {
+   "rel_deg": 90,
+   "hour": 3
+  },
+  {
+   "rel_deg": 135,
+   "hour": 4
+  },
+  {
+   "rel_deg": 165,
+   "hour": 6
+  },
+  {
+   "rel_deg": 179,
+   "hour": 6
+  },
+  {
+   "rel_deg": 180,
+   "hour": 6
+  },
+  {
+   "rel_deg": -180,
+   "hour": 6
+  },
+  {
+   "rel_deg": -179,
+   "hour": 6
+  },
+  {
+   "rel_deg": -90,
+   "hour": 9
+  },
+  {
+   "rel_deg": -30,
+   "hour": 11
+  },
+  {
+   "rel_deg": -60,
+   "hour": 10
+  },
+  {
+   "rel_deg": 350,
+   "hour": 12
+  },
+  {
+   "rel_deg": 360,
+   "hour": 12
+  },
+  {
+   "rel_deg": 190,
+   "hour": 6
+  },
+  {
+   "rel_deg": -190,
+   "hour": 6
+  }
+ ]
+}
