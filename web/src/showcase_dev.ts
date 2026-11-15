@@ -8,6 +8,7 @@ import { Traveller, World } from "./world";
 const q = new URLSearchParams(location.search);
 const host = document.getElementById("host")!, note = document.getElementById("note")!;
 const w = window as any;
+const dev = q.get("dev") === "1"; // debug badge only with ?dev=1
 
 async function main(): Promise<void> {
   const pkg = (await (await fetch(`/buildings/${q.get("b") ?? "x37LjPx62VA"}/package.json`)).json()) as BuildingPackage;
@@ -16,7 +17,7 @@ async function main(): Promise<void> {
   const at = (q.get("at") ?? "").split(",").map(Number);
   const t = new Traveller(world, at.length === 3 ? [at[0], at[1]] : ent.pos, at.length === 3 ? at[2] : ent.heading_deg);
   bus.listener = { pos: t.pos, heading: t.heading };
-  note.textContent = "connecting...";
+  note.textContent = dev ? "connecting..." : "";
   let h: ShowcaseHandle;
   try {
     h = await mountShowcase({ host, pkg, world, bus, route: pkg.routes[+(q.get("route") ?? 0)], say: s => (note.textContent = s), onFail: r => { w.__failAt = performance.now(); w.__failWhy = r; note.textContent = "Photo view needs internet; showing the scan."; } });
@@ -25,7 +26,7 @@ async function main(): Promise<void> {
   w.__sc = { h, t, bus };
   const sync = (): void => { bus.listener = { pos: t.pos, heading: t.heading }; h.setPose(t.pos, t.heading); };
   if (at.length === 3) sync();
-  note.textContent = `ready: cal ${(h.calibration!.meanErr * 100).toFixed(1)} cm, mirrored=${h.calibration!.mirrored}`;
+  note.textContent = !dev ? "" : `ready: cal ${(h.calibration!.meanErr * 100).toFixed(1)} cm, mirrored=${h.calibration!.mirrored}`;
   w.__sc.sync = sync;
   host.focus();
   host.addEventListener("keydown", e => {
