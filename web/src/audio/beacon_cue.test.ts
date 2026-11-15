@@ -8,9 +8,8 @@ import { World } from "../world";
 import { AudioEngine } from "./engine";
 import { Speech } from "./speech";
 import { azimuth, forwardFor } from "./space";
-import { humParams, wobbleHz, HUM_BEHIND_LEVEL, HUM_PARTIALS, HUM_NOISE_HZ, HUM_NOISE_LEVEL, HUM_NOISE_Q, HUM_RAMP_TAU, HUM_GLIDE_TAU } from "./beacon_cue";
 import { BEACON_HZ, BEHIND_LEVEL, BEHIND_LP_HZ, BEHIND_RATE, CLICK_HZ, CLICK_S, cueOf, cueParams, heard, pulseRate } from "./beacon_cue";
-import { BEACON_GAIN, beaconAz, beaconSpot, ContinuousSounds, PROX_GAIN } from "./continuous";
+import { beaconAz, beaconSpot, ContinuousSounds } from "./continuous";
 import { HeadingSmoother, TURN_GLIDE_MS } from "./heading_smooth";
 
 describe("beacon direction", () => {
@@ -47,9 +46,9 @@ describe("beacon cue", () => {
     expect(BEHIND_LEVEL).toBeGreaterThan(0.5); expect(BEHIND_RATE).toBeLessThan(1);
     expect(side.lpHz).toBeGreaterThan(10000); expect(side.level).toBe(1); expect(side.rateK).toBe(1);
   });
-  it("the click stays high and short, far from the low obstacle drone (nothing above 200 Hz)", () => {
+  it("the click stays high and short, far from the low dry obstacle tick (160 Hz square under a 900 Hz low-pass)", () => {
     expect(CLICK_HZ).toBeGreaterThanOrEqual(3000); expect(CLICK_S).toBeLessThanOrEqual(0.01);
-    expect(CLICK_HZ / 200).toBeGreaterThan(10);
+    expect(CLICK_HZ / 900).toBeGreaterThan(3);
   });
   it("what the ear hears: cue plus side", () => {
     expect(heard(10)).toEqual({ cue: "near", side: 1 });
@@ -100,11 +99,10 @@ describe("the 60 fps update path", () => {
     const frames: (() => void)[] = [];
     let now = 0;
     const turn = new HeadingSmoother(0);
-    let target: Vec2 = [8, 5];
     const pose = { pos: [5, 5] as Vec2, heading: 0 };
     const c = new ContinuousSounds(audio, w, {
       pose: () => pose, ear: () => ({ pos: pose.pos, heading: turn.at(now) }),
-      target: () => target, live: () => true, raf: f => { frames.push(f); },
+      target: () => [8, 5], live: () => true, raf: f => { frames.push(f); },
     });
     c.start();
     const run = () => { const f = frames.shift()!; f(); };
@@ -118,10 +116,9 @@ describe("the 60 fps update path", () => {
     expect(new Set(fwd.map(f => f.toFixed(4))).size).toBeGreaterThan(5);          // the ear swept, frame by frame
     expect(fwd.at(-1)!).toBeCloseTo(forwardFor(15)[0], 6);                         // and arrived on the stepped heading
     expect(c.frames).toBe(13);
-    target = [8, 7];                              // the next corner: the source glides there on the next frame (no tick, no key)
+    pose.pos = [5.5, 5];                          // walking moves the panner on the next frame (no tick, no key)
     run();
-    expect(xs.at(-1)).toBe(8);
-    expect(audio.ctx!.listener.forwardX.value).toBeCloseTo(forwardFor(15)[0], 6);
+    expect(xs.at(-1)).not.toBe(xs[0]);
     c.stop();
   });
   it("the pulse shape follows the cue: on axis pulses get the click, off axis ones do not", () => {
@@ -134,71 +131,5 @@ describe("the 60 fps update path", () => {
     c.tick(); expect(c.lastCue).toBe("on");
     pose.heading = 0; (audio.ctx as any).currentTime = 2; c.tick(); expect(c.lastCue).toBe("plain");
     pose.heading = 270; (audio.ctx as any).currentTime = 4; c.tick(); expect(c.lastCue).toBe("behind");
-  });
-});
-
-describe("the continuous hum (replaces the pulse)", () => {
-  it("distance is the wobble rate: 1.5 Hz at 12 m, 3 Hz at 5 m, 6 Hz at 1.5 m, interpolated, depth about 45 % off axis", () => {
-    expect(wobbleHz(12)).toBe(1.5); expect(wobbleHz(5)).toBeCloseTo(3); expect(wobbleHz(1.5)).toBe(6);
-    expect(wobbleHz(7.5)).toBeCloseTo(2.25); expect(wobbleHz(3.5)).toBeCloseTo(4.5);
-    for (const d of [12, 5, 1.5]) { const q = humParams(45, d); expect(q.rateHz).toBeCloseTo(wobbleHz(d)); expect(q.depth).toBeCloseTo(0.45); expect(q.level).toBe(1); }
-  });
-  it("aim is brightness: 30 deg dull and wobbling, 10 deg brighter and steadier, 2 deg brightest, nearly steady, the click", () => {
-    const a = humParams(30, 5), b = humParams(-10, 5), c = humParams(2, 5);
-    expect(a).toMatchObject({ cue: "plain", lpHz: 900, depth: 0.45, click: false });
-    expect(b.cue).toBe("near"); expect(b.lpHz).toBeCloseTo(900 * (7000 / 900) ** (2 / 3), 3); expect(b.depth).toBeCloseTo(0.45 - 0.3 * 2 / 3, 6); expect(b.click).toBe(false);
-    expect(c).toMatchObject({ cue: "on", lpHz: 7000, depth: 0.1, click: true });
-    expect(humParams(20, 5).lpHz).toBeCloseTo(900); expect(humParams(5.001, 5).lpHz).toBeCloseTo(7000, -1); expect(humParams(5.001, 5).depth).toBeCloseTo(0.15, 3);
-    expect(humParams(-30, 1.5).rateHz).toBe(6);
-  });
-  it("behind: 1 kHz low-pass, about -4 dB, the wobble 25 % slower", () => {
-    const q = humParams(150, 5);
-    expect(q).toMatchObject({ cue: "behind", lpHz: 1000, depth: 0.45, click: false });
-    expect(q.rateHz).toBeCloseTo(3 * 0.75); expect(20 * Math.log10(q.level)).toBeCloseTo(-4); expect(q.level).toBe(HUM_BEHIND_LEVEL);
-  });
-  it("timbre and timing: 196/294/392 Hz at 1/0.35/0.18 within 2 cents, a 5 % noise sheen at 4 kHz (Q 1.5), 80 ms ramps, 250 ms glide", () => {
-    expect(HUM_PARTIALS.map(p => p.hz)).toEqual([196, 294, 392]);
-    expect(HUM_PARTIALS.map(p => p.level)).toEqual([1, 0.35, 0.18]);
-    expect(HUM_PARTIALS.every(p => Math.abs(p.cents) <= 2)).toBe(true);
-    expect(HUM_NOISE_HZ).toBe(4000); expect(HUM_NOISE_Q).toBe(1.5); expect(HUM_NOISE_LEVEL).toBe(0.05);
-    expect(HUM_RAMP_TAU * 3).toBeCloseTo(0.08); expect(HUM_GLIDE_TAU * 3).toBeCloseTo(0.25);
-  });
-  it("the beacon is exactly 3 oscillators at 196/294/392 Hz (plus its wobble LFO and click), noise gain 0.05; cutoff 900 Hz at 30 deg, 7 kHz at 2 deg", () => {
-    const rows = ["##########", ...Array(8).fill("#........#"), "##########"];
-    const audio = new AudioEngine(new Speech({ doc: document, raf: f => f() }));
-    audio.ctx = new FakeAudioContext() as unknown as AudioContext; (audio as any).build(audio.ctx);
-    const ctx = audio.ctx as any, oscs: any[] = [], gains: any[] = [];
-    const mk = ctx.createOscillator.bind(ctx), mkg = ctx.createGain.bind(ctx);
-    ctx.createOscillator = () => { const o = mk(); oscs.push(o); return o; };
-    ctx.createGain = () => { const g = mkg(); gains.push(g); return g; };
-    const c = new ContinuousSounds(audio, new World(gridPkg(rows)), { pose: () => ({ pos: [5, 5], heading: 90 }), target: () => [8, 5], live: () => true, raf: () => {} });
-    c.tick();
-    const h = (c as any).beacon;
-    const tonal = h.srcs.filter((s: any) => oscs.includes(s));
-    expect(tonal.map((o: any) => o.frequency.value)).toEqual([196, 294, 392]);
-    expect(tonal.every((o: any) => o.type === "sine" && Math.abs(o.detune.value) <= 2)).toBe(true);
-    expect(oscs.filter(o => o !== h.lfo && o !== h.click.osc).length).toBe(3);
-    expect(gains.some(g => g.gain.value === 0.05)).toBe(true);
-    expect(humParams(30, 5).lpHz).toBe(900); expect(humParams(-2, 5).lpHz).toBe(7000);
-    expect(BEACON_GAIN).toBeGreaterThan(PROX_GAIN);
-  });
-  it("the hum's filter, wobble and level follow the mapping on every frame, from one voice", () => {
-    const rows = ["##########", ...Array(8).fill("#........#"), "##########"];
-    const w = new World(gridPkg(rows));
-    const audio = new AudioEngine(new Speech({ doc: document, raf: f => f() }));
-    audio.ctx = new FakeAudioContext() as unknown as AudioContext; (audio as any).build(audio.ctx);
-    const pose = { pos: [5, 5] as Vec2, heading: 90 };
-    const c = new ContinuousSounds(audio, w, { pose: () => pose, target: () => [8, 5], live: () => true, raf: () => {} });
-    c.tick();
-    const v = (c as any).beacon, got: Record<string, number> = {};
-    const spy = (name: string, p: any) => { p.setTargetAtTime = (x: number) => { got[name] = x; return p; }; };
-    spy("lp", v.lp.frequency); spy("rate", v.lfo.frequency); spy("half", v.lfoDepth.gain); spy("level", v.level.gain);
-    for (const [h, az] of [[90 - 30, 30], [90 - 10, 10], [90 - 2, 2], [270, 180]] as const) {
-      pose.heading = h; (audio.ctx as any).currentTime += 0.016; c.tick();
-      const q = humParams(az, 3);
-      expect(got.lp).toBeCloseTo(q.lpHz, 3); expect(got.rate).toBeCloseTo(q.rateHz, 6); expect(got.half * 2).toBeCloseTo(q.depth, 6);
-      expect(got.level / BEACON_GAIN).toBeCloseTo(q.level, 6);
-    }
-    expect((c as any).beacon).toBe(v);
   });
 });
