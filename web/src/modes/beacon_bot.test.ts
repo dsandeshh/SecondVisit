@@ -17,6 +17,7 @@ import { FakeAudioContext } from "../test/fakes";
 import type { BuildingPackage } from "../types";
 import { bearing, dist, wrap180, World } from "../world";
 import { Explore } from "./explore";
+import { findPath } from "./beacon";
 import { TARGET_ARRIVE_M } from "./interact";
 import { Session } from "./session";
 
@@ -43,7 +44,7 @@ function byEar(ex: Explore, clock: { t: number }, max = 800): { ups: number; tur
   const turn = (deg: number) => { ex.turn(deg); turns += Math.abs(deg) / 15; clock.t += PRESS_MS; };
   const step = (): boolean => { const p = t.pos; ex.step(1); ups++; clock.t += PRESS_MS; return t.pos !== p; };
   for (let i = 0; i < max; i++) {
-    const h = ex.cont.hearing();
+    const h = ex.cont.hearing(); 
     if (!h && !ex.fx.beaconTarget) return { ups, turns, silent };   // silent and reached: arrived
     if (!h) { silent++; if (!step()) return { ups: Infinity, turns }; continue; }   // on top of a path corner: walk on
     // aim, then commit: once on axis (or a near cue has crossed sides) keep stepping while it stays on or near
@@ -92,12 +93,14 @@ describe.skipIf(!hasClinic)("the beacon sounds from the visible path point (agen
     s.enter();
     const at = ex.fx.places().find(i => i.id === "door_3")!.at;
     let spot: [number, number] | null = null;
-    const c = new ContinuousSounds(ex.audio, ex.world, { pose: () => ex.traveller, ear: () => ex.ear(), target: () => ex.fx.beaconAim(),
+    let used: [number, number] | null = null;   // the beacon point the tick sounded from
+    const c = new ContinuousSounds(ex.audio, ex.world, { pose: () => ex.traveller, ear: () => ex.ear(), target: () => (used = ex.fx.beaconAim()),
       live: () => true, raf: () => {}, onPulse: p => { spot = [p[0], p[1]]; } });
     let viaCorner = 0, direct = 0;
     for (let i = 0; i < 300 && ex.fx.beaconTarget; i++) {
-      const t = ex.traveller, aim = ex.fx.beaconAim()!;
+      const t = ex.traveller;
       spot = null; (ex.audio.ctx as any).currentTime = i * 2; c.tick();
+      const aim = used!;
       const az = azimuth(t.pos, t.heading, spot!);
       expect(Math.abs(wrap180(az - wrap180(bearing(t.pos, aim) - t.heading)))).toBeLessThan(1);
       expect(c.hearing()).toEqual(heard(wrap180(bearing(t.pos, aim) - t.heading)));
@@ -108,5 +111,69 @@ describe.skipIf(!hasClinic)("the beacon sounds from the visible path point (agen
     }
     expect(viaCorner).toBeGreaterThan(0);
     expect(direct).toBeGreaterThan(0);
+  });
+});
+
+describe.skipIf(!hasClinic)("the beacon on the lab door -> main entrance leg", () => {
+  const setup = () => {
+    const pkg: BuildingPackage = JSON.parse(readFileSync(CLINIC, "utf8"));
+    const { s, ex, clock } = make(pkg);
+    while (ex.fx.picked !== "ent_main") s.pick(1);
+    s.enter();
+    const lab = ex.fx.places().find(i => i.id === "door_3")!.at, ent = ex.fx.places().find(i => i.id === "ent_main")!.at;
+    ex.traveller.pos = [lab[0], lab[1]];
+    return { ex, clock, ent };
+  };
+  const same = (a: number[], b: number[]) => dist(a as [number, number], b as [number, number]) < 1e-6;
+
+  it("standing on or near an intermediate path corner: the beacon still sounds, aimed at the next corner", () => {
+    const { ex, ent } = setup();
+    let corners = 0, checked = 0;
+    for (let i = 0; i < 40; i++) {
+      const aim = ex.fx.beaconAim()!;
+      if (dist(aim, ent) <= 0.5) break;
+      corners++;
+      // stop on the corner, or anywhere free within 0.25 m of it (inside the 0.3 m mute), arriving along the route
+      const p0 = ex.traveller.pos;
+      for (const [ox, oy] of [[0, 0], [0.2, 0], [-0.2, 0], [0, 0.2], [0, -0.2], [0.15, 0.15], [-0.15, 0.15], [0.15, -0.15], [-0.15, -0.15]]) {
+        const q: [number, number] = [aim[0] + ox, aim[1] + oy];
+        if (ex.world.cellAt(q) !== 0) continue;
+        ex.traveller.pos = [p0[0], p0[1]]; ex.fx.beaconAim();
+        ex.traveller.pos = q; checked++;
+        const next = ex.fx.beaconAim()!;
+        expect(dist(q, next), `corner ${corners} offset ${ox},${oy}`).toBeGreaterThan(0.3);
+        expect(ex.cont.hearing(), `corner ${corners} offset ${ox},${oy}`).not.toBeNull();
+      }
+      ex.traveller.pos = [aim[0], aim[1]];
+    }
+    // where the beacon-only bot fell silent: 0.21 m short of the corner at (1.3, -1.1), the next corner not yet in sight
+    const { ex: ex2 } = setup();
+    ex2.traveller.pos = [1.2546141844835488, -1.3086898634912045];
+    expect(dist(ex2.traveller.pos, ex2.fx.beaconAim()!)).toBeGreaterThan(0.3);
+    expect(ex2.cont.hearing()).not.toBeNull();
+    expect(corners).toBeGreaterThan(0);
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("walking the corridor: the beacon point sequence is monotonic along one path (no flip back to a route left behind)", () => {
+    const { ex, ent } = setup();
+    const plan = findPath(ex.world, ex.traveller.pos, ent)!;
+    const idx = (q: number[]) => plan.findIndex(c => same(c, q));
+    let last: number[] = [], furthest = -1, changes = 0, flips = 0;
+    for (let i = 0; i < 2000 && dist(ex.traveller.pos, ent) > TARGET_ARRIVE_M; i++) {
+      const aim = ex.fx.beaconAim()!, p = ex.traveller.pos, d = dist(p, aim);
+      if (!same(last, aim)) {
+        changes++; last = [aim[0], aim[1]];
+        const k = idx(aim);
+        if (k >= 0 && k < furthest) flips++;   // a corner of the planned route already passed
+        if (k < 0 && furthest >= 0 && !plan.slice(furthest).length) flips++;
+        furthest = Math.max(furthest, k);
+      }
+      const k = Math.min(1, 0.2 / Math.max(d, 1e-6));
+      ex.traveller.pos = [p[0] + (aim[0] - p[0]) * k, p[1] + (aim[1] - p[1]) * k];
+    }
+    expect(dist(ex.traveller.pos, ent)).toBeLessThanOrEqual(TARGET_ARRIVE_M);
+    expect(flips).toBe(0);
+    expect(changes).toBeLessThanOrEqual(plan.length + 3);   // a fresh route per frame would churn far more
   });
 });

@@ -6,7 +6,7 @@ import { clockHour } from "../clock";
 import type { Cue } from "../events";
 import type { Door, Room, Vec2 } from "../types";
 import { dist, type World } from "../world";
-import { findPath, nextPick, targetOrder, walkPoint } from "./beacon";
+import { clearLine, findPath, nextPick, targetOrder } from "./beacon";
 import { BumpGate, bumpOf } from "./bump";
 import type { Explore } from "./explore";
 import { ApproachTracker, crossesDoor, echoSeconds, RoomTracker, roomLine, roomSize } from "./rooms";
@@ -20,6 +20,14 @@ export const KEYS_LINE = "Arrows walk and turn. Tab: choose a place. Enter: go t
 
 /** Explore's arrival radius for a beacon target, metres from the walker to the place's position. */
 export const TARGET_ARRIVE_M = 1.0;
+/** Beacon path hysteresis: re-plan only when more than REPLAN_M off the planned path; move on from a corner within CORNER_M. */
+export const REPLAN_M = 1.0, CORNER_M = 0.5;
+/** Distance from p to the segment a-b. */
+function segDist(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy;
+  const t = L ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L)) : 0;
+  return dist(p, [a[0] + t * dx, a[1] + t * dy]);
+}
 export const arrivedLine = (name: string): string => `You have reached the ${name.toLowerCase()}.`;
 
 export class Interact {
@@ -135,16 +143,32 @@ export class Interact {
   get aimed(): Item | null { return this.target ?? this.destItem; }
   /** What the beacon points at now: nothing once the target is reached. */
   get beaconTarget(): Item | null { return this.arrived ? null : this.aimed; }
-  private aimCache: { key: string; path: Vec2[] | null } | null = null;
-  /** Where the Explore beacon sounds from: the furthest corner of the walkable path to the target still in line of sight
-   *  in a straight walkable line (so following it leads round walls, furniture and through doors), else the target itself. Null once reached. */
+  /** The planned route to the beacon target: [start, ...corners], the last corner the target itself; `i` the corner aimed at. */
+  private aimCache: { id: string; path: Vec2[]; i: number } | null = null;
+  /** Where the Explore beacon sounds from: a corner of the walkable path to the target (so following it leads round walls,
+   *  furniture and through doors), else the target itself. Null once reached. The path is planned once per target and kept
+   *  (no flipping between routes); it is re-planned only when the walker strays more than REPLAN_M from it; when the corner
+   *  aimed at is out of sight, only the way to that corner is re-planned. The aim moves on to the next corner once
+   *  within CORNER_M of it or once a later one is in a straight walkable line, so only the target itself is ever close enough to mute. A corner that
+   *  turns out of sight after that move gets its way round on the next frame. */
   beaconAim(): Vec2 | null {
     const tg = this.beaconTarget;
     if (!tg) return null;
-    const p = this.t.pos, key = `${tg.id}|${p[0].toFixed(2)}|${p[1].toFixed(2)}`;
-    if (this.aimCache?.key !== key) this.aimCache = { key, path: findPath(this.world, p, tg.at) };
-    const path = this.aimCache.path;
-    return path && path.length ? walkPoint(path, p, this.world) : tg.at;
+    const p = this.t.pos;
+    let c = this.aimCache;
+    if (!c || c.id !== tg.id || segDist(p, c.path[c.i - 1], c.path[c.i]) > REPLAN_M) {
+      const path = findPath(this.world, p, tg.at);
+      if (!path || !path.length) { this.aimCache = null; return tg.at; }
+      path[path.length - 1] = tg.at;
+      c = this.aimCache = { id: tg.id, path: [[p[0], p[1]], ...path], i: 1 };
+    } else if (dist(p, c.path[c.i]) > CORNER_M && !clearLine(this.world, p, c.path[c.i])) {
+      // the corner aimed at is out of sight (a corner cut short): a way to that same corner, then the same route on
+      const sub = findPath(this.world, p, c.path[c.i]);
+      if (sub) c = this.aimCache = { id: tg.id, path: [[p[0], p[1]], ...sub.slice(0, -1), c.path[c.i], ...c.path.slice(c.i + 1)], i: 1 };
+    }
+    for (let j = c.path.length - 1; j > c.i; j--) if (clearLine(this.world, p, c.path[j])) { c.i = j; break; }
+    while (c.i < c.path.length - 1 && dist(p, c.path[c.i]) <= CORNER_M) c.i++;
+    return c.path[c.i];
   }
   /** The persistent on screen line. */
   targetText(): string {
