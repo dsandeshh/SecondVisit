@@ -17,7 +17,7 @@ from dr import geo, probe
 from dr.config import STEP_M
 from dr.mp_client import ROOT
 from dr.grounding import grounded
-from dr.package import Arrival, ArrivalCue, ArrivalOrtho, GeoAnchor, Prov
+from dr.package import Arrival, ArrivalCue, ArrivalOblique, ArrivalOrtho, GeoAnchor, Prov
 from dr.prov import ProvBuilder
 from dr.probe import VexcelCoverageError, vexcel_ortho_body
 
@@ -327,6 +327,13 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
             building_outline_plan=[tuple(p) for p in outline] if outline else None,
             ortho=ArrivalOrtho(url=f"/buildings/{sid}/arrival.jpg", wkt=wkt, corners_plan=corners),
             cues=sc["cues"], lines=sc["lines"], recovery=sc["recovery"])
+        od = ov.get("oblique_dir")
+        if od and (raw / f"oblique_{od}.png").exists():
+            import shutil
+            shutil.copyfile(raw / f"oblique_{od}.png", out / f"oblique_{od}.png")
+            extra["oblique"] = ArrivalOblique(url=f"/buildings/{sid}/oblique_{od}.png", product_type=f"oblique-{od}",
+                                              capture_date="2026-01")
+            pb.add("arrival.oblique", src="vexcel", ref=f"oriented/extract oblique-{od}, 30 m buffer, crosshair at the door pin")
         if outline:
             pb.add("arrival.building_outline", src="matterport", ref="suite from the scan: union of room polygons, not the whole building")
     arr = Arrival(lat=lat, lon=lon, entrance_side=side, dropoff=dropoff, driver_message=msg,

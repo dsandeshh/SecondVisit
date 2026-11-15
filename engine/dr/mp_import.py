@@ -474,6 +474,7 @@ class Overrides(BaseModel):
     edge_type: Literal["flush", "curb_ramp", "step_up", "unknown"] | None = None
     crosses_drive_lane: bool | None = None
     door_type: Literal["automatic_sliding", "automatic_swing", "push", "pull", "unknown"] | None = None
+    oblique_dir: Literal["north", "south", "east", "west"] | None = None  # which cached raw/oblique_<dir>.png shows the entrance
     canopy: list[Vec2] | None = None  # canopy polygon in plan metres (HAND)
     second_destination: OverrideDestination | None = None  # second demo route target (R5 extension)
 

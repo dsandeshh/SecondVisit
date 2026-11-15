@@ -151,10 +151,28 @@ X-API-KEY: <key>
  "image-format": "jpeg", "destination-dimensions": "1400,1400", "attribution": "false"}
 ```
   Note WKT is lon lat order. Returns `image/jpeg`.
-- Obliques, parcels, roof attributes, object detection and embedding search: Vexcel's own tutorial and
-  Python quickstart, linked from the Vexcel keys card in Discord. We want: an oblique of the building
-  front (to see the entrance), the parcel or footprint (to pick the entrance side), and the curb.
-  Ask the Vexcel mentor for the exact oblique call if the tutorial is unclear.
+- **Verified on the clinic, 14 Nov 2026 (stream 1 B5).** Header `X-API-KEY`; every response cached to
+  `data/<sid>/raw/` (gitignored); calls spaced 0.5 s.
+  - `GET /v2/oriented/collections?wkt=POINT(lon lat)&srid=4326&layer=urban&product-type=all`: 200, JSON
+    FeatureCollection (about 600 KB, nadir plus oblique-north/south/east/west for collections
+    `us-tx-cypress-2021` to `2026`). Cache `vexcel_oriented_collections.json`.
+  - `GET /v2/oriented/extract?layer=urban&wkt=POINT(<door lon> <door lat>)&srid=4326&buffer-meter=30&product-type=oblique-<dir>&image-format=png&rotation=natural&crosshair=POINT(<door lon> <door lat>)&crosshair-color=rgb(255,198,41)&crosshair-line-width=4`:
+    200 `image/png` (0.9 to 1.0 MB, about 880 x 620) for all four directions; the `POINT(lon lat)` crosshair
+    format works and is drawn yellow. Newest collection (01/2026) is served. Cache `oblique_<dir>.png`.
+  - **Which direction shows the entrance:** `oblique-<dir>` is the camera looking that way, so it shows the
+    facades that face the opposite way. The clinic entrance faces west-southwest, so **`oblique-east` shows
+    it best** (green canopies, the door, striped aisle and wheelchair symbol, parked cars); `oblique-north`
+    shows the entrance canopy at an angle plus the south storefront; south and west show the roof and the
+    back. The app uses `oblique-east` (`overrides.json` `oblique_dir`).
+  - `POST /v2/elements/detect` with the agent6 V7 body (60 m box at the midpoint of the pins): 200 JSON,
+    16 features: 7 parking space, 6 car, 2 wheelchair parking symbol, 1 tree. No curb ramp, light pole,
+    bollard or entrance canopy hits. Also returns the source image metadata (capture 2026-01-02). Cache
+    `vexcel_elements_detect.json`.
+  - `GET /v2/property/extract?wkt=POINT(lon lat)&srid=4326&layer=urban&include=precomputed&unit-system=metric`:
+    200 JSON with `structures[].footprint.wkt` (972 m2 polygon whose west edge runs at compass 333.05, so
+    the facade bearing is 153.05, matching the 153.1 measured from the ortho roof edge), roof class
+    "membrane", vehicle counts; eave and roof height are null. Cache `vexcel_property_extract.json`.
+- Not tried: `dsm/elevation` and `dsm/extract` (agent6 V5, V6).
 
 ## 4. CoStar kit (property and listing records)
 
