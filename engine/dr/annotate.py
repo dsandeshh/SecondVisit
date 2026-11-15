@@ -27,6 +27,7 @@ LANDMARK_KINDS = set(get_args(LandmarkKind))
 FIXED_KINDS = {"desk", "door", "glass_door", "elevator", "stairs", "restroom", "pillar", "water"}
 MOVABLE_KINDS = {"seating", "other"}
 CLUSTER_M = 1.0
+OTHER_MIN_CONF = 0.5  # kind "other" below this merged confidence is dropped
 ROOM_SNAP_M = 0.3
 ROUTE_NEAR_M = 3.0
 LOOK_BUDGET = 60
@@ -234,6 +235,34 @@ def parse_vision(text: str) -> dict:
 
 # ---------------------------------------------------------------- merging
 
+def _centre(g: list[Observation]) -> tuple[float, float]:
+    return (sum(p["pos"][0] for p in g) / len(g), sum(p["pos"][1] for p in g) / len(g))
+
+
+def _group_conf(g: list[Observation]) -> float:
+    """Mean model confidence x min(1, panos_seen / 2): the landmark's confidence."""
+    return sum(o["confidence"] for o in g) / len(g) * min(1.0, len(_panos(g)) / 2.0)
+
+
+def _join_close(groups: list[list[Observation]]) -> list[list[Observation]]:
+    """Second pass: the greedy pass compares to a moving mean, so two same kind groups can end up
+    within CLUSTER_M of each other. Join them (closest pair first) until none are."""
+    groups = [list(g) for g in groups]
+    while True:
+        best, pair = CLUSTER_M, None
+        for i, a in enumerate(groups):
+            for j in range(i + 1, len(groups)):
+                b = groups[j]
+                if a[0]["kind"] == b[0]["kind"]:
+                    d = math.dist(_centre(a), _centre(b))
+                    if d <= best:
+                        best, pair = d, (i, j)
+        if pair is None:
+            return groups
+        i, j = pair
+        groups[i].extend(groups.pop(j))
+
+
 def _clusters(obs: list[Observation]) -> list[tuple[str, list[Observation]]]:
     """Greedy clustering of same kind observations within 1.0 m of the cluster mean; ids kind_1, kind_2..."""
     groups: list[list[Observation]] = []
@@ -251,10 +280,13 @@ def _clusters(obs: list[Observation]) -> list[tuple[str, list[Observation]]]:
             groups.append([o])
         else:
             best.append(o)
+    groups = _join_close(groups)
     counts: dict[str, int] = {}
     out = []
     for g in groups:
         k = g[0]["kind"]
+        if k == "other" and _group_conf(g) < OTHER_MIN_CONF:
+            continue  # handles, outlets, light panels seen once: noise, not a landmark
         counts[k] = counts.get(k, 0) + 1
         out.append((f"{k}_{counts[k]}", g))
     return out

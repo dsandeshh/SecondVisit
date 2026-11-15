@@ -5,6 +5,7 @@ RunPlan or PointResult is logged here in the same commit as the code.
 
 ## 2026-11-14 (Sat): solo build, task log
 
+- 23:59 Layout fix and landmark dedupe: `layout._defaults` imported `score_route` from the wrong module, the swallowed ImportError left evaluated routes without segments and the simulator read 0.0 arrival for every desk (clinic now 0.58 current, 0.91 proposed at 100 runs). Annotator merge: second pass joins same kind groups within 1.0 m, kind "other" under 0.5 merged confidence is dropped (clinic 57 to 47 landmarks). No contract change.
 - 23:59 Agent replays: named `GET /api/agent/replay?name=visitor|venue` and `GET /api/agent/replays`; clinic recordings stay gitignored, fixture recordings `traces/replay-*-fixture.jsonl` are committed. No contract change.
 - 23:55 Rehearsal screen cockpit (UI_DESIGN 4.2a): `web/src/three/` (mapping.ts plan->three with tests, room3d.ts), `web/src/ui/cockpit.ts` (objects list, mini floor plan, live strip, agent and data panel); three@0.170.0 pinned. Audio, keys and the stage unchanged; phones skip it. No contract change.
 - 23:30 Overrides schema (R5) gains `label_overrides: {landmark_id: label}` (rename in the rehearsal objects list; merge_landmarks applies it and writes prov `landmark:<id>.label` as HAND). New `GET /api/overrides/<sid>` and `POST /api/overrides/<sid>/landmarks` {op: rename|remove|add} in `engine/dr/api.py`, writing only `data/<sid>/overrides.json`. No BuildingPackage change.

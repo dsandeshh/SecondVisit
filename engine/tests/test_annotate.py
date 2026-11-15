@@ -7,6 +7,7 @@ import pytest
 
 from dr.annotate import (Annotator, calibrate_yaw0, face_bearing, fixed_check, fixed_detail, merge,
                          merge_room_labels, pano_room, parse_vision, place)
+from dr import annotate
 from dr.fixtures import lobby_fixture
 from dr.grid import OccGrid
 from dr.package import Room
@@ -50,6 +51,26 @@ def test_merge_clusters():
     assert d.pos[0] == pytest.approx((5.0 + 5.4 + 5.2) / 3)
     door = [lm for lm in lms if lm.kind == "door"][0]
     assert door.confidence == pytest.approx(0.8 * 0.5)  # one pano only
+
+
+def test_merge_second_pass_joins_drifted_clusters():
+    # greedy pass leaves two door groups 0.8 m apart once the third sighting pulls one mean; they are one door
+    obs = [_obs("p1", "door", (0.0, 0.0), 0.7), _obs("p2", "door", (1.05, 0.0), 0.9),
+           _obs("p3", "door", (0.5, 0.0), 0.6), _obs("p3", "desk", (0.5, 0.0), 0.8)]
+    lms = merge(obs)
+    doors = [lm for lm in lms if lm.kind == "door"]
+    assert len(doors) == 1 and doors[0].id == "door_1"
+    assert len([lm for lm in lms if lm.kind == "desk"]) == 1   # other kinds never merge with it
+
+
+def test_merge_drops_weak_other():
+    obs = [_obs("p1", "other", (1.0, 1.0), 0.8),                                   # 1 pano: 0.4, dropped
+           _obs("p1", "other", (5.0, 5.0), 0.6), _obs("p2", "other", (5.0, 5.0), 0.6),  # 0.6, kept
+           _obs("p1", "door", (9.0, 9.0), 0.4)]                                    # not other: kept
+    lms = merge(obs)
+    assert sorted(lm.kind for lm in lms) == ["door", "other"]
+    ids = {lid for lid, _ in annotate._clusters(obs)}
+    assert ids == {lm.id for lm in lms}      # fixed_detail and prov use the same clusters
 
 
 def test_parse_vision_tolerant():
