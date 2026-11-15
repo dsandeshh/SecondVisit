@@ -250,7 +250,7 @@ function showPhase(doc: Document, s: Session, p: Phase): void {
   } else $("coach-line").hidden = true;
 }
 
-function showQuiz(doc: Document, s: Session, q: QuizSession | null): void {
+function showQuiz(doc: Document, s: Session, q: QuizSession | import("./modes/check").CheckSession | null): void {
   const host = doc.getElementById("quiz")!;
   host.replaceChildren();
   host.hidden = !q || q.finished;

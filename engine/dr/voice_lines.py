@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import math
 
-from dr import names
+from dr import check_quiz, names
 from dr.package import BuildingPackage, VoiceLine
 
 KIND_WORDS = ["wall", "glass", "doorway", "wide doorway", "glass door", "door", "entrance", "exit", "obstacle",
@@ -81,6 +81,10 @@ FIXED_UI_LINES = [
     "Beacon on.", "Target cleared.",
     # three leg demo (stream D): X or the summary button goes back to Explore (web session.ts explore())
     "Back to Explore.", "Already in Explore.",
+    # Check yourself (C or the button, web/src/modes/check.ts; engine/dr/check_quiz.py makes the per-route lines)
+    "Check yourself. Three quick questions.",
+    "Three of three. You knew every turn. Walk the whole way again? Press Y or Enter.",
+    "That stretch is done. Press C to check yourself again, or X for Explore.",
 ]
 NO_INDOOR_LINE = "No indoor scan yet for this building."
 NOT_AVAILABLE_LINE = "This building is not available yet."
@@ -177,6 +181,7 @@ def collect(pkg: BuildingPackage) -> set[str]:
             out.add(f"You have reached the {spoken[rt.to].lower()}.")
             out.add(f"Target cleared. Heading to {spoken[rt.to]}.")   # web interact.ts escape()
     out.add("You have reached the destination.")
+    out |= check_quiz.lines(pkg)
     a = pkg.arrival
     if a:
         out |= set(a.lines) | set(a.recovery) | {c.line for c in a.cues if c.line}

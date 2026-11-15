@@ -164,6 +164,8 @@ export class Interact {
   target: Item | null = null;
   /** True once the current target is reached (Explore): the beacon stops until the next target is set. */
   arrived = false;
+  /** Every target reached in Explore, in order (the legs walked, for Check yourself). */
+  reached: string[] = [];
   /** After an arrival: Tab continues from the place reached, so the next leg's target is one press away. */
   private cursor: string | null = null;
   get destItem(): Item | null { return this.byId(this.ex.destination?.id ?? null); }
@@ -261,6 +263,7 @@ export class Interact {
     const tg = this.aimed;
     if (!tg || dist(this.t.pos, tg.at) > TARGET_ARRIVE_M) return;
     this.arrived = true;
+    this.reached.push(tg.id);
     this.cursor = tg.id;
     this.ex.cont?.silenceBeacon();
     this.audio.cue("chime", { bus: "cue", pri: 1 });

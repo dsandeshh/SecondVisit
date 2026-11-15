@@ -69,7 +69,8 @@
         <h1 id="check-h" class="page-title">Check yourself</h1>
         <p id="lede" class="page-lede">Turn to face the destination, then confirm.</p>
         <section id="quiz" class="quiz" aria-label="Quiz" hidden></section>
-        <div class="actions"><button id="go" class="btn btn--primary" type="button" hidden>Start rehearsal</button></div>
+        <p id="check-coach" class="note" hidden></p>
+        <div class="actions"><button id="check-yes" class="btn btn--primary" type="button" hidden>Yes, practise (Y or Enter)</button><button id="go" class="btn btn--primary" type="button" hidden>Start rehearsal</button></div>
       </section>
 
       <!-- 5. Summary. -->
@@ -80,6 +81,7 @@
         <div class="actions">
           <button id="again" class="btn btn--primary" type="button">Practice again</button>
           <button id="to-explore" class="btn btn--secondary" type="button">Back to Explore</button>
+          <button id="check-me" class="btn btn--secondary" type="button">Check yourself (C)</button>
           <a id="to-about" class="btn btn--secondary" href="#/about">How it was built</a>
         </div>
       </section>
@@ -175,6 +177,7 @@
     </div>
     <div id="controls" class="controls" hidden>
       <button id="pause" class="chipbtn" type="button">Pause</button>
+      <button id="check-me-inside" class="chipbtn" type="button" hidden>Check yourself (C)</button>
       <span class="controls__gap"><span id="keypill" class="keypill">Up walk · Left/Right turn · Tab target · Space repeat · ? help</span></span>
       <button id="help" class="chipbtn" type="button">Help</button>
     </div>

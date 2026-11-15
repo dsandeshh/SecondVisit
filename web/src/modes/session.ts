@@ -13,6 +13,8 @@ import { BUMP_HELP, BumpWatcher, closeness, Intro, nextAction, type NextCtx } fr
 import { KEYS_LINE } from "./interact";
 import { PointTask, POINT_TURN_DEG, pointFeedback } from "./point";
 import { buildQuiz, QuizSession } from "./quiz";
+import { ALL_RIGHT, buildCheck, CHECK_START, CheckSession, STRETCH_DONE, weakLine } from "./check";
+import type { Route } from "../types";
 import { PLAIN_PLAN, RehearsalRun } from "./rehearse";
 import { SummaryReader, summaryLines } from "./summary";
 
@@ -24,7 +26,9 @@ export type SessionDeps = {
   publish?: (m: ObsMsg) => void;
   onPhase?: (p: Phase) => void;
   /** Called when the quiz asks a question, so the page can draw the option buttons. */
-  onQuestion?: (q: QuizSession | null) => void;
+  onQuestion?: (q: QuizSession | CheckSession | null) => void;
+  /** Check yourself: whether its button is offered now, and who chose the weak stretch ("agent" or "scripted"). */
+  onCheck?: (s: { available: boolean; source?: "agent" | "scripted"; line?: string }) => void;
   fetchCoach?: typeof realFetchCoach;
   audioRunning?: () => boolean;
   /** K: show the keys panel. */
@@ -50,10 +54,16 @@ export class Session implements KeyActions {
   runNo = 1;
   run: RehearsalRun | null = null;
   point: PointTask | null = null;
-  quiz: QuizSession | null = null;
+  quiz: QuizSession | CheckSession | null = null;
+  /** Check yourself: the route asked about, and what Enter or Y does after it. */
+  checkRoute: Route | null = null;
+  offer: { kind: "stretch"; seg: number } | { kind: "whole" } | null = null;
+  checkSource: "agent" | "scripted" | null = null;
+  private checkRun = 0;
   coach: CoachResult | null = null;
   reader: SummaryReader | null = null;
   private pointed = false;
+  private stretch = false;
   private held = false;
   private introEsc = false;
   private introDone = false;
@@ -93,7 +103,7 @@ export class Session implements KeyActions {
   private pub(m: ObsMsg) { try { this.deps.publish?.(m); } catch { /* */ } }
   private say(t: string, p: Priority = 2) { this.speech.say(t, p); }
 
-  private setPhase(p: Phase) { this.phase = p; this.deps.onIntro?.(null); this.deps.onPhase?.(p); this.refreshNext(); }
+  private setPhase(p: Phase) { this.phase = p; this.deps.onIntro?.(null); this.deps.onPhase?.(p); this.refreshNext(); this.refreshCheck(); }
 
   private get goal(): Landmark | null {
     const r = this.route;
@@ -105,7 +115,7 @@ export class Session implements KeyActions {
   /** The text for the bottom strip: one clear next action. */
   next(): string {
     const c: NextCtx = { phase: this.phase, intro: this.intro.active ? this.intro.prompt : null,
-      picked: !!this.ex.fx.picked, pointed: this.pointed, answered: this.quiz?.isAnswered, runNo: this.runNo, hasRoute: this.hasRoute };
+      picked: !!this.ex.fx.picked, pointed: this.pointed, answered: this.quiz?.isAnswered, offer: !!this.offer, runNo: this.runNo, hasRoute: this.hasRoute };
     return nextAction(c);
   }
   private refreshNext(): void {
@@ -115,6 +125,7 @@ export class Session implements KeyActions {
 
   tick(dtMs: number): void {
     this.refreshNext();
+    this.refreshCheck();
     if (this.held) return;
     if (this.phase !== "rehearse" || !this.run || this.paused) return;
     this.afterRun(() => this.run!.tick(dtMs));
@@ -126,7 +137,8 @@ export class Session implements KeyActions {
     const before = run.log.events.length;
     const r = f();
     run.log.events.slice(before).forEach(e => this.pubEvent(e));
-    if (run.done && this.phase === "rehearse") this.startPoint();
+    if (run.done && this.phase === "rehearse" && !this.stretch) this.startPoint();
+    if (run.done && this.stretch) this.refreshCheck();
     return r;
   }
 
@@ -137,13 +149,15 @@ export class Session implements KeyActions {
   // ---- phases -------------------------------------------------------------------------------
 
   /** Begin run `runNo` with `plan` (Enter in Explore or in the summary). */
-  private startRun(plan = PLAIN_PLAN): void {
-    const route = this.route!;
+  private startRun(plan = PLAIN_PLAN, route: Route = this.route!, only?: number): void {
     this.runStarted = true;
+    this.offer = null; this.checkRoute = null;
     this.run = new RehearsalRun(route, {
       speech: this.speech, plan, landmarks: this.pkg.landmarks, now: this.now,
       threadId: this.deps.threadId ?? `run-${Date.now()}`, audioRunning: this.deps.audioRunning,
+      onlySegment: only, stretchDone: STRETCH_DONE,
     });
+    this.stretch = only !== undefined;
     if (plan !== PLAIN_PLAN) this.speech.setRate(plan.speech_rate);
     this.ex.rehearse = true; this.ex.locked = false;
     const start = this.run.startPose();
@@ -231,6 +245,95 @@ export class Session implements KeyActions {
     if (!replaced) this.say(`Run 1 complete. ${c.line} Press Enter to start run 2, or Space to hear the summary.`, 2);
   }
 
+  // ---- Check yourself (C) ---------------------------------------------------------------------
+
+  /** C is offered on the summary, in Explore once a leg is walked, and after a practised stretch. */
+  get canCheck(): boolean {
+    if (!this.hasRoute) return false;
+    return this.phase === "summary" || (this.phase === "explore" && this.ex.fx.reached.length > 0)
+      || (this.phase === "rehearse" && this.stretch && !!this.run?.done);
+  }
+  private lastCheck: boolean | null = null;
+  refreshCheck(): void { const a = this.canCheck; if (a === this.lastCheck) return; this.lastCheck = a; this.deps.onCheck?.({ available: a }); }
+
+  /** The route the questions are about: on the summary the rehearsed route; in Explore the package route to the last
+   *  place reached on the legs (the legs walked), else the rehearsed route. */
+  checkRouteNow(): Route {
+    if (this.phase === "explore") {
+      const r0 = this.route!;
+      for (const id of [...this.ex.fx.reached].reverse()) {
+        const r = this.pkg.routes.find(x => x.to === id && x.from === r0.from && x.segments.length);
+        if (r) return r;
+      }
+    }
+    return this.run?.route ?? this.route!;
+  }
+
+  /** C, or the Check yourself button. */
+  check(): void {
+    if (this.blocked()) return;
+    if (!this.canCheck && !(this.phase === "explore" && this.hasRoute)) return;
+    const route = this.checkRouteNow();
+    this.checkRoute = route; this.offer = null; this.checkSource = null;
+    const log = { thread_id: this.deps.threadId ?? "check", route_id: route.id, events: [], quiz: [] as { q: string; seg: number; correct: boolean }[], point: [] };
+    this.run = null; this.stretch = false; this.runStarted = false;
+    this.ex.rehearse = false; this.ex.locked = true;
+    const q = new CheckSession(buildCheck(this.pkg, route), (t, p) => this.say(t, p), e => {
+      log.quiz.push(e);
+      this.pub({ v: 1, t: "quiz", ts: this.now(), q: e.q, seg: e.seg, correct: e.correct });
+    });
+    (q as any).log = log;
+    this.quiz = q;
+    this.setPhase("quiz");
+    this.deps.onQuestion?.(q);
+    this.lastCheck = false; this.deps.onCheck?.({ available: false });
+    void this.speech.sayAsync(CHECK_START, 2).then(() => { if (this.quiz === q && q.i === 0 && !q.isAnswered) q.ask(); });
+  }
+
+  private checkEnter(): void {
+    const q = this.quiz as CheckSession;
+    if (this.offer) { this.acceptOffer(); return; }
+    if (q.finished) return;                                  // waiting for the coach
+    if (!q.isAnswered) { q.repeat(); return; }
+    q.next();
+    this.deps.onQuestion?.(q.finished ? null : q);
+    if (q.finished) void this.finishCheck(); else q.ask();
+  }
+
+  /** The coach path (POST /api/coach) picks the weak stretch; the scripted rules stand in when it is not there. */
+  async finishCheck(): Promise<void> {
+    const q = this.quiz as CheckSession, route = this.checkRoute!, n = route.segments.length;
+    const log = (q as any).log;
+    const my = ++this.checkRun;
+    const f = this.deps.fetchCoach ?? realFetchCoach;
+    let c: CoachResult | null = null;
+    try { c = await f(log, this.pkg.id, n, undefined, 2500); } catch { c = null; }
+    if (my !== this.checkRun || this.quiz !== q) return;
+    if (!c) c = scriptedCoach(log, n);
+    this.checkSource = c.source;
+    let focus = c.focus_segment;
+    if (q.correct < q.questions.length && (focus < 0 || focus >= n)) focus = scriptedCoach(log, n).focus_segment;
+    let line: string;
+    if (q.correct >= q.questions.length || focus < 0) { this.offer = { kind: "whole" }; line = ALL_RIGHT; }
+    else { this.offer = { kind: "stretch", seg: focus }; line = weakLine(this.pkg, route, focus, Math.min(2, q.correct)); }
+    this.pub({ v: 1, t: "plan", ts: this.now(), focus_segment: focus, line, plan: c.plan as any });
+    this.lastCheck = false; this.deps.onCheck?.({ available: false, source: c.source, line });
+    this.refreshNext();
+    this.say(line, 2);
+  }
+
+  private acceptOffer(): void {
+    const o = this.offer!, route = this.checkRoute!;
+    this.quiz = null;
+    this.deps.onQuestion?.(null);
+    this.runNo = 1;
+    if (o.kind === "whole") this.startRun(PLAIN_PLAN, route);
+    else this.startRun({ start_segment: o.seg, repeat_segment: null, extra_cues: false, speech_rate: 1 }, route, o.seg);
+  }
+
+  /** Y: yes to the offer (same as Enter there); elsewhere nothing. */
+  yes(): void { if (this.offer && this.phase === "quiz") this.enter(); }
+
   // ---- KeyActions ---------------------------------------------------------------------------
 
   private blocked(): boolean {
@@ -241,6 +344,7 @@ export class Session implements KeyActions {
 
   enter(): void {
     if (this.blocked()) return;
+    if (this.phase === "quiz" && this.quiz instanceof CheckSession) { this.checkEnter(); return; }
     switch (this.phase) {
       case "explore":
         if (this.ex.fx.picked) { this.ex.fx.startBeacon(); return; }   // a place was chosen with Tab: go there
@@ -356,6 +460,7 @@ export class Session implements KeyActions {
     if (this.blocked()) return;
     if (this.phase === "explore") { this.say("Already in Explore.", 2); return; }
     this.run = null; this.point = null; this.quiz = null; this.reader = null;
+    this.offer = null; this.checkRoute = null; this.stretch = false; this.checkRun++;
     this.runStarted = false; this.pointed = false; this.runNo = 1;
     this.ex.rehearse = false; this.ex.locked = false;
     this.ex.fx.escapeQuiet();
