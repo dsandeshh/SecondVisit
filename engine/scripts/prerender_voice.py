@@ -1,6 +1,6 @@
 """Render every package voice_lines entry to web/public/buildings/<sid>/voice/<id>.wav (A7b, build time).
 
-Run from engine/: .venv/bin/python scripts/prerender_voice.py <sid> [--voice af_heart] [--workers 3]
+Run from engine/: .venv/bin/python scripts/prerender_voice.py <sid> [--voice am_michael] [--workers 3]
 Skips files that exist, then writes voice/index.json {id: text}. Uses `node web/scripts/voice.mjs --render`.
 The voice folder is gitignored (web/public/buildings/*/).
 """
@@ -32,7 +32,7 @@ def render(text: str, voice: str, out: Path, timeout: int = 120) -> bool:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("sid")
-    ap.add_argument("--voice", default=os.environ.get("SV_VOICE", "af_heart"))
+    ap.add_argument("--voice", default=os.environ.get("SV_VOICE", "am_michael"))
     ap.add_argument("--workers", type=int, default=3)
     a = ap.parse_args(argv)
     bdir = ROOT / "web" / "public" / "buildings" / a.sid

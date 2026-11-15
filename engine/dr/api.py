@@ -240,10 +240,10 @@ class TtsRequest(BaseModel):
 def tts_endpoint(req: TtsRequest) -> FileResponse:
     from dr.voice_lines import line_id, normalise
 
-    voice = req.voice or os.environ.get("SV_VOICE") or "af_heart"
+    voice = req.voice or os.environ.get("SV_VOICE") or "am_michael"
     text = normalise(req.text)
     if not text or len(text) > 500 or not _VOICE_RE.match(voice):
-        raise HTTPException(422, "text (1 to 500 chars) and a voice like af_heart are required")
+        raise HTTPException(422, "text (1 to 500 chars) and a voice like am_michael are required")
     out = TTS_CACHE / voice / f"{line_id(text)}.wav"
     if not (out.is_file() and out.stat().st_size > 0):
         out.parent.mkdir(parents=True, exist_ok=True)

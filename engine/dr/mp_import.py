@@ -452,6 +452,8 @@ class ArrivalPins(BaseModel):
     door_lon: float
     curb_lat: float
     curb_lon: float
+    canopy: list[tuple[float, float]] | None = None  # 4 corners as (lon, lat), traced from imagery
+    canopy_src: str | None = None
 
 
 class Overrides(BaseModel):
@@ -470,6 +472,7 @@ class Overrides(BaseModel):
     facade_bearing_src: Literal["hand", "calc", "vexcel", "costar"] | None = None
     facade_bearing_ref: str | None = None
     reference_bearing_deg: float | None = None  # compass bearing the person faces at the curb pin (HAND)
+    reference_confirmed: bool = False  # HAND: the person faces the building, perpendicular to the facade
     reference_words: str | None = None  # "with the car beside you and the building ahead"
     edge_type: Literal["flush", "curb_ramp", "step_up", "unknown"] | None = None
     crosses_drive_lane: bool | None = None

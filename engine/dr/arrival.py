@@ -147,8 +147,9 @@ def curb_script(anchor: GeoAnchor, entrance, curb_plan, door_plan, ov: dict, sid
     ref = ov.get("reference_bearing_deg")
     ref_src = "hand"
     if ref is None:
-        ref, ref_src = geo.plan_bearing(anchor, *walk_vec), "calc"  # facing the building, perpendicular to the facade
-    words = ov.get("reference_words") or ("facing the building" if ref_src == "calc" else "")
+        # facing the building, perpendicular to the facade; HAND when a human confirmed it
+        ref, ref_src = geo.plan_bearing(anchor, *walk_vec), ("hand" if ov.get("reference_confirmed") else "calc")
+    words = ov.get("reference_words") or ("facing the building" if ov.get("reference_bearing_deg") is None else "")
     dx, dy = door_plan[0] - curb_plan[0], door_plan[1] - curb_plan[1]
     walk_m = math.hypot(dx, dy)
     steps = max(1, round(walk_m / STEP_M))
@@ -187,17 +188,25 @@ def curb_script(anchor: GeoAnchor, entrance, curb_plan, door_plan, ov: dict, sid
                 cues.append(ArrivalCue(id="traffic", kind="traffic", plan=[(round(nx, 2), round(ny, 2))],
                                        prov=prov("costar", "propertyRetail.frontage[] nearest point; sound simulated", 0.5), line=line))
                 break
-    if ov.get("crosses_drive_lane"):
+    lane = ov.get("crosses_drive_lane")
+    if lane:
         lines.append("Before the entrance you reach a lane where cars drive. Stop, listen, then cross.")
+    elif lane is None:
+        lines.append("Listen for cars before you cross.")
     edge = {"flush": "The walkway is level with the aisle.",
             "curb_ramp": "A curb ramp takes you up onto the walkway.",
             "step_up": "There is a step up onto the walkway."}.get(
-        ov.get("edge_type") or "unknown", "The ground may change between the drop off and the walkway. Check with your cane.")
+        ov.get("edge_type") or "unknown", "Feel for a change in the ground with your cane.")
     lines.append(edge)
-    if ov.get("canopy"):
+    canopy = ov.get("canopy")
+    if not canopy and (ov.get("arrival") or {}).get("canopy"):
+        canopy = [[round(v, 3) for v in geo.geoToPlan(anchor, la, lo)] for lo, la in ov["arrival"]["canopy"]]
+        ov = {**ov, "canopy": canopy}
+    if canopy:
         lines.append("You are under the canopy now. The door is straight ahead.")
         cues.append(ArrivalCue(id="canopy", kind="canopy", plan=[tuple(p) for p in ov["canopy"]],
-                               prov=prov("hand", "overrides.json canopy")))
+                               prov=prov("calc", "assumed: canopy traced by Claude from Vexcel imagery (overrides.json arrival.canopy)", 0.4)
+                               if (ov.get("arrival") or {}).get("canopy") else prov("hand", "overrides.json canopy")))
     lines.append({"automatic_sliding": "The doors slide open by themselves.",
                   "automatic_swing": "The door opens by itself. Stand back from it as it swings.",
                   "push": "Push the door; the handle is on the right.",
@@ -228,7 +237,7 @@ def curb_script(anchor: GeoAnchor, entrance, curb_plan, door_plan, ov: dict, sid
     lines = [x for x in lines if grounded(x, allowed)]
     recovery = [x for x in recovery if grounded(x, allowed)]
     return dict(lines=lines, recovery=recovery, cues=cues, steps=steps, clock=hour, walk_m=walk_m,
-                reference_bearing_deg=ref, reference_words=words or None, ref_src=ref_src)
+                canopy=canopy, reference_bearing_deg=ref, reference_words=words or None, ref_src=ref_src)
 
 
 def ortho_corners(anchor: GeoAnchor, lat: float, lon: float):
@@ -316,6 +325,9 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
         pb.add("arrival.clock", src="calc", ref=f"clock of door bearing relative to reference {sc['reference_bearing_deg']:.1f} "
                f"({'HAND' if sc['ref_src'] == 'hand' else 'assumed: perpendicular to the facade'})", inputs=["arrival.walk_m"])
         pb.add("arrival.ortho", src="vexcel", ref=f"ortho/extract {2 * ORTHO_HALF_M:.0f} m square, corners mapped by geo_anchor")
+        if sc["canopy"]:
+            pb.add("arrival.canopy", src="calc", confidence=0.4, ref="assumed: canopy traced by Claude from Vexcel imagery "
+                   "(oblique-east cross-checked against the ortho); not human confirmed")
         for k, v in (("edge_type", "edge_type"), ("door_type", "door_type"), ("crosses_drive_lane", "crosses_drive_lane")):
             if ov.get(v) is not None:
                 pb.add(f"arrival.{k}", src="hand", ref=f"overrides.json {v}")
@@ -323,7 +335,7 @@ def build(sid: str, overrides: dict | None = None, data_dir=None, web_dir=None, 
             curb_plan=tuple(curb_plan), door_plan=tuple(entrance.pos), walk_m=sc["walk_m"], steps=sc["steps"],
             clock=sc["clock"], reference_bearing_deg=sc["reference_bearing_deg"], reference_words=sc["reference_words"],
             crosses_drive_lane=ov.get("crosses_drive_lane"), edge_type=ov.get("edge_type"),
-            door_type=ov.get("door_type"), canopy_plan=[tuple(p) for p in ov["canopy"]] if ov.get("canopy") else None,
+            door_type=ov.get("door_type"), canopy_plan=[tuple(p) for p in sc["canopy"]] if sc["canopy"] else None,
             building_outline_plan=[tuple(p) for p in outline] if outline else None,
             ortho=ArrivalOrtho(url=f"/buildings/{sid}/arrival.jpg", wkt=wkt, corners_plan=corners),
             cues=sc["cues"], lines=sc["lines"], recovery=sc["recovery"])

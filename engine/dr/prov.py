@@ -17,7 +17,7 @@ KEY_PATTERNS = [re.compile(p) for p in (
     r"entrance:[\w-]+",
     r"segment:[\w-]+\.(steps|clock)",
     r"arrival\.(image|entrance_side|door_pin|dropoff|curb_to_door_m)",
-    r"arrival\.(curb|door|walk_m|clock|ortho|oblique|edge_type|door_type|crosses_drive_lane|building_outline|building_height_m)",
+    r"arrival\.(curb|door|walk_m|clock|ortho|oblique|canopy|edge_type|door_type|crosses_drive_lane|building_outline|building_height_m)",
     r"arrival\.cue\.[\w-]+",
     r"frames\.geo_anchor",
     r"costar",
