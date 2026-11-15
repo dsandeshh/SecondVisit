@@ -254,3 +254,6 @@ data/*/vision_cache
 .env.*
 !.env.example
 data/tts_cache/
+
+# Screenshots of the clinic: sponsor derived imagery (rule 9), kept locally only
+docs/screens/
