@@ -112,3 +112,25 @@ export interface RunPlan {
   extra_cues: boolean;
   speech_rate: number;
 }
+
+// Portfolio (Task 20). Engine mirror: PortfolioRow in engine/dr/package.py. One row of web/public/portfolio.json.
+export interface PortfolioRow {
+  sid: string;
+  name: string;
+  address: string;
+  costar_property_id: string;
+  costar: Record<string, unknown>;
+  rank: number | null;
+  total: number | null;
+  /** score parts plus mean_wall_share, mean_decisions, routes and routes_skipped (unreachable rooms counted, not scored) */
+  parts: Record<string, number>;
+  build_s: number;
+  assumed_entrance: boolean;
+  /** data reason it could not be scored (no walls, no rooms, no route) */
+  skipped: string | null;
+  /** "<Type>: <msg>" for an unexpected exception: a bug, not a data problem */
+  error: string | null;
+  tour_url: string;
+}
+
+export interface PortfolioFile { generated_at: string; city: string; total_build_s: number; rows: PortfolioRow[]; }

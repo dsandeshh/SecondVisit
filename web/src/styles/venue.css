@@ -1,0 +1,43 @@
+/* Venue view (UI_DESIGN 4.5, 4.6): judge screen. Glass only on the bar and the trace panel. */
+.venue-bar { position: sticky; top: 0; z-index: var(--z-bar, 10); display: flex; flex-wrap: wrap; gap: var(--sp-4);
+  align-items: center; justify-content: space-between; padding: var(--sp-3) var(--gutter); }
+.venue-bar h1 { font-size: var(--fs-h3); margin: 0; }
+.tabs { display: flex; gap: var(--target-gap); }
+.tabs [aria-selected="true"] { background: var(--c-surface-2); box-shadow: inset 0 -4px 0 var(--c-ink); }
+.venue { max-width: none; }
+.venue h2 { font-size: var(--fs-h3); margin: 0 0 var(--sp-3); }
+.venue-q { font-size: var(--fs-lead); display: flex; flex-wrap: wrap; gap: var(--sp-4); align-items: center; }
+.venue-grid { display: grid; gap: var(--sp-5); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 1200px) { .venue-grid { grid-template-columns: minmax(18rem, 22rem) 1fr minmax(22rem, 26rem); } }
+.trace { padding: var(--sp-4); max-height: 36rem; overflow-y: auto; }
+.trace ol { list-style: none; margin: 0; padding: 0; font-size: var(--fs-small); }
+.trace li { display: grid; grid-template-columns: 8ch 1fr auto; gap: var(--sp-2); padding: var(--sp-1) 0; }
+.trace .t, .trace .st { color: var(--c-ink-2); }
+.trace .who { font-weight: var(--fw-bold); }
+.trace .tool { font-family: var(--font-mono); }
+#plan { width: 100%; height: auto; max-height: 70vh; border: var(--bw-control) solid var(--c-rule); background: var(--c-surface); }
+.legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); padding: 0; margin: var(--sp-3) 0; font-size: var(--fs-small); }
+.legend .sw { display: inline-block; width: 1.1rem; height: 1.1rem; vertical-align: middle; margin-right: var(--sp-2);
+  border: 2px solid var(--c-ink); }
+.legend--heat { padding: var(--sp-2); background: repeating-linear-gradient(135deg, var(--c-hatch, transparent) 0 2px, transparent 2px 7px);
+  border: 2px dashed var(--c-ink); }
+
+.chip, .tag { display: inline-block; font-size: var(--fs-small); font-weight: var(--fw-bold); padding: 0 6px;
+  border: var(--bw-control) solid var(--c-ink); border-radius: var(--r-chip); color: var(--c-ink); line-height: 1.6rem; }
+.chip--ai { border-style: dotted; }
+.tag { font-weight: var(--fw-medium); }
+.tag--simulated { background: repeating-linear-gradient(135deg, var(--c-hatch, transparent) 0 2px, transparent 2px 7px); }
+.tag--assumed, .tag--scripted, .tag--replay { border-style: dashed; }
+
+.data-region { overflow-x: auto; border: var(--bw-control) solid var(--c-rule); }
+table.data { border-collapse: collapse; width: 100%; font-size: var(--fs-small); }
+table.data caption { font-size: var(--fs-h3); font-weight: var(--fw-heavy); text-align: left; padding: var(--sp-3); }
+table.data th, table.data td { padding: var(--sp-2) var(--sp-3); text-align: left; min-height: 48px; border-bottom: 1px solid var(--c-rule-soft); vertical-align: middle; }
+table.data thead th { border-bottom: 2px solid var(--c-ink); }
+table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.data th button { font: inherit; font-weight: var(--fw-bold); background: none; border: 0; color: inherit; cursor: pointer; min-height: var(--target-min); padding: 0; text-align: inherit; }
+.bar { display: inline-block; height: 8px; background: var(--c-ink); vertical-align: middle; margin-left: var(--sp-2); }
+.pf-summary { font-size: var(--fs-lead); }
+.pairbar { display: grid; grid-template-columns: 7rem 1fr; gap: 2px var(--sp-2); font-size: var(--fs-small); align-items: center; margin-top: var(--sp-3); }
+.pairbar i { display: block; height: 12px; }
+.pairbar .now { background: var(--d-before); } .pairbar .after { background: var(--d-route); }

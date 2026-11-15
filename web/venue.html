@@ -7,8 +7,42 @@
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <main id="main">
-      <h1>Venue report</h1>
+    <header class="glass-bar venue-bar">
+      <h1 id="venue-title">Venue view</h1>
+      <div role="tablist" aria-label="Venue views" class="tabs">
+        <button role="tab" id="tab-layout" aria-controls="panel-layout" aria-selected="true" class="btn" type="button">Layout</button>
+        <button role="tab" id="tab-portfolio" aria-controls="panel-portfolio" aria-selected="false" tabindex="-1" class="btn" type="button">Portfolio</button>
+      </div>
+    </header>
+    <main id="main" class="venue">
+      <section id="panel-layout" role="tabpanel" aria-labelledby="tab-layout">
+        <p class="venue-q">Where should reception go? <button id="run" class="btn btn--primary" type="button">Run layout advisor</button></p>
+        <p id="mode-note" class="note" role="status"></p>
+        <div class="venue-grid">
+          <aside class="glass-panel trace" aria-label="Agent trace">
+            <h2>Agent trace</h2>
+            <ol id="trace" role="log" aria-live="off"></ol>
+            <p id="trace-status" role="status" class="note"></p>
+          </aside>
+          <section aria-labelledby="plan-h">
+            <h2 id="plan-h">Plan</h2>
+            <canvas id="plan" role="img" aria-label="Floor plan loading" width="900" height="520"></canvas>
+            <p id="plan-note" class="note" role="status"></p>
+            <ul id="legend" class="legend"></ul>
+          </section>
+          <section aria-labelledby="ba-h" class="report">
+            <h2 id="ba-h">Before and after</h2>
+            <div id="ba"><p class="note">Run the advisor to see a before and after.</p></div>
+            <h2>Fixes</h2><ol id="fixes"><li class="note">None yet.</li></ol>
+            <h2>Advisor rounds</h2><ol id="rounds"><li class="note">None yet.</li></ol>
+          </section>
+        </div>
+      </section>
+      <section id="panel-portfolio" role="tabpanel" aria-labelledby="tab-portfolio" hidden>
+        <p id="pf-summary" class="pf-summary" role="status"></p>
+        <div id="pf-table"></div>
+        <div id="pf-unscored"></div>
+      </section>
     </main>
     <script type="module" src="/src/venue/venue.ts"></script>
   </body>
