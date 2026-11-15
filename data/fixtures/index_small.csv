@@ -1,0 +1,6 @@
+sid,name,segment,lat,lon,latlon_source,address,city,state,postal_code,internal_id,costar_property_id,homes_listing_id,splat,drone_photos,pano_count,room_count,floor_count,created,original_created,defurnished,ai_summary
+x37LjPx62VA,Medical Office,commercial,29.70,-95.40,model,100 Example Way,Houston,TX,77000,A-1,5615020,,no,,10,3,1,2026-11-10,2024-01-01,no,yes
+hpGRjK5uFPW,Office B,commercial,29.70,-95.40,model,100 Example Way,Houston,TX,77000,A-2,5615020,,no,,6,2,1,2026-11-10,2024-01-01,no,yes
+fixAAAAAAA1,Alpha Studio,commercial,34.05,-118.25,model,200 Sample St Suite 106,Los Angeles,CA,90000,A-3,,,no,,4,2,1,2026-11-10,2024-01-01,no,yes
+fixBBBBBBB2,Beta Studio,commercial,29.75,-95.36,model,300 Sample Ave Suite 106,Houston,TX,77001,A-4,350372,,no,,4,2,1,2026-11-10,2024-01-01,no,yes
+fixCCCCCCC3,Lobby,commercial,,,,,,,,,,,no,,3,2,1,2026-11-10,2024-01-01,no,yes
