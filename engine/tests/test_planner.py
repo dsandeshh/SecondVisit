@@ -137,3 +137,62 @@ def test_ladder_fails_on_closed_box():
     with pytest.raises(NoRouteError) as e:
         plan_with_ladder(g, (2.5, 3.0), (7.5, 3.0), [])
     assert "(2.50, 3.00)" in str(e.value) and "(7.50, 3.00)" in str(e.value)
+
+
+# R17: clearance treats code 3 as solid; wall trailing credit never counts it; code 5 not walkable.
+
+def _hall(code=None):
+    """10 x 3 m hall (walls rows 0-1 and 28-29); optional 1 m blob of `code` at x 4.5-5.5, y 0.2-1.4."""
+    c = np.zeros((30, 100), dtype=np.uint8)
+    c[:2, :] = 1
+    c[-2:, :] = 1
+    if code:
+        c[2:14, 45:55] = code
+    return OccGrid(c, 0.1, (0.0, 0.0))
+
+
+def test_clearance_keeps_off_movable_furniture():
+    g = _hall(3)
+    path = plan(g, (0.5, 1.5), (9.5, 1.5), [])
+    solid = np.isin(g.cells, (1, 2, 3, 4))
+    from scipy.ndimage import distance_transform_edt
+    d = distance_transform_edt(~solid) * g.res
+    assert all(d[g.world_to_cell(p)] >= 0.35 - 1e-9 for p in path)
+
+
+def test_furniture_blocks_when_gap_under_clearance():
+    g = _hall(3)
+    g.cells[2:23, 45:55] = 3       # 0.5 m gap above the blob: wall clearance leaves a strip touching it
+    with pytest.raises(NoRouteError):
+        plan(g, (0.5, 1.5), (9.5, 1.5), [])
+
+
+def test_wall_trailing_ignores_code_3():
+    g = _hall(3)
+    assert g.wall_distance()[8, 50] > 0.5      # beside the blob: not counted as a wall
+    from dr.segments import segment
+    segs = segment([(0.5, 1.5), (9.5, 1.5)], _hall(3), [])
+    assert all(s.wall_side == "none" for s in segs)
+
+
+def test_stairs_never_walkable():
+    g = _hall(5)
+    with pytest.raises(NoRouteError):
+        plan(OccGrid(np.where(np.arange(100)[None, :] == 50, 5, g.cells).astype(np.uint8)
+                     , 0.1, (0.0, 0.0)), (0.5, 1.5), (9.5, 1.5), [])
+
+
+def test_ladder_records_failed_search_time(caplog):
+    g = _two_rooms(0.6)
+    with caplog.at_level("INFO", logger="dr.planner"):
+        r = plan_with_ladder(g, (2.5, 3.0), (7.5, 3.0), [])
+    assert r.relaxed and r.failed_s > 0 and r.failed_attempts >= 1
+    assert any("failed" in m and "s" in m for m in caplog.messages)
+    ok = plan_with_ladder(*_setup()[:3], _setup()[3])
+    assert ok.failed_s == 0.0 and ok.failed_attempts == 0
+
+
+def test_ladder_total_failure_reports_failed_time():
+    with pytest.raises(NoRouteError) as e:
+        plan_with_ladder(_two_rooms(0.3), (2.5, 3.0), (7.5, 3.0), [])
+    assert e.value.failed_s > 0 and e.value.failed_attempts == 4

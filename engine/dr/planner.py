@@ -9,7 +9,9 @@ small obstacle specks when no route exists.
 from __future__ import annotations
 
 import heapq
+import logging
 import math
+import time
 from dataclasses import dataclass, replace
 
 import numpy as np
@@ -18,6 +20,8 @@ from scipy.ndimage import distance_transform_edt, label
 from dr.config import WALL_TRAIL_M
 from dr.grid import OccGrid, Vec2
 from dr.package import Landmark
+
+log = logging.getLogger("dr.planner")
 
 SNAP_M = 0.5        # start or goal may move this far to reach an unblocked cell
 LADDER = ((0.35, 0.10), (0.30, 0.10), (0.25, 0.10))  # (clearance_m, drop_specks_m2) after the first try
@@ -31,6 +35,8 @@ class NoRouteError(Exception):
         self.start, self.goal = start, goal
         msg = f"No route from ({start[0]:.2f}, {start[1]:.2f}) to ({goal[0]:.2f}, {goal[1]:.2f})"
         super().__init__(msg + (f": {why}" if why else ""))
+        self.failed_s = 0.0          # seconds spent in failed searches (set by plan_with_ladder)
+        self.failed_attempts = 0
 
 
 @dataclass(frozen=True)
@@ -48,6 +54,8 @@ class PlannedRoute:
     path: list[Vec2]
     relaxed: bool       # True when the ladder had to relax clearance or drop specks
     weights: Weights    # the weights that produced the path
+    failed_s: float = 0.0       # seconds spent in searches that raised NoRouteError before this one
+    failed_attempts: int = 0
 
 
 def drop_specks(grid: OccGrid, max_area_m2: float) -> OccGrid:
@@ -95,8 +103,17 @@ def approach_point(grid: OccGrid, pos: Vec2, dist: float = 0.6) -> Vec2:
     return best
 
 
+def _solid_distance(grid: OccGrid) -> np.ndarray:
+    """Metres to the nearest code 1, 2, 3 or 4 cell (R17: keep clear of movable furniture too).
+    wall_distance() stays 1, 2, 4 only: that is the wall trailing credit."""
+    solid = np.isin(grid.cells, (1, 2, 3, 4))
+    if not solid.any():
+        return np.full(grid.cells.shape, np.inf)
+    return distance_transform_edt(~solid) * grid.res
+
+
 def _blocked(grid: OccGrid, clearance_m: float) -> np.ndarray:
-    return (grid.cells != 0) | (grid.wall_distance() < clearance_m)
+    return (grid.cells != 0) | (_solid_distance(grid) < clearance_m)
 
 
 def _snap(grid: OccGrid, blocked: np.ndarray, p: Vec2) -> tuple[int, int] | None:
@@ -208,17 +225,36 @@ def plan_with_ladder(grid: OccGrid, start: Vec2, goal: Vec2, landmarks: list[Lan
                      w: Weights = Weights()) -> PlannedRoute:
     """plan(), then on NoRouteError retry with drop_specks_m2 0.10 and clearance 0.35, 0.30, 0.25 m
     (never below 0.25 m). A retried route is relaxed. Raises the last NoRouteError."""
-    try:
-        return PlannedRoute(plan(grid, start, goal, landmarks, w), False, w)
-    except NoRouteError as e:
-        err = e
+    failed, n = 0.0, 0
+
+    def attempt(ww: Weights) -> list[Vec2] | None:
+        nonlocal failed, n, err
+        t0 = time.perf_counter()
+        try:
+            return plan(grid, start, goal, landmarks, ww)
+        except NoRouteError as e:
+            dt = time.perf_counter() - t0
+            failed += dt
+            n += 1
+            err = e
+            log.info("failed search %d: clearance %.2f m, specks %.2f m2, %.3f s",
+                     n, ww.clearance_m, ww.drop_specks_m2, dt)
+            return None
+
+    err: NoRouteError | None = None
+    p = attempt(w)
+    if p is not None:
+        return PlannedRoute(p, False, w)
     for clr, specks in LADDER:
         ww = replace(w, clearance_m=min(clr, w.clearance_m),
                      drop_specks_m2=max(specks, w.drop_specks_m2))
         if ww == w:
             continue
-        try:
-            return PlannedRoute(plan(grid, start, goal, landmarks, ww), True, ww)
-        except NoRouteError as e:
-            err = e
+        p = attempt(ww)
+        if p is not None:
+            log.info("relaxed route after %d failed searches, %.3f s", n, failed)
+            return PlannedRoute(p, True, ww, failed, n)
+    assert err is not None
+    err.failed_s, err.failed_attempts = failed, n
+    log.info("no route after %d failed searches, %.3f s", n, failed)
     raise err
