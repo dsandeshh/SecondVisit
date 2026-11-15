@@ -34,8 +34,8 @@ Inside each stream: P0 first, then P1, then P2, respecting dependencies.
 ### Stream A: data
 - [x] Task 0: pull and decision (`DEMO_SID=x37LjPx62VA`); human step (entrance and desk) folds into checkpoint (b)
 - [x] Task 14: resolver, name to model, CoStar record (P1)
-- [ ] Task 15: arrival from Vexcel (P1) — checkpoint (e): drop off and door pins
-- [ ] Task 17: observer view (P0; relay part touches `api.py`)
+- [x] Task 15: arrival from Vexcel (P1, code done; pins wait on the human) — checkpoint (e): drop off and door pins
+- [x] Task 17: observer view (P0; relay part touches `api.py`)
 - [ ] Task 20: portfolio ranking (P1, with stream B's performance help)
 - [ ] Task 19 engine half: provenance in every producer (P1)
 - [ ] Task 18 P2: Showcase SDK sync (localhost only)
