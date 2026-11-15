@@ -24,6 +24,7 @@ import { loadShowcase, type ShowcaseHandle } from "./pages/showcase_hook";
 import { renderScore, type RunResult } from "./pages/score";
 import { cardWanted, mountKeyCard } from "./pages/keycard";
 import { OFFLINE, resolveAddress, tierLines, type Resolved } from "./home/home";
+import { lineId } from "./lines";
 import { World } from "./world";
 import { loadOutdoorHook, runFlow } from "./flow";
 
@@ -120,10 +121,15 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
     tierNote.textContent = (hit ? `${hit.name}${hit.address ? `, ${hit.address}` : ""}. ` : "") + lines.join(" ");
     tierNote.hidden = false;
     doc.querySelector<HTMLButtonElement>("#buildings button")?.focus();
-    if (!app.voice && audio.ctx) {   // Michael's clips for UI lines live in every built building's voice folder
-      const store = new ClipStore(audio.ctx, `/buildings/${id}`);
-      await store.init();
-      app.voice = new VoiceOut(audio, speech, store);
+    if (!app.voice && audio.ctx) {   // Michael's clips for UI lines live in every built building's voice folder: the
+      let store: ClipStore | null = null;   // loaded one first, else any built building that has these lines rendered
+      for (const sid of [...new Set([id, ...OFFLINE.map(o => o.sid)])]) {
+        const s = new ClipStore(audio.ctx, `/buildings/${sid}`);
+        await s.init();
+        store ??= s;
+        if (lines.every(l => s.has(lineId(l)))) { store = s; break; }
+      }
+      app.voice = new VoiceOut(audio, speech, store!);
     }
     speech.say(lines.join(" "), 2);   // one cue: VoiceOut plays it as two clipped sentences
   };

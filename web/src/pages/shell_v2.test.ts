@@ -253,4 +253,25 @@ describe("the address box is honest: three tiers", () => {
     expect(names).toEqual(expect.arrayContaining(["Medical Office", "Office B", "Demo lobby"]));
     vi.unstubAllGlobals();
   });
+  it("the tier line plays from whichever built building has its clips (any voice folder holds every UI line)", async () => {
+    const { lineId } = await import("../lines");
+    const ids = ["No indoor scan yet for this building.", "Choose one of the buildings below."].map(lineId);
+    const urls: string[] = [];
+    window.location.hash = "#/home";
+    await new Promise(r => setTimeout(r, 0));
+    load();
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => {
+      urls.push(String(u));
+      if (/\/api\/resolve/.test(String(u))) return json({ tier: "outdoor", sid: "zz", name: "Somewhere", address: "1 Road", city: "Houston" });
+      if (/package\.json/.test(String(u))) return json(fixturePkg());
+      if (/hpGRjK5uFPW\/voice\/index\.json/.test(String(u))) return json(Object.fromEntries(ids.map(i => [i, "x"])));
+      return json({}, false);
+    }));
+    await boot(document, new URLSearchParams("b=fixture"));
+    submit("Somewhere");
+    await vi.waitFor(() => expect(urls.some(u => u.includes(`/buildings/hpGRjK5uFPW/voice/${ids[0]}.wav`))).toBe(true));
+    expect(urls.some(u => /\/api\/tts/.test(u))).toBe(false);
+    vi.unstubAllGlobals();
+  });
 });
