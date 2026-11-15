@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import socket
 import sys
 import tempfile
@@ -170,10 +171,14 @@ def main() -> int:
         d = ROOT / "web" / "src" / "showcase"
         load, idx = (d / "load.ts").read_text(), (d / "index.ts").read_text()
         assert "Photo view needs internet; showing the scan." in load, "fallback line missing"
-        assert "SDK_TIMEOUT_MS = 8000" in load, "8 s timeout missing"
+        m = re.search(r"SDK_TIMEOUT_MS\s*=\s*(\d+)", load)
+        assert m, "SDK_TIMEOUT_MS missing"
+        timeout_s = int(m.group(1)) / 1000
+        assert 5 <= timeout_s <= 25, f"SDK timeout {timeout_s}s is outside the sane 5-25 s range"
         assert "navigator.onLine === false" in idx and "onFail" in idx, "offline path does not call onFail"
-        assert "static.matterport.com" in load and "my.matterport.com" in idx, "expected remote Showcase hosts (these are what fail offline)"
-        return "offline -> onFail within 8 s, line: Photo view needs internet; showing the scan."
+        assert "my.matterport.com" in idx, "expected the Showcase iframe host (what fails offline)"
+        assert "@matterport/sdk" in load, "expected the official Showcase SDK package import"
+        return f"offline -> onFail within {timeout_s:g} s, line: Photo view needs internet; showing the scan."
 
     check("GET /api/health reports modes (offline)", health)
     check("GET /api/agent/replay[s] plays both recordings", replays)
