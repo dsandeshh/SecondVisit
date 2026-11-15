@@ -184,6 +184,14 @@ def main() -> int:
     check("GET /api/overrides", overrides)
     check("WS /ws/obs relay", relay)
     check("clear 4xx errors on bad input", errors)
+    def clinic_panos():
+        if not (ROOT / "data" / CLINIC / "raw" / "panos.json").exists():
+            return "SKIPPED (no local sponsor cache)"
+        d = json.loads((ROOT / "web/public/buildings" / CLINIC / "panos.json").read_text())
+        assert d and all({"id", "position"} <= set(p) for p in d), "panos.json malformed"
+        return f"{len(d)} panos"
+
+    check("clinic panos.json exists and parses (photo view)", clinic_panos)
     check("web entry pages present", web_assets)
     check("Showcase photo view falls back offline", showcase_fallback)
 

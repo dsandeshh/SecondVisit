@@ -181,6 +181,22 @@ def copy_floorplan(sid: str, web_root: Path | None = None, data_root: Path = DAT
     return done
 
 
+def write_panos(sid: str, web_root: Path | None = None, data_root: Path = DATA) -> int:
+    """First-person photo view: web/public/buildings/<sid>/panos.json (gitignored, like R16).
+    [{"id", "position": {"x", "y"}}] from raw/panos.json model.panoLocations; model frame, z dropped.
+    Returns the entry count, 0 when the raw file is absent."""
+    src = Path(data_root) / sid / "raw" / "panos.json"
+    if not src.exists():
+        return 0
+    locs = json.loads(src.read_text()).get("model", {}).get("panoLocations", [])
+    out = [{"id": p["id"], "position": {"x": float(p["position"]["x"]), "y": float(p["position"]["y"])}}
+           for p in locs if p.get("position")]
+    d = Path(web_root or WEB_BUILDINGS) / sid
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "panos.json").write_text(json.dumps(out))
+    return len(out)
+
+
 def build_package(sid: str, from_id: str | None = None, to_id: str | None = None,
                   clearance: float | None = None, drop_specks: float | None = None, sim: int = 0,
                   data_root: Path = DATA, web_root: Path | None = None,
@@ -212,6 +228,9 @@ def build_package(sid: str, from_id: str | None = None, to_id: str | None = None
     missing = copy_floorplan(sid, web_root, data_root)
     if len(missing) < 2:
         pkg.notes.append("floor plan files missing: viewers show 'Floor plan not available'")
+    if not write_panos(sid, web_root, data_root):
+        pkg.notes.append("panos.json missing: first-person photo view falls back to the scan")
+        print(f"note: no raw/panos.json for {sid}; skipped web panos.json (photo view falls back to the scan)")
     voice_lines.add_voice_lines(pkg)
     return pkg
 
