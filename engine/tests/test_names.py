@@ -112,3 +112,32 @@ def test_build_package_has_spoken_and_voice_lines(tmp_path):
     assert len(texts) == len(pkg.voice_lines)
     for r in pkg.routes:
         assert all(s.instruction in texts for s in r.segments)
+
+
+def _lm(i, label, pos, kind="door", fixed=True, conf=0.9):
+    return Landmark(id=i, kind=kind, label=label, pos=pos, confidence=conf, fixed=fixed)
+
+
+def test_disambiguate_by_nearest_fixed_landmark_then_ordinal():
+    lms = [_lm("d1", "closed door", (0, 0)), _lm("d2", "closed door", (10, 0)), _lm("d3", "closed door", (20, 0)),
+           _lm("s", "sink counter", (1, 0), kind="other"), _lm("r", "reception counter", (11, 0), kind="desk")]
+    names.fill_spoken(lms, entrances=[Entrance(id="e", label="Main", pos=(0, 5), heading_deg=0)])
+    sp = {l.id: l.spoken for l in lms}
+    assert sp["d1"] == "Door by the sink counter"
+    assert sp["d2"] == "Door by the reception counter"
+    assert sp["d3"] == "Door 3"  # nothing near: ordinal by distance from the entrance
+    assert len({v.lower() for v in sp.values()}) == len(sp)
+    assert all(len(v.split()) <= 5 for v in sp.values())
+
+
+def test_disambiguate_uses_room_then_ordinal_and_keeps_hand():
+    from dr.package import Room
+    rooms = [Room(id="r", label="Lab", polygon=[(-1, -1), (5, -1), (5, 5), (-1, 5)], area_m2=36)]
+    lms = [_lm("a", "door", (0, 0)), _lm("b", "door", (30, 0)), _lm("c", "door", (60, 0), ), _lm("h", "door", (2, 2))]
+    lms[3].spoken = "Back door"
+    lms[3].fixed = False
+    names.fill_spoken(lms, rooms=rooms, entrances=[Entrance(id="e", label="Main", pos=(100, 0), heading_deg=0)])
+    sp = {l.id: l.spoken for l in lms}
+    assert sp["h"] == "Back door"
+    assert sp["a"] == "Door in the lab"
+    assert sp["c"] == "Door 1" and sp["b"] == "Door 2"  # c is closer to the entrance

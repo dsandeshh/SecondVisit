@@ -87,7 +87,7 @@ def merge_landmarks(pkg: BuildingPackage, sid: str, data_root: Path = DATA) -> N
             lms[lid].label = label
             pkg.prov[f"landmark:{lid}.label"] = Prov(src="hand", ref="overrides.json label_overrides", at=now)
     pkg.landmarks = list(lms.values())
-    names.fill_spoken(pkg.landmarks)
+    names.fill_spoken(pkg.landmarks, pkg.entrances, pkg.rooms)
 
 
 def add_route(pkg: BuildingPackage, from_id: str | None = None, to_id: str | None = None,

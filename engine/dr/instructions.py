@@ -25,6 +25,10 @@ def clock_hour(rel_deg: float) -> int:
     return h or 12
 
 
+def _say(lm: Landmark) -> str:
+    return lm.spoken or lm.label
+
+
 def _clause(seg: Segment, lms: dict[str, Landmark], wall: bool = True, lm: bool = True) -> str:
     out = ""
     if wall and seg.wall_side != "none":
@@ -33,7 +37,7 @@ def _clause(seg: Segment, lms: dict[str, Landmark], wall: bool = True, lm: bool 
         for lid in seg.landmarks_passed:
             if lid in lms:
                 p = "possibly " if lms[lid].confidence < 0.6 else ""
-                out += f", passing {p}the {lms[lid].label}"
+                out += f", passing {p}the {_say(lms[lid])}"
                 break
     return out
 
@@ -104,7 +108,7 @@ def write(segments: list[Segment], landmarks: list[Landmark], entrances: list[En
                 d = min(landmarks, key=lambda m: math.dist(m.pos, seg.end))
             if d is not None:
                 rel = wrap180(_bearing(seg.end, d.pos) - seg.heading_deg)
-                tail = f". The {d.label} is at {clock_hour(rel)} o'clock"
+                tail = f". The {_say(d)} is at {clock_hour(rel)} o'clock"
         text = _fit(seg, prev, lms, tail)
         if smooth:
             s = llm.complete(SMOOTH_SYSTEM, text)

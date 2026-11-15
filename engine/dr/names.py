@@ -5,6 +5,7 @@ prefixes at speech time (the clip "possibly" exists in voice_lines).
 """
 from __future__ import annotations
 
+import math
 import re
 
 from dr.package import Landmark
@@ -68,8 +69,53 @@ def is_possible(lm: Landmark) -> bool:
     return lm.confidence < POSSIBLE_BELOW
 
 
-def fill_spoken(landmarks: list[Landmark]) -> None:
-    """Set `spoken` where it is not already set (a HAND value wins). `label` is never changed."""
+NEAR_M = 4.0
+MAX_DISAMBIG_WORDS = 5
+
+
+def _disambiguate(group: list[Landmark], landmarks: list[Landmark], entrances, rooms) -> None:
+    """Make equal spoken names unique, by code from geometry: nearest distinct fixed landmark ("Door by the
+    sink counter"), else the room ("Door in the lab"), else an ordinal by distance from the entrance."""
+    from shapely.geometry import Point, Polygon
+    count: dict[str, int] = {}
+    for m in landmarks:
+        count[(m.spoken or "").lower()] = count.get((m.spoken or "").lower(), 0) + 1
+    base = group[0].spoken or ""
+    room_budget = MAX_DISAMBIG_WORDS - len(base.split()) - 2  # "by the" / "in the"
+    cands: dict[str, str] = {}
+    for lm in group:
+        near = sorted((m for m in landmarks if m.fixed and m.spoken and m.spoken.lower() != base.lower()
+                       and count[m.spoken.lower()] == 1 and len(m.spoken.split()) <= room_budget
+                       and math.dist(m.pos, lm.pos) <= NEAR_M), key=lambda m: math.dist(m.pos, lm.pos))
+        if near:
+            cands[lm.id] = f"{base} by the {near[0].spoken.lower()}"
+            continue
+        for r in rooms or []:
+            if r.label and len(r.label.split()) <= room_budget and Polygon(r.polygon).contains(Point(lm.pos)):
+                cands[lm.id] = f"{base} in the {r.label.lower()}"
+                break
+    seen: dict[str, int] = {}
+    for v in cands.values():
+        seen[v.lower()] = seen.get(v.lower(), 0) + 1
+    ref = entrances[0].pos if entrances else (0.0, 0.0)
+    order = sorted(group, key=lambda m: (math.dist(m.pos, ref), m.id))
+    for n, lm in enumerate(order, 1):
+        c = cands.get(lm.id)
+        lm.spoken = c if c and seen[c.lower()] == 1 else f"{base} {n}"
+
+
+def fill_spoken(landmarks: list[Landmark], entrances=None, rooms=None) -> None:
+    """Set `spoken` where it is not already set (a HAND value wins). `label` is never changed.
+    Names shared by two or more landmarks are then made unique (<= 5 words); see _disambiguate."""
+    fresh = []
     for lm in landmarks:
         if not lm.spoken:
             lm.spoken = spoken_name(lm.label, lm.kind)
+            fresh.append(lm)
+    groups: dict[str, list[Landmark]] = {}
+    for lm in fresh:
+        groups.setdefault(lm.spoken.lower(), []).append(lm)
+    for g in groups.values():
+        total = sum(1 for m in landmarks if (m.spoken or "").lower() == g[0].spoken.lower())
+        if total >= 2:
+            _disambiguate(g, landmarks, entrances, rooms)

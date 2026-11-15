@@ -15,7 +15,7 @@ def _build(a: argparse.Namespace) -> int:
         if a.sim:
             pipeline.run_sim(pkg, a.sim)
         from dr import names, voice_lines
-        names.fill_spoken(pkg.landmarks)
+        names.fill_spoken(pkg.landmarks, pkg.entrances, pkg.rooms)
         voice_lines.add_voice_lines(pkg)
     else:
         if not a.model:

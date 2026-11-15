@@ -73,3 +73,11 @@ def test_llm_failure_returns_empty(monkeypatch):
     monkeypatch.setenv("DR_FAST_MODEL", "x")
     monkeypatch.setattr("anthropic.Anthropic", lambda **k: (_ for _ in ()).throw(RuntimeError()))
     assert llm.complete("s", "u") == ""
+
+
+def test_uses_spoken_name_and_possibly_prefix():
+    segs, lms, ents = lobby_segs()
+    lms[0] = lms[0].model_copy(update={"spoken": "Front desk", "confidence": 0.5})
+    text = write(segs, lms, ents)[2].instruction
+    assert "passing possibly the Front desk" in text and "The Front desk is at" in text
+    assert "Reception" not in text
