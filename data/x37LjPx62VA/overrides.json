@@ -49,7 +49,7 @@
   "facade_bearing_src": "calc",
   "facade_bearing_ref": "roof edge orientation in the Vexcel ortho (structure tensor, edge 63.1, facade perpendicular = 153.1); cross-checked by the Vexcel property footprint west edge (333.05, same line); assumed until a human checks it",
   "second_destination": {
-    "landmark_id": "door_13"
+    "landmark_id": "door_9"
   },
   "oblique_dir": "east",
   "reference_confirmed": true,
