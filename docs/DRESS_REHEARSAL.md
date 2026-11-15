@@ -55,7 +55,7 @@ We did not start from "what can we do with 3D scans." We started from what is tr
 
 | Track | Entering? | How this project fits | What we must do |
 |---|---|---|---|
-| **Healthcare** (required main track) | Yes | Access to care for blind patients; the demo destination is a clinic. | Lead with reaching appointments. |
+| **Healthcare** (required main track) | Yes | Access to care for blind and low vision visitors; the first demo building is a clinic. | Lead with reaching appointments. |
 | **CoStar: Inside and Out** | Yes | All three layers, each necessary; agentic loops; two real users. | Show each layer doing a visible job in the demo. |
 | **Amazon Best Practical AI** | Yes | Agent that plans, acts and adapts to the user. | Working demo, named target user, documentation, pitch. Show the coach adapting. |
 | **Peri Forward Deployed** | Yes | Venue side solves a real organisation's problem. | Consult a clinic, optometrist or disability services office. Record business name, person's name and role, and one piece of evidence. |

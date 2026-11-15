@@ -1,8 +1,9 @@
 # SecondVisit: rules for Claude Code
 
-SecondVisit: "Make your first visit your second." Blind and low vision patients rehearse a clinic by
-sound before a first visit, built automatically from the clinic's Matterport scan, Vexcel imagery and
-CoStar record. Demo building: Houston "Medical Office", Matterport `x37LjPx62VA`, CoStar 5615020.
+SecondVisit: "Make your first visit your second." Blind and low vision visitors rehearse any building by
+sound before a first visit, built automatically from its Matterport scan, Vexcel imagery and CoStar
+record. Healthcare is the lead story: the first demo building is a Houston clinic, "Medical Office",
+Matterport `x37LjPx62VA`, CoStar 5615020.
 
 Read before any work, in this order: `docs/DESIGN.md` (what and why), `docs/APIS.md` (every external
 call), `docs/plan.md` (v3 tasks, interfaces, tests), `vendor/matterport/AGENTS.md` (the sponsor's own

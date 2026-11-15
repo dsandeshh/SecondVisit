@@ -1,8 +1,9 @@
 # SecondVisit: overall design (v3)
 
-**Make your first visit your second.** A blind or low vision patient rehearses a clinic by sound before
-the appointment, built automatically from the clinic's existing Matterport scan, Vexcel aerial imagery
-and CoStar records. The same measurements tell a clinic, landlord or CoStar where people would get
+**Make your first visit your second.** Blind and low vision people rehearse any building by sound before
+a first visit, built automatically from its existing Matterport scan, Vexcel aerial imagery and CoStar
+records. Healthcare leads: the first demo building is a clinic, and the story is a visitor reaching a
+first appointment. The same measurements tell a clinic, landlord or CoStar where people would get
 lost, and rank available medical suites by how easy they are to learn.
 
 Demo building: **Medical Office, Houston** (Matterport `x37LjPx62VA`, CoStar property 5615020).
@@ -10,7 +11,7 @@ Nobody on the team has been there. That is the point.
 
 ## 1. Two users, one engine
 
-| | Visitor (patient) | Venue (clinic, landlord, CoStar) |
+| | Visitor (blind or low vision) | Venue (clinic, landlord, CoStar) |
 |---|---|---|
 | Asks | "I have a first appointment at <clinic>." | "Where should reception go?" / "Which vacant suite is easiest to learn?" |
 | Gets | Curb to desk audio rehearsal, a pointing check and quiz, a coached second run, a pocket summary, a driver message | Navigability score with its parts, a lost heatmap (simulated), a better reception position, fixes, and a ranked list of suites |

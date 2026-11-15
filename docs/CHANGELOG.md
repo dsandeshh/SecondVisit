@@ -3,6 +3,12 @@
 Contract and plan changes, newest first. Rule 2 in CLAUDE.md: any change to BuildingPackage, RunLog,
 RunPlan or PointResult is logged here in the same commit as the code.
 
+## 2026-11-14 (Sat, about 22:00): wording
+
+- SecondVisit is for blind and low vision people visiting any building; the Houston clinic is the first
+  demo building and healthcare stays the lead story. "patient(s)" replaced in CLAUDE.md, DESIGN.md and
+  DRESS_REHEARSAL.md. `review/` (archived research) left as written.
+
 ## 2026-11-14 (Sat, about 21:45): Task 0 pull
 
 - APIS 1.3 rooms query: removed `panoLocations { floor { id } }`. The API rejects it
