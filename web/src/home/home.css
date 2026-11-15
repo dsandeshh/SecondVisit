@@ -1,0 +1,17 @@
+/* Home: one address box. Light Apple minimal: one big bold title, one field, one blue button, space. Tokens only. */
+.home { min-height: 100vh; min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; padding: var(--sp-6) var(--gutter);
+  background: var(--c-paper); color: var(--c-ink); font-family: var(--font-sans); }
+.home__mark { margin: 0; font-size: var(--fs-small); font-weight: var(--fw-bold); letter-spacing: 0.01em; color: var(--c-ink-2); }
+.home__form { align-self: center; width: min(46rem, 100%); margin: 0 auto; padding-bottom: var(--sp-9); }
+.home__title { margin: 0 0 var(--sp-6); font-size: var(--fs-title-visitor); font-weight: var(--fw-title-visitor);
+  line-height: var(--lh-title-visitor); letter-spacing: var(--tracking-title-visitor); text-wrap: balance; }
+.home__row { display: flex; gap: var(--sp-3); align-items: stretch; }
+.home__input { flex: 1; min-width: 0; min-height: var(--target-primary); padding: 0 var(--sp-5); font: inherit; font-size: var(--fs-lead);
+  color: var(--c-ink); background: var(--c-surface); border: var(--bw-control) solid var(--c-rule); border-radius: var(--r-primary); }
+.home__input::placeholder { color: var(--c-ink-2); }
+.home__input:focus-visible { outline: var(--bw-strong) solid var(--c-accent); outline-offset: 2px; border-color: var(--c-accent); }
+.home__go { min-width: 8rem; justify-content: center; font-size: var(--fs-lead); }
+.home__go[disabled] { opacity: .7; cursor: progress; }
+.home__err { min-height: 1.5em; margin: var(--sp-3) 0 0; font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--c-bad); }
+.home__note { margin: var(--sp-5) 0 0; font-size: var(--fs-small); color: var(--c-ink-2); max-width: var(--measure); }
+@media (max-width: 560px) { .home__row { flex-direction: column; } .home__go { min-height: var(--target-primary); } }

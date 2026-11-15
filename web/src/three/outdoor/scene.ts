@@ -34,9 +34,13 @@ export function simplify(pts: Vec2[], tol = 0.12): Vec2[] {
   return [...simplify(pts.slice(0, bi + 1), tol).slice(0, -1), ...simplify(pts.slice(bi), tol)];
 }
 
-/** A closed outline simplified without losing the closing corner. */
+/** A closed outline simplified: split at the point farthest from the first so the two halves are open chains. */
 export const simplifyRing = (ring: Vec2[], tol = 0.12): Vec2[] => {
-  const r = simplify([...ring, ring[0]], tol); r.pop(); return r;
+  if (ring.length < 4) return ring.slice();
+  let m = 1, far = -1;
+  ring.forEach((p, i) => { const d = Math.hypot(p[0] - ring[0][0], p[1] - ring[0][1]); if (d > far) { far = d; m = i; } });
+  const a = simplify(ring.slice(0, m + 1), tol), b = simplify([...ring.slice(m), ring[0]], tol);
+  return [...a.slice(0, -1), ...b.slice(0, -1)];
 };
 
 function chipColors(c: Chip): { fill: string; ink: string } {
@@ -187,10 +191,10 @@ export class OutdoorScene {
       pos.push(a[0], 0, a[2], b[0], 0, b[2], b[0], h, b[2], a[0], 0, a[2], b[0], h, b[2], a[0], h, a[2]);
     }
     const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
-    const shell = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: this.ink, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+    const shell = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: this.ink, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }));
     shell.renderOrder = 5;
     const grp = new THREE.Group(); grp.add(shell);
-    const edge = this.line(pts, 0.05, this.ink, 2, { closed: true }), top = this.line(pts, h, this.ink, 1.5, { closed: true, dashed: this.shellAssumedHeight });
+    const edge = this.line(pts, 0.05, this.ink, 1.75, { closed: true }), top = this.line(pts, h, this.ink, 1, { closed: true, dashed: this.shellAssumedHeight });
     grp.add(edge, top);
     this.disposables.push(g);
     const [lx, ly] = [Math.min(...pts.map(p => p[0])), pts.reduce((a, p) => a + p[1], 0) / pts.length];
