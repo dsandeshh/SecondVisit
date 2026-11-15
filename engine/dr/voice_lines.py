@@ -51,6 +51,12 @@ FIXED_UI_LINES = [
     "Rehearsal.",
     "Keys.",
     "Agent and data.",
+    # page shell (stream 2): the line each page says on arrival, and the F6 parts
+    "We are outside. Walk from the curb to the door.",
+    "Check yourself. Point to the destination, then answer three questions.",
+    "Here is how it went.",
+    "How it was built. This page is for judges and companions.",
+    "Controls.", "View.",
     "Paused. Press P to resume.",
     "Fastest.",
     "Slowest.",

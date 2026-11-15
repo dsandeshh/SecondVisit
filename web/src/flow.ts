@@ -21,7 +21,8 @@ export interface OutdoorOpts {
 }
 export interface OutdoorModule { startOutdoor(o: OutdoorOpts): unknown }
 
-export const fullFlow = (params: URLSearchParams): boolean => params.get("flow") === "full";
+/** The journey starts outside by default; ?flow=interior opens inside (the old default). */
+export const fullFlow = (params: URLSearchParams): boolean => params.get("flow") !== "interior";
 
 /** The hook module if the file exists (import.meta.glob is empty when it does not, so the build never breaks). */
 export async function loadOutdoorHook(): Promise<OutdoorModule | null> {

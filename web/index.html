@@ -6,120 +6,139 @@
     <title>SecondVisit</title>
     <link rel="icon" href="data:," />
   </head>
-  <body>
-    <header class="topline" id="topline" hidden>
-      <div class="topline__id">
-        <span id="place-short" class="topline__name"></span>
-        <span id="place-meta" class="topline__meta"></span>
-      </div>
-      <span id="tags" class="topline__tags" aria-label="Where the facts come from"></span>
-      <nav aria-label="Rehearsal steps" class="steps">
-        <ol id="steps-list">
-          <li><span aria-current="step" class="steps__now">Explore</span></li>
-          <li><span>Rehearse</span></li>
-          <li><span>Check yourself</span></li>
-          <li><span>Summary</span></li>
-        </ol>
-      </nav>
-      
-    </header>
+  <body data-page="home">
     <main id="main">
-      <section id="home" class="screen" aria-labelledby="home-h">
-        <h1 id="home-h" class="title">Make your first visit your second.</h1>
-        <p class="lede">Rehearse the way in by sound, before you go.</p>
-        <p class="place-line">Building: <strong id="bname">loading</strong></p>
-        <div id="start-slot">
-          <button id="start" class="btn btn--primary" type="button">Start</button>
-          <p class="note">Nothing plays until you press Start. Wired headphones work best.</p>
-        </div>
-        <p id="load-error" class="error" hidden></p>
+      <!-- 1. Home: the journey starts outside. Start is the first Tab stop (it comes first in the DOM, the CSS puts it after the box). -->
+      <section id="home" class="page page--home" aria-labelledby="home-h" data-page="home">
+        <h1 id="home-h" class="home-title">SecondVisit</h1>
+        <form id="home-form" class="home-form" novalidate>
+          <button id="start" class="btn btn--primary home-start" type="submit">Start</button>
+          <label class="sr-only" for="addr">Address or building name</label>
+          <input id="addr" class="home-input" name="q" type="text" autocomplete="street-address" spellcheck="false"
+                 placeholder="Street address or building name" aria-describedby="load-error" />
+        </form>
+        <p id="load-error" class="error" role="alert" hidden></p>
+        <div id="buildings" class="buildings" role="group" aria-label="Available buildings"></div>
+        <p class="sr-only">Building: <strong id="bname">loading</strong></p>
       </section>
 
-      <section id="rehearsal" class="screen" aria-labelledby="place" hidden>
+      <!-- 2 and 3. Arrive and Inside share one full screen stage (the outdoor scene draws into it; then the first person view). -->
+      <section id="rehearsal" class="page page--stage" aria-labelledby="place" hidden>
         <h1 id="place" class="sr-only"></h1>
-        <div class="fit">
-        <div class="cockpit">
-          <div class="cockpit__main">
-            <div id="stage" class="stage" role="application" tabindex="0"
-                 aria-label="Rehearsal. Up arrow to walk, left and right to turn, Space to repeat, W for where am I.">
-              <div id="room3d" class="room3d viz" aria-hidden="true"></div>
-              <p id="intro-prompt" class="intro-prompt" aria-hidden="true" hidden></p>
-              <div class="room3d-bar viz" role="group" aria-label="3D view">
-                <button type="button" class="btn btn--secondary btn--small" data-scene="scan" aria-pressed="true" disabled>Real scan</button>
-                <button type="button" class="btn btn--secondary btn--small" data-scene="plan" aria-pressed="false">Plan</button>
-                <span class="room3d-bar__gap" aria-hidden="true"></span>
-                <button type="button" class="btn btn--secondary btn--small" data-view="behind" aria-pressed="true">Behind</button>
-                <button type="button" class="btn btn--secondary btn--small" data-view="top" aria-pressed="false">Top</button>
-                <button type="button" class="btn btn--secondary btn--small" data-view="orbit" aria-pressed="false">Orbit</button>
-                <span id="room3d-note" class="note" hidden></span>
-              </div>
-            </div>
+        <div id="stage" class="stage" role="application" tabindex="0"
+             aria-label="Rehearsal. Up arrow to walk, left and right to turn, Space to repeat, W for where am I.">
+          <div id="showcase" class="showcase viz" aria-hidden="true" hidden></div>
+          <div id="room3d" class="room3d viz" aria-hidden="true"></div>
+          <p id="intro-prompt" class="intro-prompt" aria-hidden="true" hidden></p>
+          <div class="room3d-bar viz" role="group" aria-label="3D view">
+            <button type="button" class="btn btn--secondary btn--small" data-scene="scan" aria-pressed="true" disabled>Real scan</button>
+            <button type="button" class="btn btn--secondary btn--small" data-scene="plan" aria-pressed="false">Plan</button>
+            <button type="button" class="btn btn--secondary btn--small" data-view="behind" aria-pressed="true">Behind</button>
+            <button type="button" class="btn btn--secondary btn--small" data-view="top" aria-pressed="false">Top</button>
+            <button type="button" class="btn btn--secondary btn--small" data-view="orbit" aria-pressed="false">Orbit</button>
+            <span id="room3d-note" class="note" hidden></span>
           </div>
-          <aside class="cockpit__side viz" aria-label="Objects and floor plan">
-            <section class="objects" aria-labelledby="obj-h">
-              <h2 id="obj-h">Objects <small><span id="obj-count">0</span> in this building</small></h2>
-              <div class="objects__scroll" role="region" aria-labelledby="obj-h" tabindex="0">
-                <table id="objects" class="objects__table"><caption class="sr-only">Every landmark in this building</caption>
-                  <thead><tr><th scope="col">Object</th><th scope="col">Source</th><th scope="col">Edit</th></tr></thead>
-                  <tbody></tbody></table>
-              </div>
-              <details class="objects__add"><summary>Add an object here</summary>
-                <form id="obj-add">
-                  <label>Name <input name="label" required maxlength="60" autocomplete="off"></label>
-                  <label>Kind <select name="kind"></select></label>
-                  <button type="submit" class="btn btn--secondary btn--small">Add at the walker's position</button>
-                </form>
-              </details>
-              <p id="obj-note" class="note" role="status"></p>
-            </section>
-            <figure class="miniplan" aria-labelledby="mp-cap">
-              <figcaption id="mp-cap">Floor plan</figcaption>
-              <canvas id="miniplan" aria-hidden="true"></canvas>
-              <p id="plan-note" class="note" hidden></p>
-            </figure>
-          </aside>
         </div>
-        <section id="strip" class="strip" aria-label="Current instruction">
-          <p id="next-action" class="next-action">Next: press Enter to start the rehearsal</p>
-          <section class="transcript" aria-labelledby="tr-h">
-            <h2 id="tr-h" class="sr-only">What SecondVisit says</h2>
-            <div class="transcript__row"><p id="say-polite" class="transcript__now" aria-live="off"></p><p id="say-dir" class="transcript__dir" aria-hidden="true" hidden></p></div>
-            <p id="say-assertive" class="sr-only" aria-live="off"></p>
-            <p class="stage__status"><span id="room-label">Room: not named</span> <span id="speaking" hidden>Speaking</span></p>
+        <div class="hud hud--inside viz">
+          <button id="overview" class="chipbtn hud__tl" type="button" aria-pressed="false">Overview</button>
+          <figure class="miniplan hud__tr" aria-labelledby="mp-cap">
+            <figcaption id="mp-cap" class="sr-only">Floor plan</figcaption>
+            <canvas id="miniplan" aria-hidden="true"></canvas>
+            <p id="plan-note" class="sr-only" hidden></p>
+          </figure>
+          <canvas id="ring" class="ring" aria-hidden="true" width="132" height="132"></canvas>
+        </div>
+        <p id="next-action" class="sr-only"></p>
+        <p id="status" class="sr-only"></p>
+        <p id="room-label" class="sr-only">Room: not named</p>
+        <span id="speaking" class="sr-only" hidden>Speaking</span>
+<div id="phone" class="phone" hidden>
+          <button id="step" class="step-button" type="button">Step<span class="step-button__hint" aria-hidden="true">Tap to take one step</span></button>
+          <div class="phone__turns" id="turns" hidden>
+            <button id="turn-left" class="btn btn--secondary" type="button">Turn left</button>
+            <button id="turn-right" class="btn btn--secondary" type="button">Turn right</button>
+          </div>
+          <div class="phone__bar">
+            <button id="repeat" class="btn btn--secondary" type="button">Repeat</button>
+            <button id="where" class="btn btn--secondary" type="button">Where am I</button>
+            <button id="recentre" class="btn btn--secondary" type="button">Recentre</button>
+            <button id="around" class="btn btn--secondary" type="button">Around me</button>
+            <button id="ahead" class="btn btn--secondary" type="button">Ahead</button>
+            <button id="places" class="btn btn--secondary" type="button" aria-expanded="false" aria-controls="places-list">Places</button>
+          </div>
+          <div id="places-list" class="phone__places" role="group" aria-label="Places" hidden></div>
+        </div>
+      </section>
+
+      <!-- 4. Check yourself: the pointing test and the quiz. -->
+      <section id="check" class="page page--text" aria-labelledby="check-h" hidden>
+        <h1 id="check-h" class="page-title">Check yourself</h1>
+        <p id="lede" class="page-lede">Turn to face the destination, then confirm.</p>
+        <section id="quiz" class="quiz" aria-label="Quiz" hidden></section>
+        <div class="actions"><button id="go" class="btn btn--primary" type="button" hidden>Start rehearsal</button></div>
+      </section>
+
+      <!-- 5. Summary. -->
+      <section id="result" class="page page--text" aria-labelledby="result-h" hidden>
+        <h1 id="result-h" class="page-title">Summary</h1>
+        <div id="score" class="score"></div>
+        <p id="coach-line" class="coach" hidden></p>
+        <div class="actions">
+          <button id="again" class="btn btn--primary" type="button">Practice again</button>
+          <a id="to-about" class="btn btn--secondary" href="#/about">How it was built</a>
+        </div>
+      </section>
+
+      <!-- 6. How it was built, for judges: everything the old cockpit showed lives here. -->
+      <section id="about" class="page page--about" aria-labelledby="about-h" hidden>
+        <header class="about__head">
+          <h1 id="about-h" class="page-title page-title--sm">How it was built</h1>
+          <div class="about__id"><span id="place-short" class="about__name"></span> <span id="place-meta" class="about__meta"></span></div>
+          <span id="tags" class="about__tags" aria-label="Where the facts come from"></span>
+          <a id="about-back" class="btn btn--secondary btn--small" href="#/home">Back</a>
+        </header>
+        <div class="about__grid">
+          <section class="objects" aria-labelledby="obj-h">
+            <h2 id="obj-h">Objects <small><span id="obj-count">0</span> in this building</small></h2>
+            <div class="objects__scroll" role="region" aria-labelledby="obj-h" tabindex="0">
+              <table id="objects" class="objects__table"><caption class="sr-only">Every landmark in this building</caption>
+                <thead><tr><th scope="col">Object</th><th scope="col">Source</th><th scope="col">Edit</th></tr></thead>
+                <tbody></tbody></table>
+            </div>
+            <details class="objects__add"><summary>Add an object here</summary>
+              <form id="obj-add">
+                <label>Name <input name="label" required maxlength="60" autocomplete="off"></label>
+                <label>Kind <select name="kind"></select></label>
+                <button type="submit" class="btn btn--secondary btn--small">Add at the walker's position</button>
+              </form>
+            </details>
+            <p id="obj-note" class="note" role="status"></p>
           </section>
-          <div class="strip__side">
-            <p id="lede" class="strip__lede">Explore by sound. Walk, turn and listen. Nothing is scored.</p>
-            <p id="strip-text" class="strip__text">Press Start rehearsal when you are ready.</p>
-            <div class="strip__meta">
-              <span id="strip-seg">Stretch: not started</span>
-              <span id="strip-steps"></span>
-              <span class="strip__bar" aria-hidden="true"><span id="strip-fill"></span></span>
-            </div>
-          </div>
-        </section>
-        </div>
-        <div class="below">
-          <details id="data-panel" class="panel">
-            <summary>Agent and data</summary>
-            <div class="panel__grid">
-              <section aria-labelledby="ag-h"><h2 id="ag-h">Agent trace</h2>
-                <button id="agent-run" type="button" class="btn btn--secondary btn--small">Ask the agent for the visitor route</button>
-                <ol id="agent-log" class="trace" aria-live="off"></ol>
-                <p id="agent-note" class="note" role="status"></p></section>
-              <section aria-labelledby="rn-h"><h2 id="rn-h">This session</h2>
-                <dl id="session-dl" class="facts"></dl></section>
-              <section aria-labelledby="rec-h"><h2 id="rec-h">Record facts</h2>
-                <ul id="record-facts" class="facts-list"></ul>
-                <div id="layer-meter" hidden></div></section>
-              <section aria-labelledby="hist-h"><h2 id="hist-h">Earlier lines</h2>
-                <ol id="say-history" class="transcript__history" aria-label="Earlier lines"></ol></section>
-            </div>
-          </details>
-          <details class="panel" id="keys-panel">
-            <summary>Keys</summary>
-            <section class="keys" aria-labelledby="keys-h">
-              <h2 id="keys-h" class="sr-only">Keys</h2>
-              <dl>
+          <div class="about__col">
+            <details id="data-panel" class="panel" open>
+              <summary>Agent and data</summary>
+              <div class="panel__grid">
+                <section aria-labelledby="ag-h"><h2 id="ag-h">Agent trace</h2>
+                  <button id="agent-run" type="button" class="btn btn--secondary btn--small">Ask the agent for the visitor route</button>
+                  <ol id="agent-log" class="trace" aria-live="off"></ol>
+                  <p id="agent-note" class="note" role="status"></p></section>
+                <section aria-labelledby="rn-h"><h2 id="rn-h">This session</h2>
+                  <dl id="session-dl" class="facts"></dl>
+                  <p class="facts"><span id="strip-seg">Stretch: not started</span> <span id="strip-steps"></span></p>
+                  <span class="strip__bar" aria-hidden="true"><span id="strip-fill"></span></span>
+                  <p id="strip-text" class="sr-only"></p></section>
+                <section aria-labelledby="rec-h"><h2 id="rec-h">Provenance</h2>
+                  <ul id="record-facts" class="facts-list"></ul>
+                  <div id="layer-meter"></div></section>
+                <section aria-labelledby="hist-h"><h2 id="hist-h">Earlier lines</h2>
+                  <ol id="say-history" class="transcript__history" aria-label="Earlier lines"></ol></section>
+              </div>
+            </details>
+            <details class="panel" id="keys-panel">
+              <summary>Keys</summary>
+              <section class="keys" aria-labelledby="keys-h">
+                <h2 id="keys-h" class="sr-only">Keys</h2>
+                <dl>
                 <dt>Up</dt><dd>walk</dd>
                 <dt>Down</dt><dd>step back</dd>
                 <dt>Left, Right</dt><dd>turn</dd>
@@ -144,33 +163,24 @@
                 <dt>1 to 4, R</dt><dd>quiz answer, repeat options</dd>
                 <dt>+ and −</dt><dd>speech speed, 80 to 160 percent</dd>
               </dl>
-            </section>
-          </details>
-        </div>
-        <p id="status" class="status"></p>
-        <div class="actions"><button id="go" class="btn btn--primary" type="button" hidden>Start rehearsal</button></div>
-        <section id="quiz" class="quiz" aria-label="Quiz" hidden></section>
-        <p id="coach-line" class="coach" hidden></p>
-        <section id="summary" class="summary" aria-label="Pocket summary" hidden></section>
-
-        <div id="phone" class="phone" hidden>
-          <button id="step" class="step-button" type="button">Step<span class="step-button__hint" aria-hidden="true">Tap to take one step</span></button>
-          <div class="phone__turns" id="turns" hidden>
-            <button id="turn-left" class="btn btn--secondary" type="button">Turn left</button>
-            <button id="turn-right" class="btn btn--secondary" type="button">Turn right</button>
+              </section>
+            </details>
+            <section id="summary" class="summary" aria-label="Pocket summary" hidden></section>
           </div>
-          <div class="phone__bar">
-            <button id="repeat" class="btn btn--secondary" type="button">Repeat</button>
-            <button id="where" class="btn btn--secondary" type="button">Where am I</button>
-            <button id="recentre" class="btn btn--secondary" type="button">Recentre</button>
-            <button id="around" class="btn btn--secondary" type="button">Around me</button>
-            <button id="ahead" class="btn btn--secondary" type="button">Ahead</button>
-            <button id="places" class="btn btn--secondary" type="button" aria-expanded="false" aria-controls="places-list">Places</button>
-          </div>
-          <div id="places-list" class="phone__places" role="group" aria-label="Places" hidden></div>
         </div>
       </section>
     </main>
+
+    <!-- The one caption line (Michael's words, always on screen with the direction). aria-live stays off: the voice speaks. -->
+    <div id="capline" class="capline" hidden>
+      <div class="transcript__row"><p id="say-polite" class="transcript__now" aria-live="off"></p><p id="say-dir" class="transcript__dir" aria-hidden="true" hidden></p></div>
+      <p id="say-assertive" class="sr-only" aria-live="off"></p>
+    </div>
+    <div id="controls" class="controls" hidden>
+      <button id="pause" class="chipbtn" type="button">Pause</button>
+      <span class="controls__gap"></span>
+      <button id="help" class="chipbtn" type="button">Help</button>
+    </div>
     <aside id="op" class="op" aria-label="Operator panel" hidden>
       <dl>
         <dt>Latency</dt><dd id="op-latency">not started</dd>

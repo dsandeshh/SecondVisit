@@ -1,0 +1,118 @@
+/* The page shell: one page at a time, full screen, almost nothing on it (docs/UI_DESIGN.md, "Pages").
+   Light Apple minimal, system font, white. Every page fits 1280x800 and 1440x900 with no scroll. */
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; overscroll-behavior: none; background: var(--c-paper); color: var(--c-ink); }
+main { max-width: none; padding: 0; height: 100vh; height: 100dvh; position: relative; }
+.page { position: absolute; inset: 0; margin: 0; background: var(--c-paper); overflow: hidden; }
+.page > * + * { margin-top: 0; }
+.page[hidden] { display: none !important; }
+
+/* 1. Home */
+.page--home { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0 max(var(--gutter), 12vw); gap: var(--sp-5); }
+.home-title { font-size: clamp(4rem, 9vw, 7.5rem); font-weight: var(--fw-heavy); letter-spacing: -0.04em; line-height: 1; margin: 0 0 var(--sp-4); max-width: none; }
+.home-form { display: flex; flex-direction: row-reverse; gap: var(--sp-3); width: min(46rem, 100%); }   /* Start is first in the DOM (first Tab stop), the box shows first */
+.home-input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: var(--fs-lead); min-height: var(--target-primary); padding: 0 var(--sp-5);
+  border: var(--bw-control) solid var(--c-rule); border-radius: var(--r-primary); background: var(--c-surface); color: var(--c-ink); }
+.home-start { font-size: var(--fs-lead); padding: 0 var(--sp-7); flex: none; justify-content: center; }
+.buildings { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-4); }
+.building { display: grid; gap: 2px; text-align: left; font: inherit; padding: var(--sp-3) var(--sp-5); min-height: var(--target-primary); cursor: pointer;
+  border: var(--bw-control) solid var(--c-rule-soft); border-radius: var(--r-primary); background: var(--c-surface); color: var(--c-ink); }
+.building strong { font-size: var(--fs-body); }
+.building span { font-size: var(--fs-small); color: var(--c-ink-2); }
+.building[aria-pressed="true"] { border-color: var(--c-ink); box-shadow: inset 0 0 0 1px var(--c-ink); }
+.building:hover { background: var(--c-surface-2); }
+.page--home .error { margin: 0; }
+
+/* 2 and 3. The full screen stage, first person view or outdoor scene */
+.page--stage { background: var(--c-surface-2); }
+.stage { position: absolute; inset: 0; border: 0; padding: 0; min-height: 0; display: block; overflow: hidden; background: var(--c-surface-2); }
+.stage:focus-visible { outline: 3px solid var(--c-accent); outline-offset: -3px; }
+.room3d, .showcase { position: absolute; inset: 0; background: var(--c-surface-2); }
+.showcase { z-index: 0; }
+.room3d { z-index: 1; }
+.stage[data-view="first"] .room3d { visibility: hidden; }
+.stage[data-view="overview"] .showcase { visibility: hidden; }
+.room3d-bar { display: none; position: absolute; top: var(--sp-3); left: 50%; transform: translateX(-50%); z-index: 3; gap: var(--sp-2); align-items: center; }
+.stage[data-view="overview"] .room3d-bar { display: flex; }
+.room3d-bar .btn { background: var(--c-surface); min-height: 2.25rem; font-size: var(--fs-small); padding: 0 var(--sp-3); }
+.room3d-bar .btn[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); }
+.intro-prompt { top: 30%; }
+
+/* The HUD: only these things sit on the inside screen. */
+.hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.hud > * { pointer-events: auto; }
+.page[hidden] ~ .hud { display: none; }
+body:not([data-page="inside"]) .hud { display: none; }
+.hud__tl { position: absolute; top: var(--sp-5); left: var(--sp-5); }
+.hud__tr { position: absolute; top: var(--sp-5); right: var(--sp-5); margin: 0; }
+.miniplan canvas { width: 11rem; height: 8rem; border: var(--bw-hair) solid var(--c-rule-soft); border-radius: var(--r-control); background: var(--c-surface); }
+.ring { position: absolute; left: 50%; bottom: 6.5rem; transform: translateX(-50%); width: 6.5rem; height: 6.5rem; pointer-events: none; }
+
+.chipbtn { font: inherit; font-size: var(--fs-small); font-weight: var(--fw-medium); min-height: 2.75rem; padding: 0 var(--sp-5); cursor: pointer; color: var(--c-ink);
+  background: var(--c-surface); border: var(--bw-control) solid var(--c-rule-soft); border-radius: 999px; }
+.chipbtn:hover { background: var(--c-surface-2); }
+.chipbtn[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); border-color: var(--c-ink); }
+
+/* The one caption line and the two small buttons at the bottom */
+.capline { position: fixed; left: 50%; bottom: var(--sp-5); transform: translateX(-50%); z-index: var(--z-caption); width: min(46rem, calc(100vw - 20rem)); text-align: center; }
+.capline .transcript__row { justify-content: center; }
+.capline .transcript__now { font-size: clamp(1.25rem, 1.6vw, 1.6rem); font-weight: var(--fw-medium); border: 0; margin: 0; padding: var(--sp-3) var(--sp-5); min-height: 0;
+  background: var(--c-surface); border-radius: var(--r-primary); line-height: 1.3; }
+.capline .transcript__now:empty { display: none; }
+.capline .transcript__now.is-long { font-size: 1.125rem; }
+.controls { position: fixed; left: var(--sp-5); right: var(--sp-5); bottom: var(--sp-5); display: flex; justify-content: space-between; z-index: var(--z-caption); pointer-events: none; }
+.controls > * { pointer-events: auto; }
+.controls__gap { flex: 1; }
+.controls { gap: var(--sp-3); }
+#next-action { margin: 0; }
+
+/* 4. Check, 5. Summary: big words on white */
+.page--text { display: flex; flex-direction: column; justify-content: center; padding: 0 max(var(--gutter), 12vw) 6rem; gap: var(--sp-5); }
+.page-title { font-size: clamp(3rem, 6.5vw, 5.5rem); font-weight: var(--fw-heavy); letter-spacing: -0.035em; line-height: 1.02; margin: 0; max-width: 18ch; }
+.page-title--sm { font-size: var(--fs-h2); letter-spacing: -0.02em; margin: 0; max-width: none; }
+.page-lede { font-size: var(--fs-lead); color: var(--c-ink-2); margin: 0; max-width: 40rem; }
+.page--text .quiz { max-width: 44rem; gap: var(--sp-3); }
+.page--text .quiz h2 { font-size: var(--fs-small); color: var(--c-ink-2); font-weight: var(--fw-medium); }
+.page--text .quiz > p:not(.note) { font-size: var(--fs-h2); font-weight: var(--fw-bold); line-height: 1.15; margin-bottom: var(--sp-2); }
+.page--text .quiz__opt { min-height: 3.75rem; border-radius: var(--r-primary); border-color: var(--c-rule-soft); }
+.page--text .actions { margin-top: var(--sp-3); }
+.score__big { font-size: clamp(3.5rem, 8vw, 7rem); font-weight: var(--fw-heavy); letter-spacing: -0.04em; line-height: 1; margin: 0 0 var(--sp-3); }
+.score__line { font-size: var(--fs-h3); margin: 0; }
+.score__line--soft { color: var(--c-ink-2); font-size: var(--fs-lead); margin-top: var(--sp-3); }
+.score__table { border-collapse: collapse; font-size: var(--fs-lead); margin-top: var(--sp-4); }
+.score__table th, .score__table td { text-align: left; padding: var(--sp-2) var(--sp-6) var(--sp-2) 0; font-weight: var(--fw-body); }
+.score__table thead th { color: var(--c-ink-2); font-size: var(--fs-small); }
+.score__table tbody th { font-weight: var(--fw-bold); }
+.coach { border: 0; padding: 0; font-size: var(--fs-lead); color: var(--c-ink-2); max-width: 40rem; }
+a.btn { text-decoration: none; }
+
+/* 6. How it was built: the whole cockpit lives here, in a fixed frame that scrolls inside */
+.page--about { padding: var(--sp-5) max(var(--gutter), 4vw) var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+.about__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-5); flex: none; }
+.about__id { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); font-size: var(--fs-small); flex: 1 1 20rem; }
+.about__name { font-weight: var(--fw-bold); }
+.about__meta { display: inline-flex; gap: var(--sp-4); color: var(--c-ink-2); flex-wrap: wrap; }
+.about__meta span + span::before { content: ""; }
+.about__tags { display: inline-flex; gap: var(--sp-2); flex-wrap: wrap; }
+.about__grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--sp-6); flex: 1 1 0; min-height: 0; }
+.about__grid > * { min-height: 0; overflow-y: auto; }
+.about__grid .objects { display: flex; flex-direction: column; }
+.about__grid .objects__scroll { flex: 1 1 auto; min-height: 8rem; }
+.about__col { display: flex; flex-direction: column; gap: var(--sp-2); padding-right: var(--sp-2); }
+.page--about .summary { border: 0; border-top: var(--bw-control) solid var(--c-ink); padding: var(--sp-3) 0; max-width: none; }
+.page--about .panel__grid { grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+
+/* Phone keeps its big Step button; the caption sits on top. */
+body.is-phone main { height: 100dvh; }
+body.is-phone .capline { top: var(--sp-3); bottom: auto; width: calc(100vw - 2 * var(--gutter)); }
+body.is-phone .controls, body.is-phone .hud { display: none; }
+body.is-phone .page--text { padding: 6rem var(--gutter) calc(var(--bottom-bar-h) + 2rem); overflow-y: auto; }
+body.is-phone .page--stage { background: var(--c-paper); }
+body.is-phone .stage { display: none; }
+body.is-phone #go { width: 100%; justify-content: center; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* The operator panel stays where it was. */
+
+/* #/inside is a locked page: nothing scrolls, nothing slides, only the view moves. */
+body[data-page="inside"], body[data-page="arrive"] { height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none; touch-action: none; }

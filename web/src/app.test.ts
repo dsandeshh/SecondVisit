@@ -37,8 +37,8 @@ describe("index.html", () => {
     const app = await boot(document, new URLSearchParams("b=fixture"));
     expect(app.audio.ctx).toBeNull();
     const f = focusables(document);
-    expect(f.length).toBe(1);
-    expect(f[0].id).toBe("start");
+    expect(f[0].id).toBe("start");   // Start is the first Tab stop; the address box and the building buttons follow
+    expect(f.map(e => e.id || e.tagName).slice(0, 2)).toEqual(["start", "addr"]);
     expect(document.getElementById("bname")!.textContent).toBe("Fixture lobby");
     vi.unstubAllGlobals();
   });

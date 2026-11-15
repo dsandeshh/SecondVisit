@@ -1,5 +1,6 @@
 import "./styles/tokens.css";
 import "./styles/app.css";
+import "./styles/pages.css";
 // Rehearsal app entry (Task 8).
 import { boot } from "./app";
 

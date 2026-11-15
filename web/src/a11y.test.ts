@@ -50,19 +50,34 @@ describe("index.html stage", () => {
     expect(document.getElementById("miniplan")!.getAttribute("aria-hidden")).toBe("true");
     expect(document.getElementById("stage")!.getAttribute("role")).toBe("application");
   });
-  it("F6 leaves the stage and cycles regions; Shift+F6 goes back", () => {
+  it("F6 leaves the stage and cycles the parts of the inside page; Shift+F6 goes back", () => {
     page("index.html");
+    document.body.dataset.page = "inside";
     const stage = document.getElementById("stage")!;
+    stage.dataset.view = "first";
     const speech = { say: vi.fn(), stop: vi.fn() } as never;
-    wireRegions(document, stage, speech, {} as never);
+    const off = wireRegions(document, stage, speech, {} as never);
     stage.focus();
     const f6 = (shiftKey = false) => document.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", shiftKey, bubbles: true }));
-    f6(); expect(document.activeElement).toBe(document.querySelector(".room3d-bar button:not(:disabled)[aria-pressed=true]"));   // the 3D view buttons
-    f6(); expect(document.activeElement).toBe(document.querySelector(".objects__scroll"));
-    f6(); expect(document.activeElement).toBe(document.querySelector("#keys-panel > summary"));
-    f6(); expect(document.activeElement).toBe(document.querySelector("#data-panel > summary"));
-    f6(true); expect(document.activeElement).toBe(document.querySelector("#keys-panel > summary"));
-    f6(true); f6(true); f6(true); expect(document.activeElement).toBe(stage);
+    f6(); expect(document.activeElement).toBe(document.getElementById("pause"));
+    f6(); expect(document.activeElement).toBe(document.getElementById("overview"));
+    f6(); expect(document.activeElement).toBe(stage);
+    f6(true); expect(document.activeElement).toBe(document.getElementById("overview"));
+    off();
+  });
+  it("F6 on the about page reaches the objects, Keys and Agent and data", () => {
+    page("index.html");
+    document.body.dataset.page = "about";
+    const stage = document.getElementById("stage")!;
+    const off = wireRegions(document, stage, { say: vi.fn(), stop: vi.fn() } as never, {} as never);
+    const f6 = () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", bubbles: true }));
+    document.getElementById("about-h")!.tabIndex = -1; document.getElementById("about-h")!.focus();
+    const seen: Element[] = [];
+    for (let i = 0; i < 6; i++) { f6(); seen.push(document.activeElement!); }
+    off();
+    expect(seen).toContain(document.querySelector("#keys-panel > summary"));
+    expect(seen).toContain(document.querySelector("#data-panel > summary"));
+    expect(seen).toContain(document.querySelector(".objects__scroll"));
   });
 });
 

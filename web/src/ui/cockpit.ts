@@ -49,6 +49,15 @@ export async function loadFloorPlan(sid: string, f: typeof fetch = fetch): Promi
   } catch (e) { return { missing: e instanceof Error ? e.message : "floor plan missing" }; }
 }
 
+/** What each source chip means, for the tooltip on the "How it was built" page (CLAUDE.md rule 8). */
+const CHIP_WHAT: Record<string, string> = {
+  MP: "Matterport: the 3D scan, rooms, doors and the floor plan",
+  VX: "Vexcel: aerial imagery of the arrival",
+  CS: "CoStar: the building record",
+  AI: "A model labelled it, with a confidence",
+  CALC: "Computed by our code from the geometry",
+  HAND: "Confirmed by a person",
+};
 const KINDS: LandmarkKind[] = ["desk", "elevator", "stairs", "door", "glass_door", "seating", "restroom", "sign", "pillar", "water", "other"];
 
 /** Steps still to walk: the rest of this stretch plus every later stretch (all from the package). */
@@ -193,7 +202,9 @@ export class Cockpit {
       const s = this.doc.createElement("span");
       s.className = `chip chip--${k.toLowerCase()}`;
       s.textContent = k;
-      s.setAttribute("aria-label", `${k}: ${c[k]} facts`);
+      s.setAttribute("aria-label", `${k}: ${c[k]} facts. ${CHIP_WHAT[k]}`);
+      s.title = `${CHIP_WHAT[k]} (${c[k]} facts)`;
+      s.tabIndex = 0;
       host.append(s);
     }
   }
@@ -293,7 +304,7 @@ export class Cockpit {
       const del = this.doc.createElement("button"); del.type = "button"; del.className = "btn btn--secondary btn--small";
       del.textContent = "Remove"; del.setAttribute("aria-label", `Remove ${l.label}`);
       del.addEventListener("click", () => void this.save({ op: "remove", id: l.id }));
-      act.append(ren, del);
+      if (l.id === this.sel) act.append(ren, del);   // edit controls only on the selected row
       tr.append(th, src, act);
       body.append(tr);
       if (l.id === this.sel) tr.scrollIntoView?.({ block: "nearest" });
