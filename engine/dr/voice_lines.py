@@ -75,6 +75,8 @@ FIXED_UI_LINES = [
     "No indoor scan yet for this building.",
     "This building is not available yet.",
     "Choose one of the buildings below.",
+    # continuous beacon (stream D, audio redesign): B toggles it, Escape clears a chosen target
+    "Beacon on.", "Target cleared.",
 ]
 NO_INDOOR_LINE = "No indoor scan yet for this building."
 NOT_AVAILABLE_LINE = "This building is not available yet."

@@ -42,33 +42,46 @@ describe("beacon is a hint in Rehearse", () => {
   });
 });
 
-describe("Tab, Enter, Escape in Explore", () => {
-  it("Tab picks a place and says it; Enter starts the beacon; Escape stops it and says so", () => {
-    const { s, ex, said, cues } = make();
+describe("Tab, Enter, Escape in Explore: the beacon's target", () => {
+  const two = () => { const pkg = fixturePkg(); pkg.landmarks.push({ ...pkg.landmarks[0], id: "lift", kind: "elevator", label: "Elevator", spoken: "Elevator", confidence: 0.4, pos: [3, 6] }); return pkg; };
+  it("Tab says name, clock and steps in one line; Enter sets the target; Escape clears it back to the destination", () => {
+    const { s, ex, said, cues } = make(two());
+    document.body.insertAdjacentHTML("beforeend", `<p id="target-line"></p>`);
     s.pick(1);
-    expect(ex.fx.picked).toBe("desk");
+    expect(ex.fx.picked).toBe("desk");                     // today's destination comes first
     expect(cues.some(c => c.kind === "pick" && c.id === "desk")).toBe(true);
-    expect(said.at(-1)).toBe("Reception desk");   // the name first (from its position), then clock and steps
+    expect(said.at(-1)).toMatch(/^Reception desk, \d+ o'clock, (\d+ steps?|within reach)\.$/);
+    s.pick(1);
+    expect(ex.fx.picked).toBe("lift");
     s.enter();
-    expect(ex.fx.beaconOn).toBe(true);
-    expect(s.phase).toBe("explore");              // Enter went to the beacon, not to the rehearsal
+    expect(s.phase).toBe("explore");                       // Enter set the target, it did not start the rehearsal
+    expect(said.at(-1)).toBe("Target set, Elevator.");
+    expect(ex.fx.beaconTarget?.id).toBe("lift");
+    expect(document.getElementById("target-line")!.textContent).toBe("Target: Elevator");
     s.escape();
-    expect(ex.fx.beaconOn).toBe(false);
-    expect(said.at(-1)).toBe("Beacon off.");
-    expect(ex.fx.picked).toBeNull();
-    s.enter();                                    // nothing chosen: Enter starts the rehearsal as before
+    expect(said.at(-1)).toBe("Target cleared. Heading to Reception desk.");
+    expect(ex.fx.beaconTarget?.id).toBe("desk");
+    expect(document.getElementById("target-line")!.textContent).toBe("Target: Reception desk (destination)");
+    s.enter();                                             // nothing highlighted: Enter starts the rehearsal as before
     expect(s.phase).toBe("rehearse");
   });
-  it("Tab while going switches the target", () => {
-    const pkg = fixturePkg();
-    pkg.landmarks.push({ ...pkg.landmarks[0], id: "lift", kind: "elevator", label: "Elevator", spoken: "Elevator", pos: [3, 6] });
-    const { s, ex } = make(pkg);
-    s.pick(1); s.enter();
-    const first = ex.fx.picked;
-    s.pick(1);
-    expect(ex.fx.picked).not.toBe(first);
-    expect(ex.fx.beaconOn).toBe(true);
-    s.escape();
+  it("the beacon plays continuously from the target, with no key; B turns it off and on, and says so", () => {
+    const { s, ex, said, cues } = make();
+    ex.place([3, 3], 0);
+    const n0 = ex.cont.pulses;
+    ex.cont.tick();
+    (ex.audio.ctx as any).currentTime = 1; ex.cont.tick();
+    expect(ex.cont.pulses).toBeGreaterThan(n0);
+    expect(cues.some(c => c.kind === "pulse")).toBe(true);
+    s.beacon();
+    expect(said.at(-1)).toBe("Beacon off.");
+    const n1 = ex.cont.pulses;
+    (ex.audio.ctx as any).currentTime = 2; ex.cont.tick();
+    expect(ex.cont.pulses).toBe(n1);
+    s.beacon();
+    expect(said.at(-1)).toBe("Beacon on.");
+    (ex.audio.ctx as any).currentTime = 3; ex.cont.tick();
+    expect(ex.cont.pulses).toBeGreaterThan(n1);
   });
 });
 

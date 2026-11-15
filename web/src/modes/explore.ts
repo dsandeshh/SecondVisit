@@ -2,6 +2,7 @@
 import { ARRIVE_M, CANE_M } from "../config";
 import { clockHour } from "../clock";
 import { AUTO_SWEEP_MS, autoSweep, sweepContact, TapGate } from "../audio/cane";
+import { ContinuousSounds } from "../audio/continuous";
 import type { AudioEngine } from "../audio/engine";
 import { pulse, PULSE } from "../audio/haptics";
 import { LandmarkSounds } from "../audio/landmarks";
@@ -53,6 +54,8 @@ export class Explore implements KeyActions {
   private room: string | null = null;
   private stairsWarned = false;
   private sounds: LandmarkSounds | null = null;
+  /** The two continuous sounds: the target beacon and the obstacle proximity tick. */
+  readonly cont: ContinuousSounds;
   private now: () => number;
   clock(): number { return this.now(); }
   logHint(): void { this.hooks.onHint?.(this.traveller); }
@@ -66,6 +69,13 @@ export class Explore implements KeyActions {
     this.now = hooks.now ?? (() => performance.now());
     this.fx = new Interact(this);
     this.prev = [this.entrance.pos[0], this.entrance.pos[1]];
+    const page = () => globalThis.document?.body?.dataset.page;
+    this.cont = new ContinuousSounds(audio, world, {
+      pose: () => this.traveller,
+      target: () => this.fx.beaconTarget?.at ?? null,
+      live: () => this.active && !this.locked && (page() === undefined || page() === "inside"),
+      onPulse: at => speech.bus.publish({ kind: "pulse", at, id: this.fx.beaconTarget?.id }),
+    });
     if (audio.ctx && audio.buses) {
       if (new URLSearchParams(globalThis.location?.search ?? "").get("pan") === "eq") audio.panning = "equalpower";
       this.sounds = new LandmarkSounds(audio, this.destination?.id);
@@ -81,11 +91,14 @@ export class Explore implements KeyActions {
     this.active = true;
     this.moved();
     this.timer.start();
+    this.cont.start();
+    this.fx.showTarget();
   }
 
   stop(): void {
     this.active = false;
     this.timer.stop();
+    this.cont.stop();
     this.sounds?.stop();
     this.fx.stop();
     if (this.anim) clearInterval(this.anim);
@@ -168,6 +181,12 @@ export class Explore implements KeyActions {
     if (!this.destination) { this.speech.say("No destination in this building.", 2); return; }
     this.sounds?.chirps(this.destination.pos);
     this.hooks.onHint?.(this.traveller);
+  }
+
+  /** B: the continuous beacon on or off (on by default). */
+  beacon(): void {
+    this.cont.beaconOn = !this.cont.beaconOn;
+    this.speech.say(this.cont.beaconOn ? "Beacon on." : "Beacon off.", 2);
   }
 
   mono(): void {

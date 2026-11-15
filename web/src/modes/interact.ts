@@ -7,13 +7,12 @@ import { clockHour } from "../clock";
 import type { Cue } from "../events";
 import type { Door, Room, Vec2 } from "../types";
 import { dist, type World } from "../world";
-import { beaconPoint, findPath, nextPick, pulseInterval, pulseKind, targetOrder, WAYPOINT_M } from "./beacon";
+import { nextPick, targetOrder } from "./beacon";
 import { BumpGate, bumpOf } from "./bump";
 import type { Explore } from "./explore";
 import { ApproachTracker, crossesDoor, echoSeconds, RoomTracker, roomLine, roomSize } from "./rooms";
 import { aheadItems, aheadLine, azOf, itemsOf, los, sameRoom, stepsWords, sweepItems, SWEEP_GAP_MS, type Item } from "./sweep";
 
-type Beacon = { item: Item; path: Vec2[]; timer: ReturnType<typeof setInterval>; next: number };
 type Pub = Omit<Cue, "v" | "t" | "ts">;
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -25,7 +24,6 @@ export class Interact {
   picked: string | null = null;
   private token = 0;
   private sweeping = false;
-  private beacon: Beacon | null = null;
   private gate = new BumpGate();
   private rooms = new RoomTracker();
   private callouts = new ApproachTracker(2.5, 4, 4000);
@@ -46,8 +44,8 @@ export class Interact {
 
   /** A key or a new request cancels a running sweep, ahead or where. */
   cancel(): void { this.token++; if (this.sweeping) { this.sweeping = false; this.pub({ kind: "sweep_item", id: "end" }); } }
-  stop(): void { this.cancel(); this.stopBeacon(false); }
-  reset(): void { this.stopBeacon(false); this.callouts.reset(); this.doorways.reset(); this.rooms = new RoomTracker(); }
+  stop(): void { this.cancel(); }
+  reset(): void { this.arrived = false; this.callouts.reset(); this.doorways.reset(); this.rooms = new RoomTracker(); }
 
   private logHint(): void { if (this.ex.rehearse) this.ex.logHint(); }
 
@@ -98,106 +96,92 @@ export class Interact {
     if (tk === this.token) this.speech.say(line.text, line.pri);
   }
 
-  // ---- Tab: place picker ------------------------------------------------------------------------------------
+  // ---- Tab: place picker (landmarks and the destination) -------------------------------------------------------
+  /** The places Tab cycles: this building's landmarks, today's destination first, then by distance. */
+  places(): Item[] {
+    const ids = new Set(this.world.pkg.landmarks.map(l => l.id));
+    return targetOrder(this.items.filter(i => ids.has(i.id)), this.t.pos, this.ex.destination?.id);
+  }
+
+  /** "<name>, <clock> o'clock, <N> steps." in one line, said from the place. */
+  placeLine(it: Item): string { return `${it.name}, ${this.clock(it.at)} o'clock, ${stepsWords(dist(this.t.pos, it.at))}.`; }
+
   pick(dir: 1 | -1): void {
     if (this.ex.locked) return;
     this.cancel();
-    const order = targetOrder(this.items, this.t.pos, this.ex.destination?.id);
-    const it = nextPick(order, this.picked, dir);
+    const it = nextPick(this.places(), this.picked, dir);
     if (!it) { this.speech.say("No places in this building.", 2); return; }
     this.picked = it.id; this.lastItem = it;
     this.pub({ kind: "pick", id: it.id, at: it.at, label: it.name });
-    const tk = ++this.token;
-    void (async () => {
-      await this.speech.sayAsync(it.name, 1, this.nameOpts(it));
-      if (tk !== this.token) return;
-      this.speech.say(`${this.clock(it.at)} o'clock, ${stepsWords(dist(this.t.pos, it.at))}.${this.ex.rehearse ? "" : " Press Enter to go there."}`, 1);
-    })();
-    if (this.beacon) this.startBeacon();         // Tab while going switches the target
+    this.speech.say(this.placeLine(it), 1, this.nameOpts(it));
   }
 
-  /** Phone "Places": pick this place and, in Explore, start the beacon; in Rehearse only announce it. */
+  /** Phone "Places": this place becomes the beacon target. */
   go(id: string): void {
     const it = this.byId(id); if (!it) return;
-    this.cancel(); this.picked = id; this.lastItem = it;
-    this.pub({ kind: "pick", id, at: it.at, label: it.name });
-    if (this.ex.rehearse) { this.speech.say(`${it.name}, ${this.clock(it.at)} o'clock, ${stepsWords(dist(this.t.pos, it.at))}.`, 1, this.nameOpts(it)); return; }
-    this.startBeacon();
+    this.cancel(); this.setTarget(it);
   }
 
-  // ---- Enter: beacon (Explore only) ---------------------------------------------------------------------------
-  startBeacon(): void {
-    if (this.ex.rehearse) { this.ex.hint(); return; }       // Rehearse: Enter is the B hint (three chirps, logged)
-    const it = this.byId(this.picked) ?? targetOrder(this.items, this.t.pos, this.ex.destination?.id)[0];
-    const ctx = this.audio.ctx;
-    if (!it || !ctx) { this.speech.say("No places in this building.", 2); return; }
-    this.stopBeacon(false);
-    this.picked = it.id;
-    const route = this.world.pkg.routes[0];
-    let path: Vec2[] | null = null, straight = false;
-    if (route && route.to === it.id && route.path.length) path = this.routeAhead(route.path);
-    if (!path) path = findPath(this.world, this.t.pos, it.at);
-    if (!path) { path = [it.at]; straight = true; }
-    if (!path.length) path = [it.at];
-    if (straight) this.speech.say("Beacon is straight line, walls may be in the way.", 2);
-    const b: Beacon = { item: it, path, next: ctx.currentTime + 0.05, timer: setInterval(() => this.beaconTick(), 25) };
-    this.beacon = b;
+  // ---- the continuous beacon's target ----------------------------------------------------------------------------
+  /** Chosen with Tab then Enter; null means the route destination. */
+  target: Item | null = null;
+  private arrived = false;
+  get destItem(): Item | null { return this.byId(this.ex.destination?.id ?? null); }
+  /** What the beacon points at now. */
+  get beaconTarget(): Item | null { return this.target ?? this.destItem; }
+  /** The persistent on screen line. */
+  targetText(): string { const b = this.beaconTarget; return b ? `Target: ${b.name}${this.target ? "" : " (destination)"}` : "Target: none"; }
+  showTarget(): void {
+    const el = globalThis.document?.getElementById("target-line");
+    if (el) el.textContent = this.targetText();
+  }
+
+  setTarget(it: Item): void {
+    this.target = it.id === this.ex.destination?.id ? null : it;
+    this.picked = null; this.arrived = false; this.lastItem = it;
     this.pub({ kind: "pick", id: it.id, at: it.at, label: it.name, ids: ["go"] });
+    this.showTarget();
+    this.speech.say(`Target set, ${it.name}.`, 2, { at: it.at });
   }
 
-  /** The rest of the route's path from the point nearest to the walker. */
-  private routeAhead(path: Vec2[]): Vec2[] | null {
-    let bi = 0, bd = Infinity;
-    path.forEach((p, i) => { const d = dist(this.t.pos, p); if (d < bd) { bd = d; bi = i; } });
-    if (bd > 3) return null;                        // not on the route: plan from here
-    return path.slice(bi + 1);
+  /** Enter with a place highlighted (Tab): it becomes the beacon target. */
+  startBeacon(): void {
+    const it = this.byId(this.picked) ?? this.places()[0];
+    if (!it) { this.speech.say("No places in this building.", 2); return; }
+    this.setTarget(it);
   }
 
-  get beaconOn(): boolean { return !!this.beacon; }
+  /** True when Escape has something to clear: a chosen target, a highlighted place or a running sweep. */
+  get busy(): boolean { return !!this.target || !!this.picked || this.sweeping; }
+  get beaconOn(): boolean { return !!this.target; }
 
-  private beaconTick(): void {
-    const b = this.beacon, ctx = this.audio.ctx;
-    if (!b || !ctx || !this.audio.recipes) return;
-    const t = this.t, d = dist(t.pos, b.item.at);
-    if (d <= ARRIVE_M) { this.arrive(b); return; }
-    while (b.path.length > 1 && dist(t.pos, b.path[0]) <= WAYPOINT_M) {
-      const c = b.path.shift()!;
-      this.audio.cue("cornerTicks", { bus: "cue", at: c, pri: 1, announce: false });
-      this.pub({ kind: "waypoint", at: c, id: b.item.id });
-    }
-    if (this.sweeping) { b.next = Math.max(b.next, ctx.currentTime + 0.05); return; }   // the beacon pauses during a sweep
-    while (b.next < ctx.currentTime + 0.1) {
-      const bp = beaconPoint(b.path, t.pos, b.item.at, this.world);
-      const kind = pulseKind(azOf(t.pos, t.heading, bp));
-      this.audio.cue(kind, { bus: "cue", at: bp, pri: 1, rolloff: 0.3, ref: 2, when: b.next, announce: false });
-      this.pub({ kind: "pulse", at: bp, id: b.item.id, deg: Math.round(azOf(t.pos, t.heading, bp)) });
-      b.next += pulseInterval(d);
-    }
-  }
-
-  private arrive(b: Beacon): void {
-    this.stopBeacon(false);
-    this.audio.cue("chime", { bus: "cue", pri: 1 });
-    this.pub({ kind: "arrive", at: b.item.at, id: b.item.id, label: b.item.name });
-    const place = b.item.name.charAt(0).toLowerCase() + b.item.name.slice(1);
-    const near = dist(this.t.pos, b.item.at) < 0.7 ? "within reach" : stepsWords(dist(this.t.pos, b.item.at));
-    this.speech.say(`You're at the ${place}, at ${this.clock(b.item.at)} o'clock, ${near}.`, 2, b.item.possibly ? { prefix: "possibly" } : {});
-  }
-
-  stopBeacon(say: boolean): void {
-    if (!this.beacon) return;
-    clearInterval(this.beacon.timer); this.beacon = null;
-    this.pub({ kind: "arrive", id: "off" });
-    if (say) this.speech.say("Beacon off.", 2);
-  }
-
-  /** Esc: stop the beacon (and forget the picked place, so Enter starts the rehearsal again), cut a sweep. */
+  /** Esc: back to the route destination, forget the highlighted place, cut a sweep. */
   escape(): void {
-    const was = !!this.beacon;
+    const had = !!this.target;
     this.cancel();
-    this.stopBeacon(was);
     this.picked = null;
-    if (!was) this.pub({ kind: "pick", id: "none" });
+    this.target = null; this.arrived = false;
+    this.showTarget();
+    this.pub({ kind: "pick", id: "none" });
+    if (!had) return;
+    this.pub({ kind: "arrive", id: "off" });
+    const d = this.destItem;
+    this.speech.say(d ? `Target cleared. Heading to ${d.name}.` : "Target cleared.", 2);
+  }
+
+  /** Within ARRIVE_M of a chosen target: the chime and the arrival line, once (the destination's arrival is the run's). */
+  private checkArrive(): void {
+    const tg = this.target;
+    if (!tg) return;
+    const d = dist(this.t.pos, tg.at);
+    if (d > ARRIVE_M + 1) this.arrived = false;
+    if (this.arrived || d > ARRIVE_M) return;
+    this.arrived = true;
+    this.audio.cue("chime", { bus: "cue", pri: 1 });
+    this.pub({ kind: "arrive", at: tg.at, id: tg.id, label: tg.name });
+    const place = tg.name.charAt(0).toLowerCase() + tg.name.slice(1);
+    const near = d < 0.7 ? "within reach" : stepsWords(d);
+    this.speech.say(`You're at the ${place}, at ${this.clock(tg.at)} o'clock, ${near}.`, 2, tg.possibly ? { prefix: "possibly" } : {});
   }
 
   // ---- bump -----------------------------------------------------------------------------------------------------
@@ -262,6 +246,7 @@ export class Interact {
     if (crossed) this.jambs(crossed);
     const entered = this.rooms.step(room, !!crossed);
     if (!announce) return;
+    this.checkArrive();
     const busy = this.speech.busyPri;
     if (entered) {
       this.pub({ kind: "room", id: entered.id, label: entered.label, deg: echoSeconds(entered) * 10 });

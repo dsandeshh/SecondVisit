@@ -40,6 +40,7 @@
           </figure>
           <canvas id="ring" class="ring hud__tl" aria-hidden="true" width="144" height="144"></canvas>
         </div>
+        <p id="target-line" class="target-line"></p>
         <p id="next-action" class="sr-only"></p>
         <p id="status" class="sr-only"></p>
         <p id="room-label" class="sr-only">Room: not named</p>
@@ -138,13 +139,13 @@
                 <dt>Space</dt><dd>repeat</dd>
                 <dt>W</dt><dd>where am I</dd>
                 <dt>H</dt><dd>heading</dd>
-                <dt>B</dt><dd>destination hint</dd>
+                <dt>B</dt><dd>beacon on or off: a soft pulse from the target, faster as you get closer (on by default)</dd>
                 <dt>M</dt><dd>mono</dd>
                 <dt>Q</dt><dd>around me: the nearest things, each from where it is, clockwise from ahead. Shift+Q adds the clock and steps</dd>
                 <dt>E</dt><dd>ahead of me: what is within 30 degrees, then the wall or open space</dd>
-                <dt>Tab, Shift+Tab</dt><dd>choose the next or previous place</dd>
-                <dt>Enter</dt><dd>go to the chosen place with the beacon (Explore); hint (Rehearse); start rehearsal when no place is chosen; continue</dd>
-                <dt>Escape</dt><dd>stop the beacon or a sweep; with nothing running, leave the rehearsal so Tab works again (then Enter on Explore comes back)</dd>
+                <dt>Tab, Shift+Tab</dt><dd>hear the next or previous place: name, clock and steps</dd>
+                <dt>Enter</dt><dd>make the chosen place the beacon target; start rehearsal when no place is chosen; continue</dd>
+                <dt>Escape</dt><dd>clear the target back to the destination, or cut a sweep; with nothing to clear, leave the rehearsal so Tab works again (then Enter on Explore comes back)</dd>
                 <dt>F6, Shift+F6</dt><dd>move between the top bar, the rehearsal, the 3D view buttons, the objects, Keys and Agent and data</dd>
                 <dt>[ ] \</dt><dd>3D view: behind, top, orbit</dd>
                 <dt>/</dt><dd>3D view: switch between Real scan and Plan (Plan is the fallback if the scan is slow)</dd>

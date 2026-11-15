@@ -25,7 +25,9 @@ export interface KeyActions {
   ahead?(): void;
   /** Tab / Shift+Tab: next or previous place. */
   pick?(dir: 1 | -1): void;
-  /** Escape: stop the beacon, cut a sweep. */
+  /** B: the continuous beacon on or off (falls back to hint()). */
+  beacon?(): void;
+  /** Escape: clear the target, cut a sweep. */
   escape?(): void;
   /** S: where the current line comes from. Shift+S is swap(). */
   source?(): void;
@@ -69,7 +71,7 @@ export function attachKeys(stage: HTMLElement, a: KeyActions, now: () => number 
       case "r": handled(); a.options?.(); return;
       case "h": handled(); a.heading(); return;
       case "w": handled(); a.where(); return;
-      case "b": handled(); a.hint(); return;
+      case "b": handled(); (a.beacon ?? a.hint).call(a); return;
       case "m": handled(); a.mono(); return;
       case "s": handled(); if (e.shiftKey) a.swap(); else (a.source ?? a.swap).call(a); return;
       case "q": handled(); a.around?.(e.shiftKey); return;

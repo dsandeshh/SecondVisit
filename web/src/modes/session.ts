@@ -258,7 +258,7 @@ export class Session implements KeyActions {
         if (this.quiz!.finished) this.finishRun(); else this.quiz!.ask();
         this.deps.onQuestion?.(this.quiz!.finished ? null : this.quiz);
         return;
-      case "rehearse": this.ex.hint(); return;      // no beacon in Rehearse: Enter is the B hint
+      case "rehearse": if (this.ex.fx.picked) this.ex.fx.startBeacon(); else this.ex.hint(); return;   // a highlighted place becomes the target, else the hint
       case "summary":
         if (this.runNo === 1) { this.runNo = 2; this.startRun(this.coach?.plan ?? PLAIN_PLAN); }
         else this.say("Both runs are done. Press Space to hear the summary again.", 2);
@@ -312,6 +312,8 @@ export class Session implements KeyActions {
   hint(): void {
     if (this.phase === "explore" || this.phase === "rehearse") this.ex.hint();
   }
+  /** B: the continuous beacon on or off. */
+  beacon(): void { if (this.blocked()) return; this.ex.beacon(); }
   mono(): void { this.ex.mono(); }
   /** S: the source of the current line (Task 19): the instruction while rehearsing, else the last place named. Shift+S swaps channels. */
   source(): void {
@@ -325,8 +327,8 @@ export class Session implements KeyActions {
   pick(dir: 1 | -1): void { if (this.live) this.ex.fx.pick(dir); }
   escape(): void {
     if (this.introEsc) { this.introEsc = false; return; }          // that Escape only skipped the intro
-    const fx = this.ex.fx as any;
-    const busy = !!fx.beacon || !!fx.sweeping || !!fx.picked;
+    const fx = this.ex.fx;
+    const busy = fx.busy;
     fx.escape();
     if (!busy && (this.phase === "explore" || this.phase === "summary") && this.deps.onLeave) {
       this.say("Left the rehearsal. Press Enter on Explore to come back.", 2);

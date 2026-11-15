@@ -156,3 +156,8 @@ body[data-page="inside"]:has(.stage[data-view="first"]) .capline { bottom: 6.75r
 /* Calm note when the photo view cannot load (always visible on #/inside, never a blank swap). */
 .photo-note { position: absolute; left: 50%; bottom: calc(var(--sp-3) + 150px); transform: translateX(-50%); z-index: 4; margin: 0; max-width: 90%; padding: var(--sp-2) var(--sp-3);
   background: var(--c-surface); color: var(--c-ink); border: 1px solid var(--c-ink); border-radius: 999px; font-size: var(--fs-small); text-align: center; }
+
+/* The beacon's current target: one small persistent line at the top of the view (spoken whenever it changes). */
+.target-line { position: fixed; top: var(--sp-4); left: 50%; transform: translateX(-50%); z-index: var(--z-caption); margin: 0;
+  font-size: var(--fs-small); color: var(--c-ink); background: var(--c-surface-2); padding: var(--sp-1) var(--sp-4); border-radius: 999px; white-space: nowrap; }
+.target-line:empty { display: none; }
