@@ -251,3 +251,5 @@ data/*/grid_preview.png
 data/*/landmarks.json
 data/*/landmarks.md
 data/*/vision_cache
+.env.*
+!.env.example

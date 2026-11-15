@@ -1,6 +1,7 @@
 import { fitCanvas, hatch, planPalette, reducedMotion } from "../ui/tokens";
 import { tableRows, type ObserverState } from "./observer";
 import type { Bus } from "./bus";
+import { mountTour } from "./tour";
 import type { CellCode, PackageLite, Vec2 } from "./protocol";
 
 const CANE_M = 1.2;
@@ -26,7 +27,8 @@ export function start(S: new () => ObserverState, openBus: (s: string, o?: { rel
 
   fetch(`/buildings/${sid}/package.json`).then((r) => r.json()).then((p: PackageLite) => {
     pkg = p; cells = decode(p.grid.cells_b64); $("title").textContent = p.name;
-  }).catch(() => { $("caption").textContent = "No package loaded"; });
+    mountTour($("tour"), sid, (p as { visibility?: string | null }).visibility);
+  }).catch(() => { $("caption").textContent = "No package loaded"; mountTour($("tour"), sid); });
   const fpNote = (why: string) => { $("fpnote").textContent = `Floor plan not available (${why}).`; };
   Promise.all([
     fetch(`/buildings/${sid}/floorplan.json`).then((r) => { if (!r.ok) throw new Error("json"); return r.json(); }),
