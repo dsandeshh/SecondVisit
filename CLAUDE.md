@@ -43,7 +43,9 @@ another task owns, code against that task's **Interfaces** block; do not build i
    keyed by text hash). Any key interrupts speech. Phones: full screen Step button plus Repeat, Where am I,
    Recentre, Around me, Ahead, Places; never swipes. The rehearsal stage is `role="application"`; the 3D
    view is for sighted judges and companions and is `aria-hidden`. No destination beacon in Rehearse
-   (Enter beacon is Explore only; in Rehearse it is the B hint). One event bus drives audio, sound ring,
+   (Enter beacon is Explore only; in Rehearse it is the B hint). Explore: continuous target beacon on by default,
+   B toggles it. Rehearse: no continuous beacon; B is the hint plus a single burst of about 3 pulses from the
+   destination (human decision 15 Nov). One event bus drives audio, sound ring,
    captions and the observer. Interactions and keys follow `review/agent5_interaction.md` (Top 8, keymap
    section 6: S = source of line, Shift+S = swap channels); arrival follows `review/agent6_arrival.md`.
 8. **Honest labels everywhere.** Chips `MP`, `VX`, `CS`, `CALC`, `AI` (with confidence, "possibly"

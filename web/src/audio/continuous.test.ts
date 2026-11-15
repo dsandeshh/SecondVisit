@@ -1,9 +1,13 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { gridPkg } from "../test/fakes";
 import type { Vec2 } from "../types";
 import { World } from "../world";
 import { azimuth } from "./space";
-import { beaconAz, beaconRate, beaconSpot, nearestAhead, proxGain, proxRate } from "./continuous";
+import { AudioEngine } from "./engine";
+import { Speech } from "./speech";
+import { FakeAudioContext } from "../test/fakes";
+import { beaconAz, beaconRate, beaconSpot, ContinuousSounds, nearestAhead, proxGain, proxRate } from "./continuous";
 
 describe("continuous beacon", () => {
   it("pulses about 1/s beyond 10 m, 4/s within 2 m, interpolated in between", () => {
@@ -44,5 +48,19 @@ describe("continuous obstacle proximity", () => {
     expect(Math.abs(n.az)).toBeLessThanOrEqual(30);
     expect(nearestAhead(w, [5, 2.5], 0)).toBeNull();            // 6.5 m of floor ahead: nothing within 3 m
     expect(proxRate(nearestAhead(w, [5, 2.5], 0)?.dist)).toBe(0);
+  });
+});
+
+describe("continuous sounds in Rehearse", () => {
+  it("the obstacle tick still plays, the continuous beacon never does", () => {
+    const rows = ["##########", ...Array(8).fill("#........#"), "##########"];
+    const w = new World(gridPkg(rows));
+    const audio = new AudioEngine(new Speech({ doc: document, raf: f => f() }));
+    audio.ctx = new FakeAudioContext() as unknown as AudioContext; (audio as any).build(audio.ctx);
+    const c = new ContinuousSounds(audio, w, { pose: () => ({ pos: [5, 7.5], heading: 0 }), target: () => [5, 2], live: () => true, rehearse: () => true });
+    for (let i = 0; i < 25; i++) { (audio.ctx as any).currentTime = i * 0.04; c.tick(); }
+    expect(c.ticks).toBeGreaterThan(0);
+    expect(c.pulses).toBe(0);
+    expect(c.beaconRunning).toBe(false);
   });
 });

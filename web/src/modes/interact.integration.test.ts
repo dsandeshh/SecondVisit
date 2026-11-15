@@ -9,6 +9,7 @@ import { fixturePkg, FakeAudioContext, gridPkg } from "../test/fakes";
 import { World } from "../world";
 import { Explore } from "./explore";
 import { Session } from "./session";
+import { BURST_HOLD_S, BURST_PULSES } from "../audio/continuous";
 import type { BuildingPackage } from "../types";
 
 function make(pkg: BuildingPackage = fixturePkg()) {
@@ -40,6 +41,104 @@ describe("beacon is a hint in Rehearse", () => {
     expect(spy.mock.calls.some(c => c[1] === 25)).toBe(false);
     spy.mockRestore();
   });
+});
+
+describe("the beacon by mode (human decision 15 Nov): Explore continuous and toggled by B, Rehearse only a 3 pulse B burst", () => {
+  /** Advance the audio clock and the fake timers together (the scheduler's 40 ms interval runs on them). */
+  const advance = (ex: Explore, sec: number) => {
+    const c = ex.audio.ctx as any;
+    for (let i = 0; i < Math.round(sec / 0.04); i++) { c.currentTime += 0.04; vi.advanceTimersByTime(40); }
+  };
+  const intoRehearse = () => {
+    vi.useFakeTimers();
+    const m = make(); m.ex.place([3, 3], 0);
+    m.s.enter();
+    expect(m.s.phase).toBe("rehearse");
+    return m;
+  };
+
+  it("Explore: on at start, B toggles it", () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ex, said } = make(); ex.place([3, 3], 0);
+      expect(ex.cont.beaconOn).toBe(true);
+      advance(ex, 1);
+      expect(ex.cont.beaconRunning).toBe(true);
+      const n = ex.cont.pulses; expect(n).toBeGreaterThan(0);
+      s.beacon(); expect(said.at(-1)).toBe("Beacon off.");
+      const n1 = ex.cont.pulses; advance(ex, 2); expect(ex.cont.pulses).toBe(n1);
+      s.beacon(); expect(said.at(-1)).toBe("Beacon on.");
+      advance(ex, 1); expect(ex.cont.pulses).toBeGreaterThan(n1);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("Rehearse: no continuous beacon at any point; B is a hint plus exactly 3 pulses, then silence", () => {
+    try {
+      const { s, ex } = intoRehearse();
+      for (let i = 0; i < 50; i++) { advance(ex, 0.2); expect(ex.cont.beaconRunning).toBe(false); }
+      expect(ex.cont.pulses).toBe(0);
+      s.beacon();
+      expect(s.run!.log.events.filter(e => e.kind === "hint")).toHaveLength(1);
+      advance(ex, 5);
+      expect(ex.cont.pulses).toBe(BURST_PULSES);
+      expect(BURST_PULSES).toBe(3);
+      advance(ex, 20);
+      expect(ex.cont.pulses).toBe(3);                         // well past the burst: nothing more
+      expect(ex.cont.beaconRunning).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("Rehearse: holding or mashing B never extends a burst into continuous pulsing", () => {
+    try {
+      const { s, ex } = intoRehearse();
+      s.beacon();
+      for (let i = 0; i < 20; i++) { advance(ex, 0.08); s.beacon(); }   // 1.6 s of mashing, inside one burst's hold
+      expect(ex.cont.pulses).toBe(3);
+      expect(s.run!.log.events.filter(e => e.kind === "hint")).toHaveLength(1);
+      // a whole minute of B every 100 ms: one burst per hold, never the 1 to 4 per second of a beacon
+      const n = ex.cont.pulses, t0 = (ex.audio.ctx as any).currentTime;
+      for (let i = 0; i < 600; i++) { advance(ex, 0.1); s.beacon(); }
+      const rate = (ex.cont.pulses - n) / ((ex.audio.ctx as any).currentTime - t0);
+      expect(rate).toBeLessThanOrEqual(BURST_PULSES / BURST_HOLD_S + 0.1);
+      expect(ex.cont.beaconRunning).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("Rehearse: Enter is the hint and never sets a target, even with a place highlighted by Tab", () => {
+    try {
+      const { s, ex, said } = intoRehearse();
+      s.pick(1);
+      expect(ex.fx.picked).not.toBeNull();
+      const n = said.length;
+      s.enter();
+      expect(ex.fx.target).toBeNull();
+      expect(said.slice(n).some(t => t.startsWith("Target set"))).toBe(false);
+      expect(s.run!.log.events.some(e => e.kind === "hint")).toBe(true);
+      advance(ex, 5);
+      expect(ex.cont.pulses).toBe(3);
+      expect(ex.cont.beaconRunning).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("Explore to Rehearse stops the beacon at once; back in Explore the last on/off choice returns", () => {
+    vi.useFakeTimers();
+    try {
+      const { s, ex } = make(); ex.place([3, 3], 0);
+      advance(ex, 1);
+      expect(ex.cont.beaconRunning).toBe(true);
+      s.enter();
+      expect(ex.cont.beaconRunning).toBe(false);              // immediately, before any tick
+      advance(ex, 3); expect(ex.cont.beaconRunning).toBe(false);
+      ex.rehearse = false; ex.place([3, 3], 0);               // back to Explore: on, as it was
+      advance(ex, 1); expect(ex.cont.beaconRunning).toBe(true);
+      ex.cont.beaconOn = false;                               // the user had turned it off in Explore
+      ex.rehearse = true; advance(ex, 1); expect(ex.cont.beaconRunning).toBe(false);
+      ex.rehearse = false; const n = ex.cont.pulses; advance(ex, 2);
+      expect(ex.cont.pulses).toBe(n);                         // still off
+      expect(ex.cont.beaconOn).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+
 });
 
 describe("Tab, Enter, Escape in Explore: the beacon's target", () => {

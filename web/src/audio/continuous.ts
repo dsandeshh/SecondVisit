@@ -17,6 +17,9 @@ export const BEACON_GAIN = 0.16;
 export const PROX_M = 3, PROX_HALF_DEG = 30, PROX_SLOW_HZ = 2, PROX_FAST_HZ = 9;
 export const PROX_GAIN = 0.22;
 export const TICK_MS = 40;
+/** Rehearse B (human decision 15 Nov): exactly this many beacon pulses from the destination, this far apart, then
+ *  silence; another B is ignored until BURST_HOLD_S after the burst began, so mashing B never becomes a beacon. */
+export const BURST_PULSES = 3, BURST_GAP_S = 0.3, BURST_HOLD_S = 2;
 const LOOKAHEAD_S = 0.12;
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
@@ -69,6 +72,8 @@ export type ContinuousDeps = {
   target: () => Vec2 | null;
   /** False while the walker cannot walk (pointing, quiz, summary, another page): both sounds are silent. */
   live: () => boolean;
+  /** True in Rehearse: the continuous beacon never plays (only a B burst does). */
+  rehearse?: () => boolean;
   /** Called on every beacon pulse (the ring and the observer). */
   onPulse?: (at: Vec2) => void;
 };
@@ -77,9 +82,12 @@ type Voice = { osc: OscillatorNode; env: GainNode; panner: PannerNode; lp: Biqua
 
 /** The scheduler: a 40 ms interval moves both panners and schedules the next pulses on a running oscillator. */
 export class ContinuousSounds {
-  /** B toggles it; on by default. */
+  /** Explore's B toggles it; on by default. Rehearse leaves it alone, so back in Explore the choice is restored. */
   beaconOn = true;
   private beacon: Voice | null = null;
+  /** A Rehearse B burst: its own voice, the destination, pulses still to schedule, when it began. */
+  private burstV: Voice | null = null;
+  private burstState: { at: Vec2; left: number; t0: number; last: number } | null = null;
   private prox: Voice | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   /** Counters for tests and the operator: pulses and ticks scheduled. */
@@ -97,8 +105,35 @@ export class ContinuousSounds {
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    for (const v of [this.beacon, this.prox]) if (v) { try { v.osc.stop(); v.osc.disconnect(); v.env.disconnect(); v.panner.disconnect(); v.lp.disconnect(); } catch { /* gone */ } }
-    this.beacon = this.prox = null;
+    for (const v of [this.beacon, this.prox, this.burstV]) this.kill(v);
+    this.beacon = this.prox = this.burstV = null;
+    this.burstState = null;
+  }
+
+  private kill(v: Voice | null): void {
+    if (v) { try { v.env.gain.cancelScheduledValues?.(0); v.osc.stop(); v.osc.disconnect(); v.env.disconnect(); v.panner.disconnect(); v.lp.disconnect(); } catch { /* gone */ } }
+  }
+
+  /** True while a continuous beacon source exists (it is created on the first pulse and dropped in Rehearse). */
+  get beaconRunning(): boolean { return !!this.beacon; }
+
+  /** Stop the continuous beacon now (entering Rehearse), pulses already scheduled included. */
+  silenceBeacon(): void { this.kill(this.beacon); this.beacon = null; }
+
+  /** True while a burst is playing or inside its hold time. */
+  get bursting(): boolean {
+    const b = this.burstState, c = this.audio.ctx;
+    return !!b && !!c && c.currentTime < b.t0 + BURST_HOLD_S;
+  }
+
+  /** Rehearse B: BURST_PULSES pulses from `at` (its true direction), then silence. False (ignored) during a burst. */
+  burst(at: Vec2): boolean {
+    const c = this.audio.ctx;
+    if (!c || !this.audio.buses || this.bursting) return false;
+    this.kill(this.burstV); this.burstV = null;
+    this.burstState = { at, left: BURST_PULSES, t0: c.currentTime, last: c.currentTime };
+    this.tick();   // the first pulse answers the key at once
+    return true;
   }
 
   private voice(kind: "beacon" | "prox"): Voice | null {
@@ -134,8 +169,10 @@ export class ContinuousSounds {
     const t = c.currentTime;
     const live = this.deps.live();
     const { pos, heading } = this.deps.pose();
-    // ---- beacon
-    const target = live && this.beaconOn ? this.deps.target() : null;
+    // ---- beacon (never in Rehearse: there must be nothing to home in on)
+    const rehearse = !!this.deps.rehearse?.();
+    if (rehearse && this.beacon) this.silenceBeacon();
+    const target = live && this.beaconOn && !rehearse ? this.deps.target() : null;
     const d = target ? dist(pos, target) : Infinity;
     if (target && d > ARRIVE_M) {
       const v = this.beacon ?? (this.beacon = this.voice("beacon"));
@@ -151,6 +188,26 @@ export class ContinuousSounds {
         }
       }
     } else if (this.beacon) this.beacon.next = 0;
+    // ---- a Rehearse B burst: a fixed count of pulses, then the voice is dropped
+    const b = this.burstState;
+    if (b) {
+      if (b.left > 0) {
+        const v = this.burstV ?? (this.burstV = this.voice("beacon"));
+        if (v) {
+          const spot = beaconSpot(pos, b.at);
+          this.place(v, spot, beaconAz(pos, heading, b.at), t);
+          if (v.next < t) v.next = t + 0.02;
+          while (b.left > 0 && v.next < t + LOOKAHEAD_S) {
+            const p = v.env.gain, s = v.next;
+            p.setValueAtTime(0, s); p.linearRampToValueAtTime(BEACON_GAIN, s + 0.015); p.setTargetAtTime(0, s + 0.04, 0.03);
+            this.pulses++; this.deps.onPulse?.(spot);
+            b.last = s; b.left--;
+            v.next += BURST_GAP_S;
+          }
+        } else b.left = 0;
+      } else if (this.burstV && t > b.last + 0.3) { this.kill(this.burstV); this.burstV = null; }
+      if (b.left === 0 && !this.burstV && !this.bursting) this.burstState = null;
+    }
     // ---- proximity
     const near = live ? nearestAhead(this.world, pos, heading) : null;
     const rate = proxRate(near?.dist);

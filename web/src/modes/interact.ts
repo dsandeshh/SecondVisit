@@ -101,10 +101,12 @@ export class Interact {
     this.speech.say(this.placeLine(it), 1, this.nameOpts(it));
   }
 
-  /** Phone "Places": this place becomes the beacon target. */
+  /** Phone "Places": this place becomes the beacon target (Explore); in Rehearse it is only named, never a target. */
   go(id: string): void {
     const it = this.byId(id); if (!it) return;
-    this.cancel(); this.setTarget(it);
+    this.cancel();
+    if (this.ex.rehearse) { this.lastItem = it; this.speech.say(this.placeLine(it), 1, this.nameOpts(it)); return; }
+    this.setTarget(it);
   }
 
   // ---- the continuous beacon's target ----------------------------------------------------------------------------
@@ -131,6 +133,7 @@ export class Interact {
 
   /** Enter with a place highlighted (Tab): it becomes the beacon target. */
   startBeacon(): void {
+    if (this.ex.rehearse) return;   // Rehearse: Enter is the hint, never a target
     const it = this.byId(this.picked) ?? this.places()[0];
     if (!it) { this.speech.say("No places in this building.", 2); return; }
     this.setTarget(it);

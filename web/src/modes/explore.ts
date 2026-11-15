@@ -42,8 +42,11 @@ export class Explore implements KeyActions {
   readonly fx: Interact;
   private prev: Vec2 = [0, 0];
   active = false;
-  /** Rehearse: no destination beacon, no landmark callouts (the run speaks the cues). */
-  rehearse = false;
+  /** Rehearse: no continuous beacon, no landmark callouts (the run speaks the cues). Entering it stops the beacon at
+   *  once; leaving it brings back the Explore on/off choice (cont.beaconOn is never touched in Rehearse). */
+  private _rehearse = false;
+  get rehearse(): boolean { return this._rehearse; }
+  set rehearse(on: boolean) { this._rehearse = on; if (on) this.cont?.silenceBeacon(); }
   /** Pointing and quiz: walking is off. */
   locked = false;
   private gate = new TapGate();
@@ -74,6 +77,7 @@ export class Explore implements KeyActions {
       pose: () => this.traveller,
       target: () => this.fx.beaconTarget?.at ?? null,
       live: () => this.active && !this.locked && (page() === undefined || page() === "inside"),
+      rehearse: () => this._rehearse,
       onPulse: at => speech.bus.publish({ kind: "pulse", at, id: this.fx.beaconTarget?.id }),
     });
     if (audio.ctx && audio.buses) {
@@ -186,14 +190,18 @@ export class Explore implements KeyActions {
 
   where(rehearse?: Parameters<Interact["where"]>[0]): void { this.fx.where(rehearse); }
 
+  /** The hint. In Rehearse (B or Enter): one burst of BURST_PULSES beacon pulses from the destination's true direction,
+   *  logged as a hint; ignored while a burst is still playing, so holding B never becomes a beacon. */
   hint(): void {
     if (!this.destination) { this.speech.say("No destination in this building.", 2); return; }
-    this.sounds?.chirps(this.destination.pos);
+    if (this.rehearse) { if (this.cont.bursting) return; this.cont.burst(this.destination.pos); }   // no audio: still a hint
+    else this.sounds?.chirps(this.destination.pos);
     this.hooks.onHint?.(this.traveller);
   }
 
-  /** B: the continuous beacon on or off (on by default). */
+  /** B in Explore: the continuous beacon on or off (on by default). In Rehearse B is the hint. */
   beacon(): void {
+    if (this.rehearse) { this.hint(); return; }
     this.cont.beaconOn = !this.cont.beaconOn;
     this.speech.say(this.cont.beaconOn ? "Beacon on." : "Beacon off.", 2);
   }

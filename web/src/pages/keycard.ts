@@ -6,7 +6,7 @@ export const KEYCARD_LINE = "Up walks. Left and Right turn. Enter starts the reh
 const ITEMS: [string, string, string][] = [
   ["Up", "walk", "ArrowUp"], ["Left", "turn left", "ArrowLeft"], ["Right", "turn right", "ArrowRight"],
   ["Tab", "choose a target", "Tab"], ["Enter", "start rehearsal", "Enter"], ["Q", "what is around me", "q"],
-  ["B", "beacon on or off", "b"], ["V", "photo view, the listing's own photos", "v"], ["P", "pause", "p"], ["?", "help", "?"],
+  ["B", "beacon on or off; in Rehearse, a hint", "b"], ["V", "photo view, the listing's own photos", "v"], ["P", "pause", "p"], ["?", "help", "?"],
 ];
 
 export const cardSeen = (): boolean => { try { return localStorage.getItem(KEYCARD_KEY) === "1"; } catch { return false; } };

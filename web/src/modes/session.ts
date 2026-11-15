@@ -258,7 +258,7 @@ export class Session implements KeyActions {
         if (this.quiz!.finished) this.finishRun(); else this.quiz!.ask();
         this.deps.onQuestion?.(this.quiz!.finished ? null : this.quiz);
         return;
-      case "rehearse": if (this.ex.fx.picked) this.ex.fx.startBeacon(); else this.ex.hint(); return;   // a highlighted place becomes the target, else the hint
+      case "rehearse": this.ex.hint(); return;   // always the hint (rule 7): never a target in Rehearse
       case "summary":
         if (this.runNo === 1) { this.runNo = 2; this.startRun(this.coach?.plan ?? PLAIN_PLAN); }
         else this.say("Both runs are done. Press Space to hear the summary again.", 2);
@@ -314,8 +314,11 @@ export class Session implements KeyActions {
   hint(): void {
     if (this.phase === "explore" || this.phase === "rehearse") this.ex.hint();
   }
-  /** B: the continuous beacon on or off. */
-  beacon(): void { if (this.blocked()) return; this.ex.beacon(); }
+  /** B: Explore toggles the continuous beacon; Rehearse gives the hint (a 3 pulse burst); elsewhere nothing. */
+  beacon(): void {
+    if (this.blocked()) return;
+    if (this.phase === "explore") this.ex.beacon(); else if (this.phase === "rehearse") this.ex.hint();
+  }
   mono(): void { this.ex.mono(); }
   /** S: the source of the current line (Task 19): the instruction while rehearsing, else the last place named. Shift+S swaps channels. */
   source(): void {
