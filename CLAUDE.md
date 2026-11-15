@@ -7,7 +7,8 @@ Matterport `x37LjPx62VA`, CoStar 5615020.
 
 Read before any work, in this order: `docs/DESIGN.md` (what and why), `docs/APIS.md` (every external
 call), `docs/plan.md` (v3 tasks, interfaces, tests), `vendor/matterport/AGENTS.md` (the sponsor's own
-notes for coding agents). Your prompt names the tasks you own. Do only those. If you need something
+notes for coding agents). For any work in `web/`, also read `docs/UI_DESIGN.md` (the look, components,
+screens and the accessibility check) before writing UI. Your prompt names the tasks you own. Do only those. If you need something
 another task owns, code against that task's **Interfaces** block; do not build it yourself.
 `review/` holds the research behind the plan: read a section there only when the plan points to it.
 
@@ -56,6 +57,9 @@ another task owns, code against that task's **Interfaces** block; do not build i
     own. Pull and rebase before every push.
 12. **Demo freeze is 05:00 Sunday.** After that only bug fixes. If a task will overrun its timebox in the
     plan, stop, commit what works behind a flag, and report.
+13. **All UI follows docs/UI_DESIGN.md and web/src/styles/tokens.css; its accessibility rules and rule 7
+    win over any skill's taste.** `web_tokens.css` at the repo root is the source of truth for the tokens;
+    `web/src/styles/tokens.css` is its copy, imported first in every entry file.
 
 ## Repo layout
 
@@ -79,7 +83,9 @@ vendor/matterport/ sponsor quickstart: matterport_quickstart.py .ipynb, models_i
 data/<sid>/        raw/ (cached API responses, gitignored), overrides.json (committed)
 data/fixtures/     small test fixtures (committed)
 traces/            recorded agent runs for replay
-docs/              DRESS_REHEARSAL.md DESIGN.md APIS.md plan.md DATA_STATUS.md CHANGELOG.md DEMO.md (PITCH.md comes later)
+docs/              DRESS_REHEARSAL.md DESIGN.md APIS.md plan.md UI_DESIGN.md CLAUDE_CODE_SETUP.md DATA_STATUS.md
+                   CHANGELOG.md DEMO.md (PITCH.md comes later)
+web_tokens.css     design tokens, source of truth (copied to web/src/styles/tokens.css)
 review/            research reports and the tested deep agent skeletons (review/langchain/)
 ```
 

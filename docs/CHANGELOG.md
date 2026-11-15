@@ -3,6 +3,12 @@
 Contract and plan changes, newest first. Rule 2 in CLAUDE.md: any change to BuildingPackage, RunLog,
 RunPlan or PointResult is logged here in the same commit as the code.
 
+## 2026-11-14 (Sat, about 22:15): UI pack
+
+- Added `docs/UI_DESIGN.md`, `docs/CLAUDE_CODE_SETUP.md` and `web_tokens.css` (repo root) from the UI pack.
+- CLAUDE.md: `docs/UI_DESIGN.md` joins the read first list for `web/` work; new rule 13 (UI follows
+  UI_DESIGN.md and the tokens; its accessibility rules and rule 7 win over any skill's taste).
+
 ## 2026-11-14 (Sat, about 22:00): wording
 
 - SecondVisit is for blind and low vision people visiting any building; the Houston clinic is the first
