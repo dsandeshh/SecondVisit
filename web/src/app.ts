@@ -16,16 +16,10 @@ import type { QuizSession } from "./modes/quiz";
 import { floorPlanAvailable, renderSummary } from "./modes/summary";
 import type { BuildingPackage } from "./types";
 import { Cockpit } from "./ui/cockpit";
-import { mountRing } from "./ui/ring";
-import { createRouter, type Page, type Router } from "./pages/router";
-import { PAGE_LINES } from "./pages/lines";
-import { loadShowcase, type ShowcaseHandle } from "./pages/showcase_hook";
-import { renderScore, type RunResult } from "./pages/score";
-import { OFFLINE, resolveAddress } from "./home/home";
 import { World } from "./world";
 import { fullFlow, loadOutdoorHook, runFlow } from "./flow";
 
-export type App = { router?: Router; voice?: VoiceOut; captions?: Captions; cockpit?: Cockpit | null; audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
+export type App = { voice?: VoiceOut; captions?: Captions; cockpit?: Cockpit | null; audio: AudioEngine; speech: Speech; pkg: BuildingPackage | null; explore: Explore | null; session: Session | null };
 
 const FOCUSABLE = "a[href],button,input,select,textarea,[tabindex]";
 
@@ -51,61 +45,28 @@ export async function boot(doc: Document, params: URLSearchParams): Promise<App>
   const op = params.get("op") === "1";
   if (op) $("op").hidden = false;
 
-  // Hash routes: one page at a time. Before Start only Home (and the static About page) can show.
-  let started = false;
-  lockScroll(doc);
-  const router = createRouter(window, doc, p => (!started && p !== "home" && p !== "about" ? "home" : p), (p, prev) => onPage(app, doc, p, prev, started));
-  app.router = router;
-
-  let id = params.get("b") ?? "x37LjPx62VA";
-  const setName = (name: string) => { $("bname").textContent = name; };
-  const markBuildings = () => doc.querySelectorAll<HTMLButtonElement>("#buildings button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.sid === id)));
-  const loadId = async (sid: string): Promise<boolean> => {
-    try {
-      const pkg = await loadPackage(sid);
-      app.pkg = pkg; id = sid; setName(pkg.name); $("load-error").hidden = true; markBuildings();
-      return true;
-    } catch {
-      setName("not loaded");
-      const err = $("load-error");
-      err.hidden = false;
-      err.textContent = "Error: this building could not be loaded. Check the link, or try the demo lobby with ?b=fixture.";
-      return false;
-    }
-  };
-  const host = $("buildings");
-  for (const o of OFFLINE) {
-    const b = doc.createElement("button");
-    b.type = "button"; b.className = "building"; b.dataset.sid = o.sid; b.setAttribute("aria-pressed", "false");
-    const n = doc.createElement("strong"); n.textContent = o.name;
-    const a = doc.createElement("span"); a.textContent = o.address;
-    b.append(n, a);
-    b.addEventListener("click", () => { void loadId(o.sid); });
-    host.append(b);
+  const id = params.get("b") ?? "fixture";
+  try {
+    app.pkg = await loadPackage(id);
+    $("bname").textContent = app.pkg.name;
+  } catch {
+    $("bname").textContent = "not loaded";
+    const err = $("load-error");
+    err.hidden = false;
+    err.textContent = "Error: this building could not be loaded. Check the link, or try the fixture building with ?b=fixture.";
   }
-  if (!(await loadId(id)) && id !== "fixture") await loadId("fixture");
 
   // Always app voice (CLAUDE.md rule 7): Start is the gesture that creates the AudioContext and goes straight in.
-  $<HTMLFormElement>("home-form").addEventListener("submit", e => {
-    e.preventDefault();
+  $("start").addEventListener("click", () => {
     if (audio.ctx || !app.pkg) return;
-    const started0 = audio.start(); // synchronous part runs inside this click
-    const typed = $<HTMLInputElement>("addr").value.trim();
-    void (async () => {
-      if (typed) {   // an address that names another building loads it first (the list below the box, or the engine resolver)
-        const hit = await resolveAddress(typed);
-        if (hit && hit.sid !== id) await loadId(hit.sid);
-      }
-      const r = await started0;
-      const pkg = app.pkg!;
-      // Clips for this route and room are fetched as soon as the gesture's audio exists.
-      const store = new ClipStore(audio.ctx!, `/buildings/${pkg.id}`);
-      const first = [...INTRO.map(s => s.text), INTRO_READY, INTRO_SKIPPED, ...Object.values(PAGE_LINES) as string[], ...pkg.routes.flatMap(r2 => r2.segments.map(s => s.instruction)),
-        ...pkg.landmarks.map(l => spokenOf(l))];
-      void store.init().then(() => store.preload([...routeLineIds(first, store), ...store.ids])).catch(() => undefined);
-      started = true;
-      enter(app, doc, r, op, store, fullFlow(params));
-    })();
+    const started = audio.start(); // synchronous part runs inside this click
+    // Clips for this route and room are fetched inside the same gesture, before anything else.
+    const store = new ClipStore(audio.ctx!, `/buildings/${app.pkg.id}`);
+    const pkg = app.pkg;
+    const first = [...INTRO.map(s => s.text), INTRO_READY, INTRO_SKIPPED, ...pkg.routes.flatMap(r => r.segments.map(s => s.instruction)),
+      ...pkg.landmarks.map(l => spokenOf(l))];
+    void store.init().then(() => store.preload([...routeLineIds(first, store), ...store.ids])).catch(() => undefined);
+    void started.then(r => enter(app, doc, r, op, store, fullFlow(params)));
   });
   return app;
 }
@@ -126,36 +87,28 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     threadId: globalThis.crypto?.randomUUID?.() ?? `run-${Date.now()}`,
     publish: m => obs.publish(m),
     audioRunning: () => audio.ctx?.state === "running",
-    onPhase: p => showPhase(doc, session, p, app.router),
+    onPhase: p => showPhase(doc, session, p),
     onQuestion: q => showQuiz(doc, session, q),
     onNext: t => { $("next-action").textContent = t; },
     onIntro: t => showIntro(doc, t),
     onHold: on => { audio.hold(on); },
-    onLeave: () => { (app.router?.page === "summary" ? $("again") : $("pause")).focus(); },
+    onLeave: () => { const tab = doc.querySelector<HTMLElement>("#steps-list li:not([data-arrive]) span"); tab?.focus(); },
     chime: () => { audio.cue("chime", { bus: "cue", gain: 1, announce: true, label: "chime" }); },
     introSeen: () => new URLSearchParams(doc.location?.search).get("intro") === "1" ? false : storedSeen(),
     introRemember: storeSeen,
-    onKeys: () => { const k = doc.getElementById("keys-panel") as HTMLDetailsElement | null; if (!k) return; k.open = true; app.router?.go("about"); k.classList.add("is-flash"); setTimeout(() => k.classList.remove("is-flash"), 1500); },
+    onKeys: () => { const k = doc.getElementById("keys-panel") as HTMLDetailsElement | null; if (!k) return; k.open = true; k.classList.add("is-flash"); setTimeout(() => k.classList.remove("is-flash"), 1500); },
   });
   app.session = session;
 
   if (!phone) app.cockpit = new Cockpit(doc, pkg, ex, session, hooks);
+  if (full) addArriveTab(doc);
+  $("home").hidden = true;
+  $("rehearsal").hidden = false;
+  $("topline").hidden = false;
   $("place").textContent = pkg.name;
   $("place-short").textContent = pkg.name;
   $("status").textContent = `Sound: ${r.audio}. Motion: ${r.motion}${audio.mode === "keys" ? ", using keys" : ""}.`;
   speech.onSpeakingChange = (on) => { $("speaking").hidden = !on; };
-  const ringOff = mountRing($<HTMLCanvasElement>("ring"), speech.bus);
-  void ringOff;
-  const pauseBtn = $<HTMLButtonElement>("pause");
-  pauseBtn.addEventListener("click", () => { session.pause(); stage.focus(); });
-  $("help").addEventListener("click", () => session.keys());
-  setInterval(() => { const t = audio.ctx?.state === "suspended" || session.isHeld ? "Resume" : "Pause"; if (pauseBtn.textContent !== t) pauseBtn.textContent = t; }, 250);
-  $("again").addEventListener("click", () => {
-    if (session.phase === "summary" && session.runNo === 1) session.enter();
-    else { try { window.location.hash = "#/home"; } catch { /* */ } window.location.reload(); }
-  });
-  $("go").addEventListener("click", () => stage.focus());
-  doc.addEventListener("keydown", e => { if (e.key === "Escape" && app.router?.page === "about") { e.preventDefault(); app.router.go(pageOfPhase(session.phase)); } });
   if (op) {
     $("op-latency").textContent = `${r.latencyMs} ms${r.latencyMs > 50 ? " (over 50, check headphones are wired)" : ""}`;
     $("op-motion").textContent = `${r.motion}, mode ${audio.mode}`;
@@ -165,22 +118,6 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
 
   const stage = $("stage");
   const attach = () => attachKeys(stage, session);   // in the full flow the interior keys start when the walker is inside
-  let showcase: ShowcaseHandle | null = null;
-  const setView = (overview: boolean) => {
-    stage.dataset.view = overview ? "overview" : "first";
-    const t = $("overview"); t.setAttribute("aria-pressed", String(overview));
-  };
-  setView(true);
-  $("overview").addEventListener("click", () => { setView(stage.dataset.view !== "overview"); stage.focus(); });
-  const mountFirstPerson = () => {
-    void loadShowcase().then(mod => {
-      if (!mod) { $("overview").hidden = true; return; }
-      const fail = () => { showcase = null; setView(true); $("overview").dataset.off = "1"; $("overview").hidden = true; };
-      return mod.mountShowcase({ host: $("showcase"), pkg, world: ex.world, bus: speech.bus, say: (t: string, p?: 1 | 2 | 3) => speech.say(t, p ?? 2),
-        onReady: () => setView(false), onFail: fail }).then(h => { showcase = h; }).catch(fail);
-    }).catch(() => { $("overview").hidden = true; });
-  };
-  setInterval(() => { if (showcase?.ready) showcase.setPose(ex.traveller.pos, ex.traveller.heading); }, 100);
   if (!full) attach();
   wireRegions(doc, stage, speech, session);
   stage.addEventListener("mousemove", (e: MouseEvent) => {
@@ -236,9 +173,8 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   $("go").addEventListener("click", () => session.enter());
   $("go").hidden = !session.hasRoute;
   const beginInterior = () => {
-    if (full) { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; }
-    mountFirstPerson();
-    showPhase(doc, session, "explore", app.router);
+    if (full) { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; stage.focus(); }
+    showPhase(doc, session, "explore");
     ex.begin();
     // Status, ear check (Review Focus 9) and the Explore intro in one line, so nothing is dropped.
     if (r.audio === "running" && session.startIntro()) { /* the guided intro speaks first: one key at a time */ }
@@ -247,33 +183,52 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
     setTimeout(() => audio.play(1, { pan: 1, send: 0 }), 500);
   };
   if (!full) { beginInterior(); return; }
-  app.router?.go("arrive", true);
   // ?flow=full: Home, fly in, curb walk (outdoor hook), then the interior at pkg.entrances[0] (see flow.ts for the contract).
   void loadOutdoorHook().then(hook => runFlow({
     hook, pkg, stage, say: (t, p) => speech.say(t, p ?? 2), bus: speech.bus, audio, begin: beginInterior,
-    onOutdoor: on => { doc.body.dataset.flow = on ? "arrive" : "inside"; $("room3d").hidden = on; },
+    onOutdoor: on => { doc.body.dataset.flow = on ? "arrive" : "inside"; $("room3d").hidden = on; setArriveTab(doc, on); },
   }));
 }
 
+/** "Arrive" before Explore in the mode tabs (full flow only). */
+function addArriveTab(doc: Document): void {
+  const list = doc.getElementById("steps-list");
+  if (!list || list.querySelector("[data-arrive]")) return;
+  const li = doc.createElement("li"), span = doc.createElement("span");
+  li.dataset.arrive = "1"; span.textContent = "Arrive";
+  li.append(span); list.prepend(li);
+  doc.body.dataset.flow = "arrive";
+}
+function setArriveTab(doc: Document, on: boolean): void {
+  const span = doc.querySelector<HTMLElement>("#steps-list li[data-arrive] span");
+  if (!span) return;
+  if (on) { span.setAttribute("aria-current", "step"); span.classList.add("steps__now"); }
+  else { span.removeAttribute("aria-current"); span.classList.remove("steps__now"); }
+}
+
+const STEP_NAMES: Record<Phase, number> = { explore: 0, rehearse: 1, point: 2, quiz: 2, summary: 3 };
 const LEDE: Record<Phase, string> = {
   explore: "Explore by sound. Walk, turn and listen. Nothing is scored.",
   rehearse: "Rehearse the way in, one stretch at a time. Follow the spoken directions.",
-  point: "Turn to face the destination, then confirm.",
-  quiz: "Three questions about the route.",
+  point: "Check yourself. Turn to face the destination, then confirm.",
+  quiz: "Check yourself. Three questions about the route.",
   summary: "Pocket summary. Take it with you.",
 };
 const GO: Partial<Record<Phase, string>> = {
   explore: "Start rehearsal", point: "Continue", quiz: "Next question", summary: "Start run 2",
 };
 
-/** The page a session phase lives on. */
-export function pageOfPhase(p: Phase): Page { return p === "explore" || p === "rehearse" ? "inside" : p === "summary" ? "summary" : "check"; }
-
-const results: Record<number, RunResult> = {};
-
-function showPhase(doc: Document, s: Session, p: Phase, router?: Router): void {
+function showPhase(doc: Document, s: Session, p: Phase): void {
   const $ = <T extends HTMLElement = HTMLElement>(id: string) => doc.getElementById(id) as T;
   doc.body.dataset.phase = p;
+  const off = doc.querySelector("#steps-list li[data-arrive]") ? 1 : 0;
+  doc.querySelectorAll("#steps-list li").forEach((li, i) => {
+    if ((li as HTMLElement).dataset.arrive) return;
+    const on = i - off === STEP_NAMES[p];
+    const span = li.firstElementChild as HTMLElement;
+    if (on) span.setAttribute("aria-current", "step"); else span.removeAttribute("aria-current");
+    span.classList.toggle("steps__now", on);
+  });
   $("lede").textContent = LEDE[p];
   const go = $<HTMLButtonElement>("go");
   const label = p === "summary" && s.runNo === 2 ? undefined : GO[p];
@@ -283,13 +238,8 @@ function showPhase(doc: Document, s: Session, p: Phase, router?: Router): void {
   if (step) step.firstChild!.textContent = p === "point" ? "Confirm" : p === "quiz" || p === "summary" ? "Continue" : "Step";
   const hint = doc.querySelector(".step-button__hint");
   if (hint) hint.textContent = p === "point" ? "Tap to confirm where you point" : "Tap to take one step";
+  $("summary").hidden = p !== "summary";
   if (p === "summary") {
-    const log = s.run?.log;
-    if (log) results[s.runNo] = { quizOk: log.quiz.filter(x => x.correct).length, quizTotal: log.quiz.length,
-      pointDeg: log.point.length ? Math.round(log.point[log.point.length - 1].error_deg) : null, bumps: log.events.filter(e => e.kind === "bump").length };
-    renderScore($("score"), results);
-    $("again").textContent = s.runNo === 1 ? "Practice again" : "Start over";
-    $("summary").hidden = false;
     const draw = (fp: boolean) => renderSummary($("summary"), s.pkg, s.route!, { floorPlan: fp });
     draw(false);
     void floorPlanAvailable(s.pkg.id).then(draw);
@@ -298,33 +248,6 @@ function showPhase(doc: Document, s: Session, p: Phase, router?: Router): void {
     line.hidden = !c || s.runNo !== 1;
     if (c) line.textContent = `${c.line} (${c.source === "agent" ? "coach" : "scripted"})`;
   } else $("coach-line").hidden = true;
-  const want = pageOfPhase(p);
-  if (router && router.page !== "arrive" && router.page !== want) router.go(want, true);
-}
-
-/** #/inside never scrolls: arrows, Space and page keys never reach the browser's scroller (Space still presses a focused button). */
-export function lockScroll(doc: Document): void {
-  doc.addEventListener("keydown", e => {
-    const p = doc.body.dataset.page;
-    if (p !== "inside" && p !== "arrive") return;
-    const t = e.target as HTMLElement | null;
-    const onControl = !!t?.closest?.("button, a, input, select, textarea, summary");
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End"].includes(e.key) || (e.key === " " && !onControl)) e.preventDefault();
-  });
-}
-
-/** Focus and the arrival line for each page. */
-function onPage(app: App, doc: Document, p: Page, prev: Page | null, started: boolean): void {
-  const $ = (id: string) => doc.getElementById(id);
-  if (p === "home") { $("start")?.focus(); return; }
-  if (p === "about") { app.session?.timer.stop(); const h = $("about-h"); h?.setAttribute("tabindex", "-1"); h?.focus(); }
-  else { if (prev === "about") app.session?.timer.start(); $("stage")?.focus(); }
-  if (!started || p === prev) return;
-  const line = PAGE_LINES[p];
-  if (!line) return;
-  const say = () => app.speech.say(line, 1);
-  if (p === "arrive" || p === "about") say();
-  else setTimeout(() => { if (app.speech.busyPri === null) say(); }, 2500);   // after the phase's own lines, never over them
 }
 
 function showQuiz(doc: Document, s: Session, q: QuizSession | null): void {
@@ -367,33 +290,35 @@ function showIntro(doc: Document, text: string | null): void {
   el.hidden = !text;
 }
 
-/** The way out of the stage (WCAG 2.1.2): Escape with nothing running, or F6 / Shift+F6 to cycle the parts of this page. */
-export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, session: Session): () => void {
-  const page = () => doc.body.dataset.page ?? "inside";
+/** The way out of the stage (WCAG 2.1.2): Escape with nothing running, or F6 / Shift+F6 to cycle regions. */
+export function wireRegions(doc: Document, stage: HTMLElement, speech: Speech, session: Session): void {
+  const tab = doc.querySelector<HTMLElement>("#steps-list li:not([data-arrive]) span");
+  if (tab) {
+    tab.tabIndex = 0; tab.setAttribute("role", "button");
+    tab.setAttribute("aria-label", "Explore. Press Enter to go back to the rehearsal.");
+    const back = () => { stage.focus(); speech.say("Back in the rehearsal.", 2); };
+    tab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); back(); } });
+    tab.addEventListener("click", back);
+  }
   const regions: [string, () => HTMLElement | null][] = [
-    ["Rehearsal.", () => stage],
-    ["Controls.", () => page() === "home" ? doc.getElementById("start") : page() === "about" ? doc.getElementById("about-back")
-      : page() === "check" ? (doc.querySelector<HTMLElement>("#quiz button") ?? doc.getElementById("go"))
-      : page() === "summary" ? doc.getElementById("again") : doc.getElementById("pause")],
-    ["View.", () => page() !== "inside" ? null : stage.dataset.view === "overview" ? doc.querySelector<HTMLElement>(".room3d-bar button:not(:disabled)[aria-pressed=true]") : doc.getElementById("overview")],
-    ["", () => page() === "about" ? doc.querySelector<HTMLElement>(".objects__scroll") : null],
-    ["Keys.", () => page() === "about" ? doc.querySelector<HTMLElement>("#keys-panel > summary") : null],
-    ["Agent and data.", () => page() === "about" ? doc.querySelector<HTMLElement>("#data-panel > summary") : null],
+    ["Top bar.", () => tab ?? null], ["Rehearsal.", () => stage],
+    ["3D view. Space picks a button. Escape returns.", () => doc.querySelector<HTMLElement>(".room3d-bar button:not(:disabled)[aria-pressed=true]") ?? doc.querySelector<HTMLElement>(".room3d-bar button:not(:disabled)")],
+    ["", () => doc.querySelector<HTMLElement>(".objects__scroll")],                           // objects list and the add form
+    ["Keys.", () => doc.querySelector<HTMLElement>("#keys-panel > summary")],
+    ["Agent and data.", () => doc.querySelector<HTMLElement>("#data-panel > summary")],
   ];
-  const onKey = (e: KeyboardEvent) => {
+  doc.addEventListener("keydown", e => {
     if (e.key !== "F6") return;
     e.preventDefault();
     const inside = regions.map(([, f]) => { const el = f(); return !!el && (el === doc.activeElement || el.contains(doc.activeElement)); });
     const at = inside.lastIndexOf(true);   // the 3D bar sits inside the stage: the most specific (last) region wins
     const n = regions.length, dir = e.shiftKey ? -1 : 1;
     let i = ((at < 0 ? 0 : at + dir) + n) % n;
-    for (let k = 0; k < n && !regions[i][1](); k++) i = (i + dir + n) % n;   // skip a part this page does not have
+    for (let k = 0; k < n && !regions[i][1](); k++) i = (i + dir + n) % n;   // skip a region this page does not have (the 3D bar on a phone)
     const [name, f] = regions[i];
     f()?.focus();
     speech.stop();
     if (name) speech.say(name, 2);
-  };
-  doc.addEventListener("keydown", onKey);
+  });
   void session;
-  return () => doc.removeEventListener("keydown", onKey);
 }

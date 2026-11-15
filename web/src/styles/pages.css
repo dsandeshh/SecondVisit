@@ -36,7 +36,7 @@ main { max-width: none; padding: 0; height: 100vh; height: 100dvh; position: rel
 .stage[data-view="overview"] .room3d-bar { display: flex; }
 .room3d-bar .btn { background: var(--c-surface); min-height: 2.25rem; font-size: var(--fs-small); padding: 0 var(--sp-3); }
 .room3d-bar .btn[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); }
-.intro-prompt { top: 30%; }
+.intro-prompt { display: none; }   /* the one caption line says it */
 
 /* The HUD: only these things sit on the inside screen. */
 .hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
@@ -46,7 +46,7 @@ body:not([data-page="inside"]) .hud { display: none; }
 .hud__tl { position: absolute; top: var(--sp-5); left: var(--sp-5); }
 .hud__tr { position: absolute; top: var(--sp-5); right: var(--sp-5); margin: 0; }
 .miniplan canvas { width: 11rem; height: 8rem; border: var(--bw-hair) solid var(--c-rule-soft); border-radius: var(--r-control); background: var(--c-surface); }
-.ring { position: absolute; left: 50%; bottom: 6.5rem; transform: translateX(-50%); width: 6.5rem; height: 6.5rem; pointer-events: none; }
+.ring { position: absolute; left: 8.5rem; bottom: var(--sp-5); width: 6.5rem; height: 6.5rem; pointer-events: none; border-radius: 50%; background: rgb(255 255 255 / 0.88); border: var(--bw-hair) solid var(--c-rule-soft); }
 
 .chipbtn { font: inherit; font-size: var(--fs-small); font-weight: var(--fw-medium); min-height: 2.75rem; padding: 0 var(--sp-5); cursor: pointer; color: var(--c-ink);
   background: var(--c-surface); border: var(--bw-control) solid var(--c-rule-soft); border-radius: 999px; }
@@ -116,3 +116,15 @@ body.is-phone #go { width: 100%; justify-content: center; }
 
 /* #/inside is a locked page: nothing scrolls, nothing slides, only the view moves. */
 body[data-page="inside"], body[data-page="arrive"] { height: 100vh; height: 100dvh; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+
+/* Arrive: the outdoor scene brings its own caption and step controls; ours is only the small pause button, top right. */
+body[data-page="arrive"] .capline { display: none; }
+body[data-page="arrive"] .controls { top: var(--sp-5); bottom: auto; justify-content: flex-end; }
+body[data-page="arrive"] #help { display: none; }
+.strip__bar { display: block; height: 0.5rem; margin: var(--sp-2) 0; background: var(--c-surface-2); border: var(--bw-hair) solid var(--c-rule-soft); }
+.strip__bar > span { display: block; height: 100%; width: 0; background: var(--c-ink); }
+.about__head { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: var(--sp-5); }
+.about__id { display: grid; gap: 0; flex: none; }
+.about__meta { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+
+#about-h:focus { outline: none; }

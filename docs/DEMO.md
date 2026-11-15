@@ -4,6 +4,7 @@
 
 Setup: wired closed back headphones, Chrome, `cd engine && .venv/bin/python -m uvicorn dr.api:app --port 8000`, `cd web && npm run dev`.
 Open three tabs: `/?b=x37LjPx62VA&obs=demo` (walker), `/observer.html?b=x37LjPx62VA&obs=demo` (projector), `/venue.html?b=x37LjPx62VA`.
+**New shell (behind a flag):** add `&ui=v2` for the page-at-a-time journey described in "The v2 journey" below; without it the cockpit flow below is unchanged. To make v2 the default change `DEFAULT_UI` in `web/src/pages/ui.ts` from `"v1"` to `"v2"` (one line; `?ui=v1` still gets the cockpit).
 Add `&flow=full` to the walker URL for the whole story (Arrive tab: fly in from the sky, curb to door) once the outdoor hook is in;
 without it the app opens inside, so the demo never depends on it. Add `&intro=1` to force the guided intro again.
 
@@ -50,3 +51,15 @@ Playing the recordings (no model or sponsor call): `GET /api/agent/replay?name=v
 `?name=venue` (Where should our reception desk go?); `&speed=4` plays faster; `GET /api/agent/replays` lists which file each name
 resolves to. The local clinic recordings (`traces/replay-*-clinic.jsonl`, sponsor derived, gitignored) win when present, otherwise
 the committed `traces/replay-*-fixture.jsonl` play. The stream's start event says `mode: "replay"`.
+
+
+## The v2 journey (`?ui=v2`, hash routes, one full screen page at a time, no scroll)
+
+`/?b=x37LjPx62VA&ui=v2` (add `&flow=interior` to open inside). Each page speaks its purpose in Michael's voice on arrival.
+
+1. `#/home`: "SecondVisit", one address box, Start (first Tab stop), the available buildings as buttons. Nothing plays before Start.
+2. `#/arrive`: fly in, then the outdoor curb to door scene; only a small Pause. At the door it moves to `#/inside` by itself.
+3. `#/inside`: the locked rehearsal. First person photo view (stream 1's showcase) with an Overview toggle (the real scan mesh); if the showcase is missing or fails it stays on Overview. Only the sound ring, one caption line, the mini map, Pause, Help and the toggle. Enter starts the rehearsal; keys as before (Top 8, Tab, B, Esc, F6, P, plus and minus).
+4. `#/check`: pointing test, then the quiz (keys 1 to 4, R, Enter).
+5. `#/summary`: the score in big words, run 1 against run 2, Practice again, How it was built.
+6. `#/about` ("How it was built", for judges; also K and Help open it): data source chips with tooltips, objects list (spoken names, Rename and Remove on the selected row only), agent trace, session facts, provenance, the keys, the pocket summary. Esc goes back.

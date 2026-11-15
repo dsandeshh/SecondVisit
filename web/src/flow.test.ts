@@ -13,8 +13,7 @@ describe("full flow", () => {
     expect(got).toBe(audio);
   });
   it("is off unless ?flow=full", () => {
-    expect(fullFlow(new URLSearchParams(""))).toBe(true);   // the journey starts outside by default
-    expect(fullFlow(new URLSearchParams("flow=interior"))).toBe(false);
+    expect(fullFlow(new URLSearchParams(""))).toBe(false);
     expect(fullFlow(new URLSearchParams("flow=full"))).toBe(true);
   });
   it("with no hook the interior starts at once", async () => {

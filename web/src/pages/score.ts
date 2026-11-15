@@ -16,7 +16,7 @@ export function renderScore(host: HTMLElement, runs: Record<number, RunResult>):
   const big = d.createElement("p");
   big.className = "score__big";
   const last = r2 ?? r1;
-  big.textContent = last ? `${last.quizOk} of ${last.quizTotal} right.` : "Run complete.";
+  big.textContent = last && last.quizTotal ? `${last.quizOk} of ${last.quizTotal} right.` : "Run complete.";
   host.append(big);
   if (last) { const p = d.createElement("p"); p.className = "score__line"; p.textContent = `${last.pointDeg === null ? "Pointing not tested" : pointWords(last.pointDeg).replace(/^./, c => c.toUpperCase())}, ${bumpWords(last.bumps)}.`; host.append(p); }
   if (r1 && r2) {

@@ -204,7 +204,7 @@ export class Cockpit {
       s.textContent = k;
       s.setAttribute("aria-label", `${k}: ${c[k]} facts. ${CHIP_WHAT[k]}`);
       s.title = `${CHIP_WHAT[k]} (${c[k]} facts)`;
-      s.tabIndex = 0;
+      if (this.doc.body.dataset.page) s.tabIndex = 0;   // v2 only
       host.append(s);
     }
   }
@@ -304,7 +304,7 @@ export class Cockpit {
       const del = this.doc.createElement("button"); del.type = "button"; del.className = "btn btn--secondary btn--small";
       del.textContent = "Remove"; del.setAttribute("aria-label", `Remove ${l.label}`);
       del.addEventListener("click", () => void this.save({ op: "remove", id: l.id }));
-      if (l.id === this.sel) act.append(ren, del);   // edit controls only on the selected row
+      if (l.id === this.sel || !this.doc.body.dataset.page) act.append(ren, del);   // v2: edit controls only on the selected row
       tr.append(th, src, act);
       body.append(tr);
       if (l.id === this.sel) tr.scrollIntoView?.({ block: "nearest" });
