@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dr"
+version = "0.1.0"
+description = "SecondVisit engine: sponsor data to a BuildingPackage for audio rehearsal"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy",
+  "scipy",
+  "shapely",
+  "pydantic>=2",
+  "fastapi",
+  "uvicorn[standard]",
+  "httpx",
+  "rapidfuzz",
+  "pillow",
+  "anthropic",
+  "deepagents>=0.7.38,<0.8",
+  "langchain-anthropic",
+  "langsmith",
+  "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["dr*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
