@@ -139,6 +139,8 @@ def coach_endpoint(req: CoachRequest) -> dict:
 from dr.agents.api_stream import router as agent_router  # noqa: E402  (after _load_env so DR_* are set)
 
 app.include_router(agent_router)
+from dr.api_resolve import router as resolve_router  # noqa: E402
+app.include_router(resolve_router)
 
 
 # --- Objects list edits (rehearsal screen): rename, remove or add a landmark in data/<sid>/overrides.json ---
