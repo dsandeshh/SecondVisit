@@ -600,6 +600,32 @@ user needs. It is hidden on phones (4.3 is unchanged).
   `POST /api/overrides/<sid>/landmarks`; they take effect in the package on the next build and the list says so.
 * Bottom strip text is the route's own instruction and counters from the package, not model text.
 
+### 4.2b The new experience (14 Nov 23:37 decisions; binding, supersedes 3.3 and the home wireframe in 4.1)
+
+One continuous flow, light Apple minimal, tokens only:
+
+1. **Home.** One address box ("Where is your appointment?"), nothing else competing. Submit resolves the
+   place (engine resolver; a fixed offline list backs the demo so the clinic name or address always resolves)
+   and loads its package. Unknown place: the 3.2 error with a fix. `?b=<sid>` skips typing.
+2. **Fly in.** The 3D camera starts high above the street and eases down onto the Vexcel aerial (ortho
+   ground quad, `VX`). It reveals, in order: the yellow drop off pin (`HAND`), the blue path with a tick
+   every step (`CALC`), the door pin under the canopy slab, and the building massing (`MP` outline from the
+   scan if nothing better, labelled "suite from the scan"). It speaks the arrival line, then lands behind the
+   walker at the curb. `prefers-reduced-motion`: cuts, no moves. Any key skips the fly in.
+3. **Walk starts at the curb.** Outdoors the building outline is a wall; one continuous camera move carries
+   the walker through the door into the interior scene, same world frame, the building shell fading away.
+4. **Outdoor and interior 3D** share one frame. Every outdoor object wears its chip (`VX`, `HAND`, `CALC`, `MP`,
+   `assumed`). Nothing invented: unknown canopy or door type is drawn dashed as `assumed`, or left out.
+5. **Always app voice.** No voice choice screen. Start goes straight to the rehearsal; we speak every line.
+6. **Captions** are always visible, with direction ("Reception desk, 2 o'clock" plus an arrow), in an
+   `aria-live="off"` region; speech always equals its caption.
+7. **Sound ring** (a later task) draws every positioned sound around the walker in the 3D view, the same
+   events that drive audio and captions.
+8. **Cockpit.** The 3D view is the widest element (full width of the stage, no dead grey beside it); the
+   caption is a card overlaid at its bottom, not a box that takes height from it; objects, floor plan and
+   data sit around and below it.
+9. **Intro.** A short guided intro (about 10 s, Esc skips) names what is on screen, then the first action.
+
 ### 4.3 Rehearsal, phone
 
 ```
