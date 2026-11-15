@@ -87,13 +87,15 @@ describe("score words", () => {
   });
 });
 
-describe("the old flow is still the default", () => {
-  it("without ?ui=v2 the v1 shell is chosen, and index.html is still the cockpit that mounts", async () => {
+describe("v2 is the default; ?ui=v1 is the escape hatch to the old cockpit", () => {
+  it("without a ?ui param v2 is chosen; ?ui=v1 and ?ui=v2 both still work explicitly", async () => {
     const { uiVersion, DEFAULT_UI } = await import("./ui");
-    expect(DEFAULT_UI).toBe("v1");
-    expect(uiVersion(new URLSearchParams(""))).toBe("v1");
+    expect(DEFAULT_UI).toBe("v2");
+    expect(uiVersion(new URLSearchParams(""))).toBe("v2");
     expect(uiVersion(new URLSearchParams("ui=v2"))).toBe("v2");
     expect(uiVersion(new URLSearchParams("ui=v1"))).toBe("v1");
+  });
+  it("?ui=v1 still mounts index.html as the unchanged cockpit", async () => {
     const old = readFileSync(join(here, "..", "..", "index.html"), "utf8");
     document.documentElement.innerHTML = old.replace(/^[\s\S]*?<html[^>]*>/i, "").replace(/<\/html>\s*$/i, "");
     for (const id of ["home", "rehearsal", "stage", "room3d", "objects", "steps-list", "strip", "go", "quiz", "summary"]) expect(document.getElementById(id), id).not.toBeNull();
