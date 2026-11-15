@@ -5,6 +5,18 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { boot, focusables } from "../app_v2";
 import { fixturePkg, FakeAudioContext } from "../test/fakes";
+import { FALLBACK_LINE } from "../showcase/load";
+import type { ShowcaseHandle, ShowcaseOpts } from "./showcase_hook";
+
+// A default that succeeds, so tests that don't care about the photo view are unaffected; the
+// fallback test below overrides it once to model the module's own offline/failure contract.
+const showcaseMock = vi.hoisted(() => ({
+  mountShowcase: vi.fn(async (_o: ShowcaseOpts): Promise<ShowcaseHandle> =>
+    ({ setPose: () => undefined, stop: () => undefined, ready: true })),
+}));
+vi.mock("./showcase_hook", () => ({
+  loadShowcase: async () => ({ mountShowcase: showcaseMock.mountShowcase }),
+}));
 
 const html = `<html><body data-page="home">${readFileSync(join(dirname(fileURLToPath(import.meta.url)), "shell_v2.html"), "utf8")}</body></html>`;
 
@@ -70,6 +82,31 @@ describe("index.html", () => {
     await vi.waitFor(() => expect(window.location.hash).toBe("#/arrive"));
     expect(app.pkg?.id).toBe(fixturePkg().id);
     expect(app.audio.ctx).not.toBeNull();
+    vi.unstubAllGlobals();
+  });
+  it("shows the calm fallback note and keeps the rehearsal working when the photo view fails", async () => {
+    load();
+    vi.stubGlobal("AudioContext", FakeAudioContext);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => fixturePkg() })));
+    // The real module never rejects: on any failure it speaks the fallback line itself, then calls onFail once
+    // and resolves an inert handle (web/src/showcase/index.ts). Model that contract exactly, once.
+    showcaseMock.mountShowcase.mockImplementationOnce(async (o: ShowcaseOpts) => {
+      o.say(FALLBACK_LINE); // the real module's own offline line, spoken before onFail
+      o.onFail("offline");
+      return { setPose: () => undefined, stop: () => undefined, ready: false };
+    });
+    const spoken: string[] = [];
+    const app = await boot(document, new URLSearchParams("b=fixture&flow=interior"));
+    const origSay = app.speech.say.bind(app.speech);
+    app.speech.say = (t: string, p?: 1 | 2 | 3) => { spoken.push(t); return origSay(t, p); };
+    document.getElementById("start")!.click();
+    await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
+    await vi.waitFor(() => expect(document.getElementById("photo-note")!.hidden).toBe(false));
+    expect(document.getElementById("photo-note")!.textContent).toBe(FALLBACK_LINE);
+    expect(document.getElementById("overview")!.hidden).toBe(true); // the single view toggle hides with the mesh fallback
+    expect(document.getElementById("overview")!.dataset.off).toBe("1");
+    expect(document.getElementById("stage")!.dataset.view).toBe("overview"); // never a blank view
+    expect(spoken).toContain(FALLBACK_LINE); // Michael says it; it is not only printed
     vi.unstubAllGlobals();
   });
 });

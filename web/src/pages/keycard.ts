@@ -2,10 +2,10 @@
 // Keys while it is up are swallowed in the capture phase (never reach the stage or the Matterport iframe), except
 // F6 (region cycling) and Tab (focus the card buttons), which pass; Escape dismisses and passes nothing on.
 export const KEYCARD_KEY = "sv.keycard.seen";
-export const KEYCARD_LINE = "Up walks. Left and Right turn. Enter asks where your goal is. Q tells you what is around you. P pauses. The question mark brings this back.";
+export const KEYCARD_LINE = "Up walks. Left and Right turn. Enter starts the rehearsal. Q tells you what is around you. P pauses. The question mark brings this back.";
 const ITEMS: [string, string, string][] = [
   ["Up", "walk", "ArrowUp"], ["Left", "turn left", "ArrowLeft"], ["Right", "turn right", "ArrowRight"],
-  ["Enter", "where is my goal", "Enter"], ["Q", "what is around me", "q"], ["P", "pause", "p"], ["?", "help", "?"],
+  ["Enter", "start rehearsal", "Enter"], ["Q", "what is around me", "q"], ["P", "pause", "p"], ["?", "help", "?"],
 ];
 
 export const cardSeen = (): boolean => { try { return localStorage.getItem(KEYCARD_KEY) === "1"; } catch { return false; } };

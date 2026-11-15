@@ -150,3 +150,7 @@ body[data-page="inside"]:has(.stage[data-view="first"]) .capline { bottom: 6.75r
 .keycard__key { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 2.5rem; padding: 0 var(--sp-3); font: inherit; font-size: var(--fs-small); background: var(--c-surface-2); border: 1px solid var(--c-line, currentColor); border-radius: 999px; color: inherit; cursor: pointer; }
 .keycard__key kbd { font-weight: var(--fw-medium, 600); }
 .keycard__hint { margin: var(--sp-2) 0 0; font-size: var(--fs-small); }
+
+/* Calm note when the photo view cannot load (always visible on #/inside, never a blank swap). */
+.photo-note { position: absolute; left: 50%; bottom: calc(var(--sp-3) + 150px); transform: translateX(-50%); z-index: 4; margin: 0; max-width: 90%; padding: var(--sp-2) var(--sp-3);
+  background: var(--c-surface); color: var(--c-ink); border: 1px solid var(--c-ink); border-radius: 999px; font-size: var(--fs-small); text-align: center; }

@@ -19,6 +19,7 @@ import { Cockpit } from "./ui/cockpit";
 import { mountRing } from "./ui/ring";
 import { createRouter, type Page, type Router } from "./pages/router";
 import { PAGE_LINES } from "./pages/lines";
+import { FALLBACK_LINE } from "./showcase/load";
 import { loadShowcase, type ShowcaseHandle } from "./pages/showcase_hook";
 import { renderScore, type RunResult } from "./pages/score";
 import { cardWanted, mountKeyCard } from "./pages/keycard";
@@ -180,7 +181,11 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   const mountFirstPerson = () => {
     void loadShowcase().then(mod => {
       if (!mod) { $("overview").hidden = true; return; }
-      const fail = () => { showcase = null; setView(true); $("overview").dataset.off = "1"; $("overview").hidden = true; };
+      const fail = () => {
+        showcase = null; setView(true); $("overview").dataset.off = "1"; $("overview").hidden = true;
+        // The calm note is always visible (mountShowcase has already spoken it through `say`).
+        const n = $("photo-note"); n.textContent = FALLBACK_LINE; n.hidden = false;
+      };
       return mod.mountShowcase({ host: $("showcase"), pkg, world: ex.world, bus: speech.bus, say: (t: string, p?: 1 | 2 | 3) => speech.say(t, p ?? 2),
         onReady: () => setView(false), onFail: fail, safeTop: 70, safeBottom: 170 }).then(h => { showcase = h; }).catch(fail);
     }).catch(() => { $("overview").hidden = true; });
@@ -334,6 +339,7 @@ function onPage(app: App, doc: Document, p: Page, prev: Page | null, started: bo
   if (p === "about") { app.session?.timer.stop(); const h = $("about-h"); h?.setAttribute("tabindex", "-1"); h?.focus(); }
   else { if (prev === "about") app.session?.timer.start(); ($(p === "check" ? "check" : p === "summary" ? "result" : "stage") as HTMLElement | null)?.focus(); }
   if (!started || p === prev) return;
+  if (prev === "arrive" && p === "inside") { const c = $("say-polite"); if (c) c.textContent = ""; const d = $("say-dir"); if (d) { d.replaceChildren(); d.hidden = true; } }   // the outdoor caption does not linger
   const line = PAGE_LINES[p];
   if (!line) return;
   const say = () => app.speech.say(line, 1);
