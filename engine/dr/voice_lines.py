@@ -65,9 +65,11 @@ FIXED_UI_LINES = [
     "That's close.",
     "Not far off.",
     "Quite a way off.",
-    "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. P: pause. Plus and minus: speech speed. F6: move between parts of the page.",
+    "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. V: photo view, the listing's own photos. P: pause. Plus and minus: speech speed. F6: move between parts of the page.",
     # Showcase photo view fallback (web/src/showcase/load.ts FALLBACK_LINE)
     "Photo view needs internet; showing the scan.",
+    # V toggles the photo view (web/src/app_v2.ts PHOTO_ON_LINE, PHOTO_OFF_LINE)
+    "Photo view, the listing's own photos.", "Scan view.",
     # #/inside safe state after a setup error (web/src/app_v2.ts OOPS_LINE)
     "Something went wrong. Press Escape or F6 to move on.",
     # home address box tiers (web/src/home/home.ts, engine/dr/api_resolve.py): a known Houston or LA model with no

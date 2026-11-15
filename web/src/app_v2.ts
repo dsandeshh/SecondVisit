@@ -32,6 +32,10 @@ import { loadOutdoorHook, runFlow } from "./flow";
 /** v2: the journey starts outside by default; ?flow=interior opens inside. */
 const fullFlow = (params: URLSearchParams): boolean => params.get("flow") !== "interior";
 
+/** V: Michael says which view is now on screen (both in FIXED_UI_LINES). */
+export const PHOTO_ON_LINE = "Photo view, the listing's own photos.";
+export const PHOTO_OFF_LINE = "Scan view.";
+
 /** Said and shown when something inside the rehearsal fails: the visitor stays on #/inside and keeps the keys. */
 export const OOPS_LINE = "Something went wrong. Press Escape or F6 to move on.";
 
@@ -229,27 +233,55 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
 
   const stage = $("stage");
   const attach = () => attachKeys(stage, session);   // in the full flow the interior keys start when the walker is inside
+  // The view inside is first person on the real scan mesh ("mesh"), from the first frame, and it never changes on its own.
+  // The Matterport photo view ("first") is mounted only when the visitor presses V; V again returns to the mesh. It is
+  // mounted once and kept (its host sits behind the opaque scan), so switching back and forth never leaks an iframe.
   let showcase: ShowcaseHandle | null = null;
-  // "first": the photo view (showcase). "mesh": first person on the real scan mesh, the fallback (no third person, no toggle).
+  let mounting = false;
+  let photoOn = false;
   const setView = (photo: boolean) => { stage.dataset.view = photo ? "first" : "mesh"; };
   setView(false);
-  const mountFirstPerson = () => {
+  const note = (text: string | null) => { const n = $("photo-note"); n.textContent = text ?? ""; n.hidden = text === null; };
+  const mountPhoto = () => {
     const fail = (why?: unknown) => {
       if (why !== undefined && typeof why !== "string") console.error("photo view failed; first person on the mesh instead", why);
-      showcase = null; setView(false);
-      // The calm note is always visible (mountShowcase has already spoken it through `say`).
-      const n = $("photo-note"); n.textContent = FALLBACK_LINE; n.hidden = false;
+      const wanted = photoOn;
+      showcase = null; mounting = false; photoOn = false; setView(false);
+      $("showcase").hidden = true;
+      if (wanted) note(FALLBACK_LINE);   // only ever after the visitor chose the photo view
     };
+    mounting = true;
     const load = (): Promise<Awaited<ReturnType<typeof loadShowcase>>> => { try { return loadShowcase(); } catch (e) { return Promise.reject(e); } };
     void load().then(mod => {
-      if (!mod) return;
+      if (!mod) { fail("no showcase module"); return; }
       // The Showcase iframe must be laid out and visible while it connects: hidden (display:none, 0x0) or
       // visibility:hidden, Chrome never renders it and App.state never reaches PLAYING. It loads behind the opaque
-      // scan (.room3d z-index 1); onReady switches the view to the photo view, which hides the scan.
+      // scan (.room3d z-index 1); onReady shows it only if the visitor still wants the photo view.
       $("showcase").hidden = false;
-      return mod.mountShowcase({ host: $("showcase"), pkg, world: ex.world, bus: speech.bus, say: (t: string, p?: 1 | 2 | 3) => speech.say(t, p ?? 2),
-        onReady: () => setView(true), onFail: fail, safeTop: 70, safeBottom: 170 }).then(h => { showcase = h; }).catch(fail);
+      return mod.mountShowcase({ host: $("showcase"), pkg, world: ex.world, bus: speech.bus,
+        say: (t: string, p?: 1 | 2 | 3) => { if (photoOn) speech.say(t, p ?? 2); },
+        onReady: () => { mounting = false; if (photoOn) { setView(true); note(null); } }, onFail: fail, safeTop: 70, safeBottom: 170 })
+        .then(h => { if (h.ready) showcase = h; }).catch(fail);
     }).catch(fail);
+  };
+  const togglePhoto = () => {
+    speech.stop();
+    photoOn = !photoOn;
+    note(null);
+    if (!photoOn) { setView(false); speech.say(PHOTO_OFF_LINE, 2); return; }
+    speech.say(PHOTO_ON_LINE, 2);
+    if (showcase?.ready) { setView(true); showcase.setPose(ex.traveller.pos, ex.traveller.heading); }
+    else if (!mounting) safely("the photo view", mountPhoto, () => { photoOn = false; setView(false); note(FALLBACK_LINE); });
+  };
+  let photoKey = false;
+  const attachPhotoKey = () => {
+    if (photoKey || phone) return;
+    photoKey = true;
+    stage.addEventListener("keydown", e => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || e.key.toLowerCase() !== "v") return;
+      if (doc.body.dataset.page !== "inside") return;
+      e.preventDefault(); togglePhoto();
+    });
   };
   setInterval(() => { if (showcase?.ready) showcase.setPose(ex.traveller.pos, ex.traveller.heading); }, 100);
   if (!full) attach();
@@ -318,7 +350,7 @@ function enter(app: App, doc: Document, r: StartReport, op: boolean, store: Clip
   const beginInterior = () => {
     // Each step is guarded: whatever fails, the visitor lands on #/inside with the keys (never back on Home).
     if (full) safely("interior keys", () => { attach(); doc.body.dataset.flow = "inside"; $("room3d").hidden = false; });
-    safely("the photo view", mountFirstPerson, () => { stage.dataset.view = "mesh"; const n = $("photo-note"); n.textContent = FALLBACK_LINE; n.hidden = false; });
+    safely("the view", () => { setView(false); attachPhotoKey(); });   // the scan mesh; Matterport only on V
     if (!safely("showing Explore", () => showPhase(doc, session, "explore", app.router))) safeInside(app, doc);
     if (!safely("starting Explore", () => ex.begin())) { safeInside(app, doc); return; }
     safely("the intro", () => {

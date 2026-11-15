@@ -17,7 +17,7 @@ type Pub = Omit<Cue, "v" | "t" | "ts">;
 
 const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const mid = (d: Door): Vec2 => [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2];
-export const KEYS_LINE = "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. P: pause. Plus and minus: speech speed. F6: move between parts of the page.";
+export const KEYS_LINE = "Arrows walk and turn. Q: around me. E: ahead. Tab: choose a place. Enter: go there. Escape: stop. W: where am I. Space: repeat. S: source of this line. K: these keys again. V: photo view, the listing's own photos. P: pause. Plus and minus: speech speed. F6: move between parts of the page.";
 
 export class Interact {
   readonly items: Item[];

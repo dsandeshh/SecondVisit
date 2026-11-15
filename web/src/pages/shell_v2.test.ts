@@ -20,6 +20,15 @@ vi.mock("./showcase_hook", () => ({
 }));
 loadMock.load.mockImplementation(async () => ({ mountShowcase: showcaseMock.mountShowcase }));
 
+// The photo view is mounted only on V (15 Nov decision): these tests choose it, after the first visit key card (if up) is closed.
+async function chooseWhenInside() {
+  await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
+  const st = document.getElementById("stage")!;
+  const key = (k: string) => st.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
+  for (let i = 0; i < 6; i++) key("Escape");   // key cards of earlier boots in this file (still listening on document) swallow one key each
+  key("v");
+}
+
 const html = `<html><body data-page="home">${readFileSync(join(dirname(fileURLToPath(import.meta.url)), "shell_v2.html"), "utf8")}</body></html>`;
 
 function load() {
@@ -91,7 +100,7 @@ describe("index.html", () => {
     expect(app.audio.ctx).not.toBeNull();
     vi.unstubAllGlobals();
   });
-  it("shows the calm fallback note and keeps the rehearsal working when the photo view fails", async () => {
+  it("V: shows the calm fallback note and keeps the rehearsal working when the chosen photo view fails", async () => {
     load();
     vi.stubGlobal("AudioContext", FakeAudioContext);
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => fixturePkg() })));
@@ -107,7 +116,7 @@ describe("index.html", () => {
     const origSay = app.speech.say.bind(app.speech);
     app.speech.say = (t: string, p?: 1 | 2 | 3) => { spoken.push(t); return origSay(t, p); };
     document.getElementById("start")!.click();
-    await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
+    await chooseWhenInside();
     await vi.waitFor(() => expect(document.getElementById("photo-note")!.hidden).toBe(false));
     expect(document.getElementById("photo-note")!.textContent).toBe(FALLBACK_LINE);
     expect(document.getElementById("overview")).toBeNull(); // no view toggle: the fallback is first person on the mesh
@@ -134,6 +143,7 @@ describe("index.html", () => {
     });
     await boot(document, new URLSearchParams("b=fixture&flow=interior"));
     document.getElementById("start")!.click();
+    await chooseWhenInside();
     await vi.waitFor(() => expect(seen).not.toBeNull());
     expect(document.getElementById("stage")!.dataset.view).toBe("mesh"); // still loading: the scan is in front
     expect(seen).toEqual({ hidden: false, display: "block", visibility: "visible" });
@@ -152,12 +162,12 @@ describe("#/inside never falls back to #/home on an error", () => {
     const app = await boot(document, new URLSearchParams(q));
     return app;
   };
-  it("the showcase module loader throwing at once still lands on #/inside, first person on the mesh", async () => {
+  it("V: the showcase module loader throwing at once still lands on #/inside, first person on the mesh", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
     loadMock.load.mockImplementationOnce(() => { throw new Error("boom: chunk failed"); });
     await start("b=fixture&flow=interior");
     document.getElementById("start")!.click();
-    await vi.waitFor(() => expect(document.body.dataset.page).toBe("inside"));
+    await chooseWhenInside();
     await new Promise(r => setTimeout(r, 50));
     expect(document.body.dataset.page).toBe("inside");
     expect(window.location.hash).toBe("#/inside");
@@ -166,11 +176,12 @@ describe("#/inside never falls back to #/home on an error", () => {
     expect(err).toHaveBeenCalled();
     err.mockRestore(); vi.unstubAllGlobals();
   });
-  it("mountShowcase throwing synchronously is the same calm fallback, never home", async () => {
+  it("V: mountShowcase throwing synchronously is the same calm fallback, never home", async () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
     showcaseMock.mountShowcase.mockImplementationOnce(() => { throw new Error("boom: sdk"); });
     await start("b=fixture&flow=interior");
     document.getElementById("start")!.click();
+    await chooseWhenInside();
     await vi.waitFor(() => expect(document.getElementById("photo-note")!.hidden).toBe(false));
     expect(document.body.dataset.page).toBe("inside");
     expect(document.getElementById("stage")!.dataset.view).toBe("mesh");

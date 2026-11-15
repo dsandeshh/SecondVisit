@@ -33,10 +33,10 @@ main { max-width: none; padding: 0; height: 100vh; height: 100dvh; position: rel
 .showcase { z-index: 0; }
 .room3d { z-index: 1; }
 .stage[data-view="first"] .room3d { visibility: hidden; }
-/* Mesh view (fallback and while loading): the opaque scan (z-index 1) covers the Showcase. Never visibility:hidden or display:none on .showcase:
+/* Mesh view (the default inside; the Showcase is mounted only on V): the opaque scan (z-index 1) covers the Showcase. Never visibility:hidden or display:none on .showcase:
    a hidden Showcase iframe never renders, so the SDK never reaches PLAYING. */
 .room3d-bar { display: none; position: absolute; top: var(--sp-3); left: 50%; transform: translateX(-50%); z-index: 3; gap: var(--sp-2); align-items: center; }
-/* v2 has no view control: first person only (photo view, else the mesh). / swaps Real scan and Plan; [ ] \ do nothing in v2. */
+/* v2 has no view control: first person only (the scan mesh; V the photo view). / swaps Real scan and Plan; [ ] \ do nothing in v2. */
 .room3d-bar { display: none !important; }
 .room3d-bar .btn { background: var(--c-surface); min-height: 2.25rem; font-size: var(--fs-small); padding: 0 var(--sp-3); }
 .room3d-bar .btn[aria-pressed="true"] { background: var(--c-ink); color: var(--c-paper); }

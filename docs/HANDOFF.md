@@ -93,7 +93,7 @@ URLs: `/?b=x37LjPx62VA` rehearsal (`&flow=full` outdoor first, `&intro=1` replay
 Keys: Tab to Start, Enter. Up walks, Left/Right turn, Down back. Q around me (Shift+Q detailed),
 E ahead, Tab/Shift+Tab pick a place, Enter beacon (Explore only; Esc stops), W where am I, B hint,
 Space repeat, K keys, S source, Shift+S swap channels, P pause, +/− speech rate, `[` `]` `\` camera,
-`/` Real scan ↔ Plan, F6 move between regions, Esc leave the stage.
+`/` Real scan ↔ Plan, V photo view (Matterport, only on request) ↔ scan, F6 move between regions, Esc leave the stage.
 
 Local only, never in git: `.env`; `data/x37LjPx62VA/` (raw cache incl. `matterpak/`, `landmarks.json`,
 `vision_cache/`); `web/public/buildings/x37LjPx62VA/` (package, voice clips, images, `scan.glb`);
