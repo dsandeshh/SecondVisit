@@ -94,7 +94,7 @@ A checkpoint pauses only its own stream; the other streams keep going.
 Sources: `review/agent5_interaction.md` (Hearify style interactions, O&M), `review/agent6_arrival.md`
 (curb to door). Two streams, Sonnet implementers, UPDATE block after every task.
 
-### Stream 2 (web), in order (voice model download and audition first, then A1..A9)
+### Stream 2 (web), in order (REORDERED by the human 23:40, binding): 1 voice audition (A7a), 2 interior 3D room + full layout + A2 (STOP: screenshot to the human), 3 360 sound + sound ring + captions with direction (A4, A5), 4 Top 8 interactions (A6), 5 pre-rendered Kokoro voice + guided intro (A7b, A8), 6 outdoor scene, curb to door, fly in (A3 outdoor, A1), 7 GPS circle + day of visit (A9, drop first)
 - [ ] A7a Kokoro voice: kokoro-js, onnx-community/Kokoro-82M-v1.0-ONNX, cpu, q8, `web/scripts/voice.mjs`;
       audition "Reception desk, 2 o'clock, 14 steps." in 5 English voices to `web/public/voice_audition/` — checkpoint (g)
 - [ ] A1 Home: one address box, resolver, fly in from the sky onto the Vexcel ortho, pins, path, arrival line, land at the curb; walk starts at the curb
