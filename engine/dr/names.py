@@ -77,15 +77,18 @@ def _disambiguate(group: list[Landmark], landmarks: list[Landmark], entrances, r
     """Make equal spoken names unique, by code from geometry: nearest distinct fixed landmark ("Door by the
     sink counter"), else the room ("Door in the lab"), else an ordinal by distance from the entrance."""
     from shapely.geometry import Point, Polygon
+    base = group[0].spoken or ""
+    base_words = {w.lower() for w in base.split()}
     count: dict[str, int] = {}
     for m in landmarks:
         count[(m.spoken or "").lower()] = count.get((m.spoken or "").lower(), 0) + 1
-    base = group[0].spoken or ""
+    snap = {m.id: m.spoken for m in landmarks}  # names before any renumbering, so neighbours stay stable
     room_budget = MAX_DISAMBIG_WORDS - len(base.split()) - 2  # "by the" / "in the"
     cands: dict[str, str] = {}
     for lm in group:
-        near = sorted((m for m in landmarks if m.fixed and m.spoken and m.spoken.lower() != base.lower()
-                       and count[m.spoken.lower()] == 1 and len(m.spoken.split()) <= room_budget
+        near = sorted((m for m in landmarks if m.fixed and snap[m.id] and m.spoken == snap[m.id]
+                       and not base_words & {w.lower() for w in snap[m.id].split()}
+                       and count[snap[m.id].lower()] == 1 and len(snap[m.id].split()) <= room_budget
                        and math.dist(m.pos, lm.pos) <= NEAR_M), key=lambda m: math.dist(m.pos, lm.pos))
         if near:
             cands[lm.id] = f"{base} by the {near[0].spoken.lower()}"

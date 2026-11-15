@@ -87,6 +87,9 @@ def merge_landmarks(pkg: BuildingPackage, sid: str, data_root: Path = DATA) -> N
             lms[lid].label = label
             pkg.prov[f"landmark:{lid}.label"] = Prov(src="hand", ref="overrides.json label_overrides", at=now)
     pkg.landmarks = list(lms.values())
+    for hid in [x.id for x in (dest, dest2) if x is not None]:  # the named destinations keep their plain name
+        if not lms[hid].spoken:
+            lms[hid].spoken = names.spoken_name(lms[hid].label, lms[hid].kind)
     names.fill_spoken(pkg.landmarks, pkg.entrances, pkg.rooms)
 
 
