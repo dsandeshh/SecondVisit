@@ -3,6 +3,12 @@
 Contract and plan changes, newest first. Rule 2 in CLAUDE.md: any change to BuildingPackage, RunLog,
 RunPlan or PointResult is logged here in the same commit as the code.
 
+## 2026-11-14 (Sat, about 21:45): Task 0 pull
+
+- APIS 1.3 rooms query: removed `panoLocations { floor { id } }`. The API rejects it
+  (`FieldUndefined`); the quickstart's own rooms query does not ask for it either.
+- `docs/DATA_STATUS.md` written: `DEMO_SID=x37LjPx62VA`, every layer present except the defurnished view.
+
 ## 2026-11-14 (Sat, about 21:15): plan v3.1, from the key checks
 
 What the key checks found: the clinic `x37LjPx62VA` has 139 wall edges (all type `wall`), 21 rooms

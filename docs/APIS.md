@@ -72,7 +72,7 @@ query Rooms($id: ID!) { model(id: $id) {
   rooms { id floor { id } classifications { label confidence } boundary { edges { id } }
           dimensions(units: metric) { areaFloor width depth height } }
   assets { floorplans(provider: "matterport") { format flags url width height resolution origin { x y } } }
-  panoLocations { id label position { x y z } floor { id } } } }
+  panoLocations { id label position { x y z } } } }
 ```
 - Walls: each edge joins two vertices and has `thickness` (m). The sample model only shows
   `type: "wall"`; check in the Playground whether door or opening types exist. If not, doors are
