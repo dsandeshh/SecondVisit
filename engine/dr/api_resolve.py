@@ -1,36 +1,37 @@
-"""GET /api/resolve?q=: the home address box. Runs dr.resolver offline (local index CSV, no network) over the
-buildings that have a package on disk, so the answer is always something the app can open."""
+"""GET /api/resolve?q=: the home address box. Runs dr.resolver offline (local index CSV, no network) and answers in
+three tiers (resolver.tier):
+
+- ready (200): a building with a package on disk; the app opens it.
+- outdoor (200): a real Matterport model in Houston or Los Angeles with no built package; the app says
+  NO_INDOOR_LINE and offers the built buildings. No sponsor call is made here.
+- none (404): anything else; the app says NOT_AVAILABLE_LINE and offers the built buildings.
+"""
 from __future__ import annotations
 
 import os
-import re
 from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from dr import resolver
+from dr.voice_lines import NO_INDOOR_LINE, NOT_AVAILABLE_LINE
 
 router = APIRouter()
-MIN_SCORE = 60.0
+MIN_SCORE = resolver.READY_MIN_SCORE
+PROV = {"source": "models_index.csv", "matcher": "rapidfuzz token_set_ratio", "offline": True}
 
 
 def _buildings() -> Path:
     return Path(os.environ.get("DR_BUILDINGS", Path(__file__).resolve().parents[2] / "web" / "public" / "buildings"))
 
 
-def _variants(q: str) -> list[str]:
-    return list({q, re.sub(r"\bFM[\s-]*(\d+)", r"FM-\1", q, flags=re.I), re.sub(r"[-,]", " ", q)})
+def ready_sids() -> set[str]:
+    return {p.parent.name for p in _buildings().glob("*/package.json")}
 
 
-def resolve_ready(q: str, k: int = 3) -> list[dict]:
-    ready = {p.parent.name for p in _buildings().glob("*/package.json")}
-    best: dict[str, dict] = {}
-    for v in _variants(q):
-        for c in resolver.search_index(v, k=100000):
-            if c["sid"] in ready and c["score"] > best.get(c["sid"], {"score": -1})["score"]:
-                best[c["sid"]] = c
-    return sorted(best.values(), key=lambda c: -c["score"])[:k]
+def _slim(c: dict) -> dict:
+    return {k: c[k] for k in ("sid", "name", "address", "city", "score")}
 
 
 @router.get("/api/resolve")
@@ -39,11 +40,15 @@ def api_resolve(q: str = ""):
     if not q:
         return JSONResponse({"error": "empty"}, status_code=400)
     try:
-        cands = resolve_ready(q)
+        t = resolver.tier(q, ready_sids())
     except FileNotFoundError as e:
         return JSONResponse({"error": str(e)}, status_code=503)
-    if not cands or cands[0]["score"] < MIN_SCORE:
-        return JSONResponse({"error": "not_found", "candidates": []}, status_code=404)
-    slim = [{k: c[k] for k in ("sid", "name", "address", "city", "score")} for c in cands]
-    return {"sid": cands[0]["sid"], "name": cands[0]["name"], "address": cands[0]["address"], "candidates": slim,
-            "prov": {"source": "models_index.csv", "matcher": "rapidfuzz token_set_ratio", "offline": True}}
+    b = t["best"]
+    if t["tier"] == "ready":
+        return {"tier": "ready", "sid": b["sid"], "name": b["name"], "address": b["address"],
+                "candidates": [_slim(c) for c in t["candidates"]], "prov": PROV}
+    if t["tier"] == "outdoor":
+        return {"tier": "outdoor", "sid": b["sid"], "name": b["name"], "address": b["address"], "city": t["city"],
+                "lat": b["lat"], "lon": b["lon"], "message": NO_INDOOR_LINE, "prov": PROV}
+    return JSONResponse({"error": "not_found", "tier": "none", "message": NOT_AVAILABLE_LINE, "candidates": []},
+                        status_code=404)

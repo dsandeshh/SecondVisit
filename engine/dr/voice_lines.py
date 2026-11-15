@@ -70,7 +70,15 @@ FIXED_UI_LINES = [
     "Photo view needs internet; showing the scan.",
     # #/inside safe state after a setup error (web/src/app_v2.ts OOPS_LINE)
     "Something went wrong. Press Escape or F6 to move on.",
+    # home address box tiers (web/src/home/home.ts, engine/dr/api_resolve.py): a known Houston or LA model with no
+    # built package, then anything else; the building buttons follow both
+    "No indoor scan yet for this building.",
+    "This building is not available yet.",
+    "Choose one of the buildings below.",
 ]
+NO_INDOOR_LINE = "No indoor scan yet for this building."
+NOT_AVAILABLE_LINE = "This building is not available yet."
+CHOOSE_BELOW_LINE = "Choose one of the buildings below."
 _SOUND = ["Sound on.", "Sound did not start. Press Space or tap to try again."]
 _MOTION = ["Motion on. Hold the phone flat, top edge forward. Turn your body to turn.",
            "Motion not available. Use the Step button and the arrow buttons.",

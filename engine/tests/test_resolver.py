@@ -102,3 +102,42 @@ def test_missing_index_names_path_and_override(tmp_path, monkeypatch):
         resolver.search_index("x")
     assert "nope.csv" in str(e.value) and "DR_INDEX_CSV" in str(e.value)
     assert "\n" not in str(e.value)
+
+
+# ---- three tiers for the home address box: ready (a built package), outdoor (Houston or LA, no package), none
+
+READY = {"x37LjPx62VA", "hpGRjK5uFPW", "fixture"}
+
+
+def test_tier_ready_for_a_built_building():
+    for q in ("Medical Office", "100 Example Way", "medical office houston"):
+        t = resolver.tier(q, READY)
+        assert t["tier"] == "ready" and t["best"]["sid"] == "x37LjPx62VA", q
+    t = resolver.tier("Office B", READY)
+    assert t["tier"] == "ready" and t["best"]["sid"] == "hpGRjK5uFPW"
+
+
+def test_tier_outdoor_for_a_known_houston_or_la_model_without_a_package():
+    t = resolver.tier("Alpha Studio", READY)
+    assert t["tier"] == "outdoor" and t["best"]["sid"] == "fixAAAAAAA1" and t["city"] == "Los Angeles"
+    t = resolver.tier("300 Sample Ave", READY)
+    assert t["tier"] == "outdoor" and t["best"]["sid"] == "fixBBBBBBB2" and t["city"] == "Houston"
+    # once it has a package it is ready
+    assert resolver.tier("Alpha Studio", READY | {"fixAAAAAAA1"})["tier"] == "ready"
+
+
+def test_tier_none_outside_houston_and_la_or_unknown_or_ambiguous():
+    assert resolver.tier("Gamma Works", READY)["tier"] == "none"          # a real model, but in Chicago
+    assert resolver.tier("zzzz qqqq", READY)["tier"] == "none"
+    assert resolver.tier("10 Downing Street London", READY)["tier"] == "none"
+    assert resolver.tier("Lobby", READY)["tier"] == "none"                # no address, no place
+    assert resolver.tier("Suite 106", READY)["tier"] == "none"            # two buildings match equally
+    assert resolver.tier("999 Sample Ave", READY)["tier"] == "none"       # the street number must match
+    assert resolver.tier("Houston", READY)["tier"] == "none"              # a city alone names no building
+
+
+def test_coverage_city_from_position_or_name():
+    assert resolver.coverage_city({"lat": 29.97, "lon": -95.54, "city": ""}) == "Houston"
+    assert resolver.coverage_city({"lat": 34.05, "lon": -118.4, "city": ""}) == "Los Angeles"
+    assert resolver.coverage_city({"lat": None, "lon": None, "city": "Los Angeles, Los Angeles"}) == "Los Angeles"
+    assert resolver.coverage_city({"lat": 41.88, "lon": -87.63, "city": "Chicago"}) is None

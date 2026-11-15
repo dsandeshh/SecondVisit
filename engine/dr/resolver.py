@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import zipfile
 from pathlib import Path
 from typing import TypedDict
@@ -110,3 +111,90 @@ def resolve(text: str) -> dict:
             "prov": {"source": "models_index.csv", "matcher": "rapidfuzz token_set_ratio",
                      "costar": "local kit" if cs else None},
             "prov_entries": entries}
+
+
+# ---------------------------------------------------------------- tiers for the home address box
+
+READY_MIN_SCORE = 60.0    # a built building this close (and the best match overall) opens
+OUTDOOR_MIN_SCORE = 85.0  # an unbuilt model must match this well, and cover the words typed
+COVER_MIN = 0.75          # share of the typed words found in the model's name, address or city
+# Vexcel coverage for the hackathon keys (docs/APIS.md): Houston and Los Angeles metro boxes, (lat0, lat1, lon0, lon1)
+COVERAGE = {"Houston": (29.4, 30.4, -96.0, -94.8), "Los Angeles": (33.6, 34.5, -118.8, -117.6)}
+_STOP = {"the", "of", "at", "and", "in", "a", "an", "us", "usa"}
+
+
+def coverage_city(c: dict) -> str | None:
+    """Houston or Los Angeles when the model lies in that metro (position first, else its city text), else None."""
+    lat, lon = c.get("lat"), c.get("lon")
+    if lat is not None and lon is not None:
+        for city, (a0, a1, o0, o1) in COVERAGE.items():
+            if a0 <= lat <= a1 and o0 <= lon <= o1:
+                return city
+        return None
+    town = re.sub(r"\s+", " ", (c.get("city") or "").strip().lower())
+    for city in COVERAGE:
+        if town.startswith(city.lower()):
+            return city
+    return None
+
+
+def query_variants(q: str) -> list[str]:
+    return list(dict.fromkeys([q, re.sub(r"\bFM[\s-]*(\d+)", r"FM-\1", q, flags=re.I), re.sub(r"[-,]", " ", q)]))
+
+
+def ranked(q: str) -> list[Candidate]:
+    """Every index row scored against the best of the query's spellings, best first."""
+    best: dict[str, Candidate] = {}
+    for v in query_variants(q):
+        for c in search_index(v, k=1_000_000):
+            if c["score"] > best.get(c["sid"], {"score": -1.0})["score"]:
+                best[c["sid"]] = c
+    return sorted(best.values(), key=lambda c: -c["score"])
+
+
+def _words(t: str) -> list[str]:
+    return [w for w in re.findall(r"[a-z0-9]+", t.lower()) if w not in _STOP]
+
+
+def covers(q: str, c: dict) -> bool:
+    """The typed words are this model's: every number is in its text, and most words are."""
+    toks = _words(q)
+    have = set(_words(f"{c.get('name', '')} {c.get('address', '')} {c.get('city', '')}"))
+    if not toks:
+        return False
+    if any(t.isdigit() and t not in have for t in toks):
+        return False
+    hit = sum(1 for t in toks if t in have or (not t.isdigit() and any(fuzz.ratio(t, h) >= 85 for h in have)))
+    return hit / len(toks) >= COVER_MIN
+
+
+def _tied(q: str, best: dict, rows: list[Candidate], ready: set[str]) -> bool:
+    """Another building (a different address, not one of `ready`) matches the words as well: no single answer."""
+    for c in rows:
+        if c["sid"] == best["sid"] or c["sid"] in ready or (best["address"] and c["address"] == best["address"]):
+            continue
+        return best["score"] - c["score"] <= AMBIGUOUS_GAP and covers(q, c)
+    return False
+
+
+def tier(q: str, ready: set[str]) -> dict:
+    """{"tier": "ready" | "outdoor" | "none", "best", "city", "candidates"}.
+
+    ready: a building with a built package is the best match (score >= READY_MIN_SCORE).
+    outdoor: the best match is a model with no package, in Houston or Los Angeles, matched well (score, the
+    typed words and street number) and not tied with a different building.
+    none: anything else (unknown, outside the two cities, or ambiguous)."""
+    rows = ranked(q.strip()) if q.strip() else []
+    out = {"tier": "none", "best": None, "city": None, "candidates": rows[:3]}
+    if not rows:
+        return out
+    top = rows[0]
+    r = next((c for c in rows if c["sid"] in ready), None)
+    if r is not None and r["score"] >= READY_MIN_SCORE and r["score"] >= top["score"] and not _tied(q, r, rows, ready):
+        return out | {"tier": "ready", "best": r, "city": coverage_city(r)}
+    if top["sid"] in ready or top["score"] < OUTDOOR_MIN_SCORE or not covers(q, top) or _tied(q, top, rows, set()):
+        return out
+    city = coverage_city(top)
+    if city is None:
+        return out
+    return out | {"tier": "outdoor", "best": top, "city": city}
