@@ -149,3 +149,19 @@ class BuildingPackage(BaseModel):
     prov: dict[str, Prov] = Field(default_factory=dict)
     frames: Frames = Field(default_factory=Frames)
     map_date: str = ""
+
+
+class PortfolioRow(BaseModel):
+    """One line of web/public/portfolio.json (Task 20). Mirror in web/src/types.ts."""
+    sid: str
+    name: str
+    address: str = ""
+    costar_property_id: str = ""
+    costar: dict = Field(default_factory=dict)
+    rank: int | None = None
+    total: float | None = None
+    parts: dict[str, float] = Field(default_factory=dict)
+    build_s: float = 0.0
+    assumed_entrance: bool = False
+    skipped: str | None = None  # reason, when the model could not be scored
+    tour_url: str = ""

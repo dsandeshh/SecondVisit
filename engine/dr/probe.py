@@ -353,6 +353,15 @@ def pull(sid: str, data_root: Path = DATA, client: MPClient | None = None) -> di
     return Puller(sid, raw, client).run()
 
 
+def pull_light(sid: str, data_root: Path = DATA, client: MPClient | None = None) -> dict[str, str]:
+    """Task 20: basics, rooms, panos and the index row only (no faces, no cloud); cached files cost nothing."""
+    raw = Path(data_root) / sid / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    pl = Puller(sid, raw, client)
+    return {"basics": pl.step_json("basics.json", Q_BASICS), "rooms": pl.step_json("rooms.json", Q_ROOMS),
+            "panos": pl.step_json("panos.json", Q_PANOS), "index_row": pl.step_index_row()}
+
+
 def status(sid: str, data_root: Path = DATA) -> dict[str, str]:
     """One line per layer from the cache, for the Task 0 decision and docs/DATA_STATUS.md."""
     raw = Path(data_root) / sid / "raw"
