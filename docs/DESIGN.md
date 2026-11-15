@@ -21,9 +21,9 @@ Nobody on the team has been there. That is the point.
 | Resource | What we compute from it | Where it shows | Tracks it scores |
 |---|---|---|---|
 | Matterport wall graph (`floors.vertices/edges`) | 10 cm occupancy grid: walls with real thickness, door gaps | Cane taps, routes, every step count | CoStar data use, Healthcare |
-| Matterport rooms (`classifications`, `boundary`, `dimensions`) | Room polygons, labels, area | Reverb size per room, "you are entering the waiting room", quiz | CoStar, Healthcare |
+| Matterport rooms (`classifications`, `boundary`, `dimensions`) | Room polygons and area; labels from the annotator, because the clinic's Matterport labels are only "Other" and "Void" | Reverb size per room, "you are entering the waiting room", quiz | CoStar, Healthcare |
 | Matterport panoramas (2k skybox) | Landmarks found by the **annotator agent** (reception desk, counter, doors, seating, signs, restroom) placed by ray cast from the pano | Spatial landmark sounds, instructions ("passing the check in counter") | CoStar agent depth, LangChain, Amazon |
-| Defurnished view | Fixed vs movable: an object in the furnished pano but gone when defurnished is movable and is never used as a main landmark | Landmark confidence, "chairs may move" note | CoStar data use (a feature most teams won't touch) |
+| Defurnished view (when the model has one; the clinic does not) | Fixed vs movable: an object in the furnished pano but gone when defurnished is movable and is never used as a main landmark. Without one: fixed by landmark kind plus the vision model's "built in or loose" judgement | Landmark confidence, "chairs may move" note | CoStar data use (a feature most teams won't touch) |
 | MatterPak point cloud | Furniture and fixture obstacles at cane height (0.1 to 1.8 m) not in the wall graph | Cane taps on counters, planters, chairs | CoStar data use |
 | Floor plan image (origin, resolution) | Background of the observer and venue views; printed plan for the reality check | Projector, printed A3 | Demo |
 | Showcase 3D tour (iframe, optional SDK) | The judges see the real place while the blindfolded judge hears it | Observer view side panel | Demo, CoStar |

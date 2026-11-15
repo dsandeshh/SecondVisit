@@ -16,7 +16,9 @@ reuse its helpers (`graph()`, `HttpFile` range reader, `near()`, `equirect()`) i
 | `MATTERPORT_API_KEY` | Matterport "API key" (user name half) | Track Discord, run `/costar-keys` |
 | `MATTERPORT_API_TOKEN` | Matterport "API token" (secret half) | same card |
 | `VEXCEL_API_KEY` | Vexcel api_key | Vexcel keys card in the track Discord |
-| `COSTAR_KIT_URL` | CoStar kit zip link (about 160 MB) | CoStar keys card |
+| `COSTAR_KIT_ZIP` | Path to the local CoStar kit zip (about 50 MB), e.g. `data/costar/costar_kit.zip` (gitignored) | Download once from the CoStar keys card link |
+| `COSTAR_KIT_URL` | Optional. The kit's download link, only needed to fetch the zip again | CoStar keys card |
+| `COSTAR_API_KEY` | Optional. Not used by the kit; reserved in case the sponsor offers a live CoStar API | CoStar keys card, if offered |
 | `COSTAR_ZIP_PASSWORD` | CoStar kit zip password | CoStar keys card |
 | `ANTHROPIC_API_KEY` | Claude API, used by the deep agents and vision labelling | your Anthropic console, or hackathon credits if offered |
 | `DR_MODEL` | Orchestrator model id, e.g. `claude-sonnet-5-5` | set yourself |
@@ -156,15 +158,56 @@ X-API-KEY: <key>
 
 ## 4. CoStar kit (property and listing records)
 
-- One zip for everyone (about 160 MB) at `COSTAR_KIT_URL`, password `COSTAR_ZIP_PASSWORD`.
-- A zip keeps its table of contents at the end, so read single files with range requests (`HttpFile`).
-  Download once to `data/raw/costar/` if bandwidth allows.
-- Commercial records join on `costar_property_id`; residential listings (`residential-listings.csv`) on
-  `homes_listing_id`.
-- The sponsor has not run the join with the real password yet ("untested"). List the zip's files and
-  columns first (plan Task 0) and tell the mentors if it fails.
-- What we want from it: property name, address, building type and class, floors, tenants or suites if
-  present, available space or listings (for the venue ranking).
+The kit is **local**: one password protected zip at `COSTAR_KIT_ZIP` (a path, default
+`data/costar/costar_kit.zip`, gitignored with all of `data/costar/`), password `COSTAR_ZIP_PASSWORD`.
+`COSTAR_KIT_URL` is optional and only used to download it again. The zip uses classic ZipCrypto, so
+Python's `zipfile` reads members directly with `setpassword()`; stream the JSONL members line by line
+instead of extracting them. Nothing read from the kit, or derived from it, goes into git or a public link
+(CLAUDE.md rule 9). Checked Sat 14 Nov against the real password: the join works.
+
+**What the zip holds**
+- `index.md`; `models/` (one Markdown field reference per data model); `schemas/` (a JSON Schema per
+  model, `openapi.yaml`, `enums.json` with 161 code tables); `concepts/` (12 short explainers: glossary,
+  tenants and occupancy, listings and leasing, property types and measurement, and so on);
+  `tools/expand_records.py`.
+- 8 data JSONL files under `data/`: `commercial-property` (3,339 records, 193 MB), `location-occupancy`
+  (74,093 tenancies), `company-detail`, `commercial-listing-summary`, `commercial-sale-comp`,
+  `apartment-listing`, `residential-listings`, `residential-listing-features`.
+- `commercial-properties.csv` (13,147 rows): `PropertyId, MatterportModelId, Address, City, State`. This
+  is the join from a Matterport model to a CoStar property. One property can have several models
+  (5615020 has two).
+- `residential-listings.csv`: residential listings, joined on `homes_listing_id` from `models_index.csv`.
+
+**`data/commercial-property.jsonl` keys.** Each record has 39 top level keys, because null fields are left
+out, but the set differs between records: 52 distinct keys across the file. Always present (28): `id`,
+`addresses`, `primaryAddress`, `propertyType`, `propertySubtype`, `isCondo`, `buildingClass`,
+`buildingRating`, `buildingRatingType`, `constructionStatus`, `coStarBuildingType`, `constructionEvents`,
+`buildingConstructionMaterial`, `sprinklerType`, `lotSizeMeasurementType`, `parcelNumbers`,
+`parcelReferences`, `parking`, `primarySubmarketId`, `primaryPhoto`, `attachments`, `amenities`,
+`renovations`, `aliases`, `propertyGroupSubtype`, `notes`, `contacts`, `floors`. Sometimes present (24):
+`grossBuildingAreaSquareFeet`, `environmental`, `numStoriesAboveGrade`, `lotSize`,
+`grossTypicalFloorSquareFeet`, `propertyApartment`, `buildingName`, `parkingRatio`, `zoningDescription`,
+`propertyWebsiteUrl`, `zoningLongDescription`, `hasSprinklers`, `rentableBuildingAreaSquareFeet`,
+`lotWidthInFeet`, `lotLengthInFeet`, `buildingHeightInFeet`, `propertyOffice`, `buildingPark`,
+`propertyGroupId`, `propertyIndustrial`, `propertyRetail`, `propertyHospitality`, `propertyFlex`, `land`.
+Codes (`propertyType`, `buildingClass`, `parkingType`, ...) decode through `schemas/enums.json`.
+
+**Fields useful to us** (from `schemas/` and `concepts/`; the kit has no ADA or accessibility field)
+
+| Need | Field | Notes |
+|---|---|---|
+| Building use | `propertyType`, `propertySubtype` (enums `PropertyType`, `PropertySubtype`) | Healthcare is type 13; `Office_Medical` is a subtype. Per space: `spaceUse` (`OfficeMedical` 2, `Medical` 4) on listing spaces |
+| Tenants | `location-occupancy`: `propertyId`, `tenantLocationId`, `fromDate`, `toDate` (null = current), `moveInDate`, `addressId`, `spaces[]` | Name and industry from `company-detail` (`name`, `profile.industryType`; use the profile's industry, not the occupancy's) |
+| Suites | `spaces[]` on occupancies (`propertyFloorId`, `squareFeetOccupied`, `buildOut`, `spaceLayout`); listing spaces have `suite`, `floorName`, `spaceUse` | `buildOut` 21 = StandardMedical. Suite numbers are often missing |
+| Single or multi tenant | `propertyOffice.tenancyType` / `propertyRetail.tenancyType` | 1 single, 2 multi |
+| Floors and lifts | `numStoriesAboveGrade`, `floors[]`; `propertyX.structural.elevators[]` (`elevatorType`, `elevatorState` 1 exists, 2 does not) | Step free routing claims need these |
+| Arrival | `propertyRetail.frontage[]`: `streetName`, `frontageInFeet`, `numCurbCuts`, `isPrimaryFrontage` (side with the main entrance), `footprint.shape` (LineString, lon lat) | Cross checks the Vexcel door and curb pins (Task 15) |
+| Parking | `parking[]` (`parkingType`: 1 surface, 3 covered; `totalSpaces`), `parkingRatio` | Handicap parking exists only as a residential parking type |
+| Amenities | `amenities[]` (ids) | The kit does not include amenity names |
+
+**Demo building, property 5615020.** The record, its tenancies and the second model are summarised in
+`data/x37LjPx62VA/raw/costar_5615020_notes.md` (gitignored, local only). Do not copy record values into
+committed files.
 
 ## 5. Claude API and LangChain Deep Agents
 

@@ -44,9 +44,10 @@ another task owns, code against that task's **Interfaces** block; do not build i
    on agent fallbacks. Product copy never claims to replace a cane, guide dog, mobility training or a
    compliance audit, and never says "experience blindness".
 9. **Secrets** only in `.env` (gitignored): `MATTERPORT_API_KEY`, `MATTERPORT_API_TOKEN`,
-   `VEXCEL_API_KEY`, `COSTAR_KIT_URL`, `COSTAR_ZIP_PASSWORD`, `ANTHROPIC_API_KEY`, `DR_MODEL`,
-   `DR_FAST_MODEL`, `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, optional
-   `MATTERPORT_SDK_KEY`. Never print, log or commit them. Never hard code a model id.
+   `VEXCEL_API_KEY`, `COSTAR_KIT_ZIP` (local path to the kit zip), `COSTAR_ZIP_PASSWORD`,
+   `ANTHROPIC_API_KEY`, `DR_MODEL`, `DR_FAST_MODEL`, `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`,
+   `LANGSMITH_PROJECT`, optional `COSTAR_KIT_URL`, `COSTAR_API_KEY` and `MATTERPORT_SDK_KEY`. Never print,
+   log or commit them. Never hard code a model id.
    Sponsor data and anything derived from it never goes into git, a public demo or a public link.
 10. **TDD and small commits.** Failing test first, watch it fail, implement, pass. Before every commit:
     `cd engine && pytest -q` and `cd web && npm test`. Messages like `feat(planner): wall following cost`.
