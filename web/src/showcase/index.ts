@@ -10,7 +10,7 @@
 //   say    optional (text) => void; called once with FALLBACK_LINE if the photo view cannot start.
 //   onReady optional () => void, once the SDK is connected, calibrated and the first sweep is shown.
 //   (mountShowcase never rejects: on any failure it calls onFail once and resolves an inert handle, ready=false.)
-//   onFail  optional (reason: string) => void, within 8 s if the SDK is not ready or we are offline. The page then
+//   onFail  optional (reason: string) => void, within 20 s if the SDK is not ready or we are offline. The page then
 //           shows Overview (the GLB scan) and the line "Photo view needs internet; showing the scan.".
 //   Optional extras: sdkKey (default import.meta.env.VITE_MATTERPORT_SDK_KEY), panos (default fetched from
 //   /buildings/<id>/panos.json), route, safeBottom, safeTop (px kept clear of the page's buttons).
@@ -27,7 +27,7 @@ import type { World } from "../world";
 import { fitCalibration, headingToYaw, planToSdk, sdkToPlan, type Calibration, type PlanPoint } from "./calibrate";
 import { chooseSweep, SweepFollower, type PlanSweep } from "./follow";
 import { Hud, type CamPose } from "./hud";
-import { FALLBACK_LINE, SDK_TIMEOUT_MS, loadSdkScript, withTimeout } from "./load";
+import { FALLBACK_LINE, SDK_TIMEOUT_MS, connectSdk, withTimeout } from "./load";
 
 export { FALLBACK_LINE } from "./load";
 export type { Calibration } from "./calibrate";
@@ -67,6 +67,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
   const notify = (reason: string): void => { // once only; never throws into the walker or the audio
     if (failed) return;
     failed = true;
+    console.warn("[showcase] photo view failed:", reason);
     try { o.say?.(FALLBACK_LINE); } catch { /* the page still switches */ }
     try { o.onFail?.(reason); } catch { /* */ }
   };
@@ -86,20 +87,25 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
   iframe.tabIndex = -1; iframe.setAttribute("aria-hidden", "true"); iframe.allow = "fullscreen; xr-spatial-tracking";
   Object.assign(iframe.style, { position: "absolute", inset: "0", width: "100%", height: "100%", border: "0", pointerEvents: "none" });
   o.host.prepend(iframe);
+  const note = document.createElement("div"); // calm static text, no spinner
+  note.textContent = "Loading photo view…"; note.setAttribute("role", "status");
+  Object.assign(note.style, { position: "absolute", left: "0", right: "0", top: "45%", textAlign: "center", color: "#fff", font: "16px system-ui, sans-serif", pointerEvents: "none", textShadow: "0 1px 3px #000" });
+  o.host.append(note);
 
   let sdk: any;
   let hud: Hud | null = null;
   let stopped = false;
   const subs: { cancel(): void }[] = [];
   const onOffline = (): void => { if (!stopped && !failed) { stop(); notify("connection lost"); } };
-  const stop = (): void => { stopped = true; window.removeEventListener("offline", onOffline); subs.forEach(s => { try { s.cancel(); } catch { /* */ } }); hud?.destroy(); iframe.remove(); };
+  const stop = (): void => { stopped = true; window.removeEventListener("offline", onOffline); subs.forEach(s => { try { s.cancel(); } catch { /* */ } }); hud?.destroy(); note.remove(); iframe.remove(); };
 
   window.addEventListener("offline", onOffline);
   try {
     sdk = await withTimeout((async () => {
-      await loadSdkScript();
-      return (window as any).MP_SDK.connect(iframe, key, "3.10");
-    })(), SDK_TIMEOUT_MS, "Showcase SDK not ready within 8 s");
+      const s = await connectSdk(iframe, key, sid);
+      console.info("[showcase] SDK connected, app phase PLAYING");
+      return s;
+    })(), SDK_TIMEOUT_MS, "Showcase SDK not connected/PLAYING within 20 s");
     const sweepMap = new Map<string, { position: { x: number; y: number; z: number }; enabled: boolean }>();
     await withTimeout(new Promise<void>(res => {
       subs.push(sdk.Sweep.data.subscribe({
@@ -109,7 +115,7 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
           if (sweepMap.size) res();
         },
       }));
-    }), SDK_TIMEOUT_MS, "Showcase sweeps not ready within 8 s");
+    }), SDK_TIMEOUT_MS, "Showcase sweeps not ready within 20 s");
 
     const panos = o.panos ?? await loadPanos(o.pkg);
     const cal = fitCalibration([...sweepMap].map(([id, s]) => ({ id, x: s.position.x, z: s.position.z })), panos);
@@ -159,8 +165,8 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
       // a few metres inside, along the entrance heading, so the sweep is indoors and looks into the building
       const inside: Vec2 = [ent.pos[0] + Math.sin(ent.heading_deg * Math.PI / 180) * 1.0, ent.pos[1] + Math.cos(ent.heading_deg * Math.PI / 180) * 1.0];
       if (!chooseSweep(o.world, cached, inside, null)) throw new Error("no sweep near the entrance");
-      // The SDK ignores a move while its opening transition is active: retry until the sweep is shown.
-      for (let i = 0; i < 20 && follower.current === null; i++) {
+      // Phase is already PLAYING here; a short retry only covers a move dropped by a late-settling transition.
+      for (let i = 0; i < 5 && follower.current === null; i++) {
         heading = ent.heading_deg;
         await follower.update(inside, ent.heading_deg);
         if (follower.current === null) await new Promise(r => setTimeout(r, 350));
@@ -171,9 +177,9 @@ export async function mountShowcase(o: MountOptions): Promise<ShowcaseHandle> {
     };
 
     // first picture: the entrance sweep, facing in
-    await withTimeout(handle.enterAtEntrance(), SDK_TIMEOUT_MS, "Showcase first sweep not shown within 8 s");
+    await withTimeout(handle.enterAtEntrance(), SDK_TIMEOUT_MS, "Showcase first sweep not shown within 20 s");
     if (stopped || failed) throw new Error("lost during start");
-    handle.ready = true;
+    handle.ready = true; note.remove();
     o.onReady?.();
     return handle;
   } catch (e) {

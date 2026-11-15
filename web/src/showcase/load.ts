@@ -1,7 +1,6 @@
-// Loads the Showcase SDK script and connects, with the 8 s fallback (item 6).
-export const SDK_TIMEOUT_MS = 8000;
+// Connects to the Showcase SDK, with the 20 s fallback.
+export const SDK_TIMEOUT_MS = 20000;
 export const FALLBACK_LINE = "Photo view needs internet; showing the scan.";
-const SDK_SRC = "https://static.matterport.com/showcase-sdk/latest.js";
 
 export function withTimeout<T>(p: Promise<T>, ms: number, reason: string): Promise<T> {
   return new Promise<T>((res, rej) => {
@@ -10,14 +9,15 @@ export function withTimeout<T>(p: Promise<T>, ms: number, reason: string): Promi
   });
 }
 
-export function loadSdkScript(): Promise<void> {
-  const w = window as any;
-  if (w.MP_SDK) return Promise.resolve();
-  return new Promise((res, rej) => {
-    const s = document.createElement("script");
-    s.src = SDK_SRC; s.async = true;
-    s.onload = () => (w.MP_SDK ? res() : rej(new Error("sdk script loaded without MP_SDK")));
-    s.onerror = () => rej(new Error("sdk script failed to load"));
-    document.head.append(s);
-  });
+/** Connect to the Showcase iframe with the official package (bootstrap 3.x), then wait for the app to be PLAYING.
+ *  Camera and Sweep calls before PLAYING are ignored by the SDK, so nothing touches the camera until this resolves. */
+export async function connectSdk(iframe: HTMLIFrameElement, key: string, space: string): Promise<any> {
+  const { setupSdk } = await import("@matterport/sdk");
+  const sdk: any = await setupSdk(key, { iframe, space });
+  await waitPlaying(sdk);
+  return sdk;
+}
+
+export async function waitPlaying(sdk: any): Promise<void> {
+  await sdk.App.state.waitUntil((s: { phase: string }) => s.phase === sdk.App.Phase.PLAYING);
 }

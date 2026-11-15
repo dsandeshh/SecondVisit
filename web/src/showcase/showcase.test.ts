@@ -4,7 +4,7 @@ import { fixturePkg } from "../test/fakes";
 import { World } from "../world";
 import { fitCalibration, headingToYaw, planToSdk, sdkToPlan, yawToHeading } from "./calibrate";
 import { chooseSweep, SweepFollower, type PlanSweep } from "./follow";
-import { FALLBACK_LINE, withTimeout } from "./load";
+import { FALLBACK_LINE, SDK_TIMEOUT_MS, waitPlaying, withTimeout } from "./load";
 
 const panos = Array.from({ length: 20 }, (_, i) => ({ id: `p${i}`, x: Math.cos(i * 1.7) * 9 + i * 0.8, y: Math.sin(i * 2.3) * 5 - i * 0.3 }));
 
@@ -97,5 +97,18 @@ describe("mountShowcase failure", () => {
     expect(say).toHaveBeenCalledWith(FALLBACK_LINE);
     expect(() => h.setPose([1, 1], 0)).not.toThrow();
     vi.restoreAllMocks();
+  });
+});
+
+describe("phase wait", () => {
+  it("timeout is 20 s", () => expect(SDK_TIMEOUT_MS).toBe(20000));
+  it("waitPlaying resolves only once the phase is PLAYING", async () => {
+    const Phase = { LOADING: "l", PLAYING: "p" };
+    let cond!: (s: { phase: string }) => boolean; let done = false;
+    const sdk = { App: { Phase, state: { waitUntil: (c: typeof cond) => new Promise<void>(r => { cond = c; setTimeout(() => r(), 0); }) } } };
+    const p = waitPlaying(sdk).then(() => { done = true; });
+    expect(cond({ phase: "l" })).toBe(false);
+    expect(cond({ phase: "p" })).toBe(true);
+    await p; expect(done).toBe(true);
   });
 });
